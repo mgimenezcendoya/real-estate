@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+asyncpg
+pgvector
+anthropic
+httpx
+python-dotenv
+pydantic
+pydantic-settings
+python-multipart
+aioboto3
