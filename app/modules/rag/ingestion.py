@@ -75,22 +75,32 @@ async def ingest_document(
 
 
 async def find_document_for_sharing(
-    project_id: str,
+    developer_id: str,
     doc_type: str,
     unit_identifier: str | None = None,
+    project_slug: str | None = None,
 ) -> dict | None:
-    """Find an active document for sending to a lead via WhatsApp."""
+    """Find an active document across all developer projects for sharing via WhatsApp."""
     pool = await get_pool()
+
+    base = """
+        SELECT d.* FROM documents d
+        JOIN projects p ON p.id = d.project_id
+        WHERE p.developer_id = $1 AND d.doc_type = $2 AND d.is_active = TRUE
+    """
+    params: list = [developer_id, doc_type]
+
     if unit_identifier:
-        row = await pool.fetchrow(
-            "SELECT * FROM documents WHERE project_id = $1 AND doc_type = $2 AND unit_identifier = $3 AND is_active = TRUE ORDER BY version DESC LIMIT 1",
-            project_id, doc_type, unit_identifier,
-        )
-    else:
-        row = await pool.fetchrow(
-            "SELECT * FROM documents WHERE project_id = $1 AND doc_type = $2 AND is_active = TRUE ORDER BY version DESC LIMIT 1",
-            project_id, doc_type,
-        )
+        base += " AND d.unit_identifier = $3"
+        params.append(unit_identifier)
+
+    if project_slug:
+        idx = len(params) + 1
+        base += f" AND LOWER(REPLACE(p.name, ' ', '-')) = ${idx}"
+        params.append(project_slug.lower())
+
+    base += " ORDER BY d.version DESC LIMIT 1"
+    row = await pool.fetchrow(base, *params)
     return dict(row) if row else None
 
 
