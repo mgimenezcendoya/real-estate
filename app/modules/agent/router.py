@@ -1,10 +1,17 @@
 """
 Role Router: determines if an incoming message is from a lead or an authorized developer.
 Routes to the appropriate handler based on the sender's phone number.
+Supports role toggle: developers can switch to lead mode for testing.
 """
+
+import logging
 
 from app.database import get_pool
 from app.modules.whatsapp.providers.base import IncomingMessage
+
+logger = logging.getLogger(__name__)
+
+_test_mode: dict[str, bool] = {}
 
 
 async def get_authorized_number(phone: str, developer_id: str) -> dict | None:
@@ -102,6 +109,33 @@ async def route_message(
         if auth and auth["status"] == "active":
             is_dev = True
 
+    text = (message.text or "").strip().lower()
+    if is_dev and auth and auth["status"] == "active":
+        toggle = _check_role_toggle(sender_phone, text)
+        if toggle == "to_lead":
+            from app.modules.whatsapp.sender import send_text_message
+            _test_mode[sender_phone] = True
+            logger.info("Developer %s switched to LEAD test mode", sender_phone)
+            await send_text_message(
+                to=sender_phone,
+                text="🔄 *Modo Test Lead activado*\n\nAhora te respondo como si fueras un usuario. "
+                     "Para volver al modo admin escribí *modo admin*.",
+            )
+            return
+        if toggle == "to_admin":
+            from app.modules.whatsapp.sender import send_text_message
+            _test_mode.pop(sender_phone, None)
+            logger.info("Developer %s switched back to ADMIN mode", sender_phone)
+            dev_name = auth["name"] or "Developer"
+            await send_text_message(
+                to=sender_phone,
+                text=f"🔧 *Modo Admin — {dev_name}*\n\nVolviste al modo admin. ¿Qué necesitás?",
+            )
+            return
+
+        if _test_mode.get(sender_phone):
+            is_dev = False
+
     if is_dev and auth:
         if auth["status"] == "pending":
             from app.modules.agent.dev_handler import handle_activation_code
@@ -124,3 +158,17 @@ async def route_message(
             message_type=message_type,
             message=message,
         )
+
+
+def _check_role_toggle(phone: str, text: str) -> str | None:
+    """Detect role switch commands. Returns 'to_lead', 'to_admin', or None."""
+    lead_keywords = ["modo usuario", "modo lead", "modo test", "modo cliente", "ser usuario", "ser lead", "test mode"]
+    admin_keywords = ["modo admin", "modo developer", "modo dev", "volver admin", "volver a admin", "admin mode"]
+
+    if not _test_mode.get(phone):
+        if any(kw in text for kw in lead_keywords):
+            return "to_lead"
+    else:
+        if any(kw in text for kw in admin_keywords):
+            return "to_admin"
+    return None
