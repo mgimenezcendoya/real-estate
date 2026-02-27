@@ -43,8 +43,8 @@ Cada unidad no vendida representa **$60.000–$100.000 USD** de inventario inmov
 | Backend | Python + FastAPI | Render free tier | Railway (servicio) |
 | Base de datos app | PostgreSQL + pgvector | Neon free tier | Railway (plugin) — compartida con NocoDB |
 | Base de datos Chatwoot | PostgreSQL | — (Fase 4+) | Railway (plugin) — instancia separada |
-| File storage | S3-compatible (Cloudflare R2) | Cloudflare R2 free tier (10GB) | Cloudflare R2 |
-| AI / LLM | Claude 3.5 Sonnet (Anthropic) | API externa | API externa |
+| File storage | S3-compatible (Supabase Storage) | Supabase free tier | Supabase / Cloudflare R2 |
+| AI / LLM | Claude Haiku 4.5 (Anthropic) | API externa | API externa |
 | Audio transcription | OpenAI Whisper API | API externa | API externa |
 | Embeddings | OpenAI text-embedding-3-small (1536 dims) | API externa | API externa |
 | WhatsApp | Twilio Sandbox (dev) / Meta Cloud API (prod) | Twilio sandbox (gratis) | Meta Cloud API |
@@ -63,7 +63,7 @@ La app se configura 100% por variables de entorno (`DATABASE_URL`, API keys, etc
 - **ngrok** + FastAPI local para desarrollo rápido (iteración sin deploys)
 - **Render** para testing estable cuando el código esté listo (free tier, spin-down tras 15min)
 - **Twilio WhatsApp Sandbox** para mensajería — setup en 5min, sin verificación Meta
-- **Cloudflare R2** para S3 — 10GB gratis/mes, API compatible con S3
+- **Supabase Storage** para S3 — 1GB gratis, API compatible con S3
 
 **Entorno de producción (pago — cuando hay cliente validado):**
 - **Railway** para todo (FastAPI, NocoDB, Chatwoot, 2x PostgreSQL) — networking interno, deploy simple
@@ -651,6 +651,8 @@ erDiagram
     projects ||--o{ buyers : vende
     projects ||--o{ handoffs : escala
 
+    units ||--o{ unit_notes : tiene
+
     leads ||--o{ conversations : tiene
     leads ||--o{ handoffs : dispara
     leads ||--o| buyers : convierte
@@ -676,18 +678,53 @@ erDiagram
         uuid id PK
         uuid developer_id FK
         text name
-        text whatsapp_number
+        text slug UK
+        text address
+        text neighborhood
+        text city
+        text description
+        text_arr amenities
+        int total_floors
+        int total_units
+        date construction_start
+        date estimated_delivery
+        varchar delivery_status
+        text payment_info
+        text whatsapp_number UK
         varchar status
+    }
+
+    units {
+        uuid id PK
+        uuid project_id FK
+        text identifier
+        int floor
+        int bedrooms
+        decimal area_m2
+        decimal price_usd
+        varchar status
+    }
+
+    unit_notes {
+        uuid id PK
+        uuid unit_id FK
+        text author_name
+        text note
+        timestamptz created_at
     }
 
     leads {
         uuid id PK
         uuid project_id FK
         text phone
-        varchar score
+        text name
         varchar intent
         varchar financing
         varchar timeline
+        int budget_usd
+        int bedrooms
+        text location_pref
+        varchar score
     }
 
     conversations {
@@ -782,20 +819,41 @@ CREATE TABLE projects (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   developer_id UUID REFERENCES developers(id),
   name TEXT NOT NULL,
+  slug TEXT UNIQUE,
+  address TEXT,
+  neighborhood TEXT,
+  city TEXT DEFAULT 'CABA',
+  description TEXT,
+  amenities TEXT[],
+  total_floors INT,
+  total_units INT,
+  construction_start DATE,
+  estimated_delivery DATE,
+  delivery_status VARCHAR(30) DEFAULT 'en_pozo',
+  payment_info TEXT,
   whatsapp_number TEXT UNIQUE,
-  status VARCHAR(20) DEFAULT 'active',  -- active, sold_out, delivered
+  status VARCHAR(20) DEFAULT 'active',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE units (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id),
-  identifier TEXT,        -- '4B', '2A', etc
+  identifier TEXT,
   floor INT,
   bedrooms INT,
   area_m2 DECIMAL,
   price_usd DECIMAL,
-  status VARCHAR(20) DEFAULT 'available'  -- available, reserved, sold
+  status VARCHAR(20) DEFAULT 'available',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE unit_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  unit_id UUID NOT NULL REFERENCES units(id),
+  author_name TEXT,
+  note TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE authorized_numbers (
@@ -820,9 +878,12 @@ CREATE TABLE leads (
   project_id UUID REFERENCES projects(id),
   phone TEXT NOT NULL,
   name TEXT,
-  intent VARCHAR(20),       -- 'investment', 'own_home', 'unknown'
-  financing VARCHAR(20),    -- 'own_capital', 'needs_financing', 'unknown'
-  timeline VARCHAR(20),     -- 'immediate', '3_months', '6_months', 'exploring'
+  intent VARCHAR(20),       -- 'investment', 'own_home', 'rental', 'unknown'
+  financing VARCHAR(20),    -- 'own_capital', 'needs_financing', 'mixed', 'unknown'
+  timeline VARCHAR(20),     -- 'immediate', '3_months', '6_months', '1_year_plus'
+  budget_usd INTEGER,       -- presupuesto en USD
+  bedrooms SMALLINT,        -- cantidad de ambientes buscados
+  location_pref TEXT,       -- zona o ubicación preferida
   score VARCHAR(10),        -- 'hot', 'warm', 'cold'
   source TEXT,              -- 'instagram', 'zonaprop', 'referido', etc
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -968,54 +1029,55 @@ CREATE TABLE developer_conversations (
 ```
 realia/
 ├── app/
-│   ├── main.py                  # FastAPI app, routes
-│   ├── config.py                # Variables de entorno
-│   ├── database.py              # Conexión PostgreSQL
+│   ├── main.py                    # FastAPI app, routes
+│   ├── config.py                  # Variables de entorno (Pydantic Settings)
+│   ├── database.py                # Pool asyncpg
 │   │
 │   ├── modules/
 │   │   ├── whatsapp/
-│   │   │   ├── webhook.py       # Recibe mensajes — delega al provider activo
-│   │   │   ├── sender.py        # Envía mensajes — delega al provider activo
-│   │   │   ├── media.py         # Descarga media — delega al provider activo
-│   │   │   ├── templates.py     # Mensajes estructurados
+│   │   │   ├── webhook.py         # Recibe mensajes — delega al provider activo
+│   │   │   ├── sender.py          # Envía mensajes — delega al provider activo
+│   │   │   ├── media.py           # Descarga media + extracción de filename
+│   │   │   ├── templates.py       # Mensajes estructurados
 │   │   │   └── providers/
-│   │   │       ├── base.py      # IncomingMessage (modelo normalizado) + interfaz
-│   │   │       ├── meta.py      # Implementación WhatsApp Cloud API (Meta)
-│   │   │       └── twilio.py    # Implementación Twilio WhatsApp Sandbox
+│   │   │       ├── base.py        # IncomingMessage (modelo normalizado) + WhatsAppProvider protocol
+│   │   │       ├── meta.py        # Implementación WhatsApp Cloud API (Meta)
+│   │   │       └── twilio.py      # Implementación Twilio WhatsApp Sandbox
 │   │   │
 │   │   ├── agent/
-│   │   │   ├── router.py        # Role Router: detecta lead vs developer
-│   │   │   ├── lead_handler.py  # Orquestador Modo Lead
-│   │   │   ├── dev_handler.py   # Orquestador Modo Developer
-│   │   │   ├── classifier.py    # Clasifica intención del mensaje
-│   │   │   ├── prompts.py       # System prompts y templates
-│   │   │   └── session.py       # Manejo de estado persistente
+│   │   │   ├── router.py          # Role Router: resolve developer, detecta lead vs developer
+│   │   │   ├── lead_handler.py    # Modo Lead: sesión → contexto → calificación → Claude → doc sharing → WA
+│   │   │   ├── dev_handler.py     # Modo Developer: commands, unit mgmt, PDF/CSV upload, doc sharing
+│   │   │   ├── classifier.py      # Clasifica intención del mensaje (Claude)
+│   │   │   ├── prompts.py         # System prompts (lead, developer, extraction, actions)
+│   │   │   └── session.py         # Estado persistente, get_developer_context multi-proyecto
 │   │   │
 │   │   ├── rag/
-│   │   │   ├── ingestion.py     # Procesa, sube a S3, vectoriza documentos
-│   │   │   ├── retrieval.py     # Búsqueda vectorial en pgvector
-│   │   │   └── chunker.py       # Estrategia de chunking por doc_type
+│   │   │   ├── ingestion.py       # find_document_for_sharing + stubs para RAG pipeline
+│   │   │   ├── retrieval.py       # Búsqueda vectorial en pgvector (stub embeddings)
+│   │   │   └── chunker.py         # Estrategia de chunking por doc_type
 │   │   │
-│   │   ├── storage.py           # S3-compatible file storage (compartido con NocoDB)
-│   │   ├── nocodb_webhook.py    # Webhook handler para eventos de NocoDB
+│   │   ├── storage.py             # S3-compatible (Supabase Storage): upload, presigned URLs
+│   │   ├── project_loader.py      # Parseo CSV → crear proyecto + unidades en DB
+│   │   ├── nocodb_webhook.py      # Webhook handler para eventos de NocoDB (stub)
 │   │   │
 │   │   ├── media/
-│   │   │   ├── transcription.py # Whisper API para audios
-│   │   │   └── processor.py     # Extrae info estructurada de transcripciones
+│   │   │   ├── transcription.py   # Whisper API para audios
+│   │   │   └── processor.py       # Extrae info estructurada de transcripciones
 │   │   │
 │   │   ├── leads/
-│   │   │   ├── qualification.py # Lógica de scoring de leads
-│   │   │   ├── nurturing.py     # Flujo de seguimiento automático
-│   │   │   └── alerts.py        # Notificaciones WhatsApp al vendedor
+│   │   │   ├── qualification.py   # Scoring progresivo (7 campos), extracción con Claude
+│   │   │   ├── nurturing.py       # Flujo de seguimiento automático (parcial)
+│   │   │   └── alerts.py          # Notificaciones WhatsApp al vendedor
 │   │   │
 │   │   ├── handoff/
-│   │   │   ├── manager.py       # Lógica de handoff: trigger, escalamiento, retoma
-│   │   │   └── chatwoot.py      # Integración con Chatwoot API (crear conversación, sync mensajes)
+│   │   │   ├── manager.py         # Lógica de handoff: trigger, escalamiento, retoma
+│   │   │   └── chatwoot.py        # Integración con Chatwoot API (stub)
 │   │   │
 │   │   └── obra/
-│   │       ├── updates.py       # CRUD de actualizaciones de obra
-│   │       ├── milestones.py    # Registro y gestión de hitos
-│   │       └── notifier.py      # Envío personalizado a compradores
+│   │       ├── updates.py         # CRUD de actualizaciones de obra
+│   │       ├── milestones.py      # Registro y gestión de hitos
+│   │       └── notifier.py        # Envío personalizado a compradores
 │   │
 │   ├── models/
 │   │   ├── lead.py
@@ -1026,21 +1088,50 @@ realia/
 │   │   └── obra.py
 │   │
 │   └── admin/
-│       └── api.py               # Endpoints admin (pipeline, métricas, config)
+│       └── api.py                 # Endpoints admin: upload docs, manage units/projects, CSV loader
 │
 ├── migrations/
-│   └── 001_initial_schema.sql
+│   ├── 001_initial_schema.sql     # Schema completo (16 tablas, pgvector, índices)
+│   ├── 002_lead_qualification_fields.sql  # Incremental: campos calificación en leads
+│   ├── 003_project_details.sql    # Incremental: campos detallados en projects
+│   └── 004_unit_notes.sql         # Incremental: tabla unit_notes
+│
+├── scripts/
+│   ├── seed_dev.py                # Seed Torre Palermo + 7 unidades
+│   ├── seed_manzanares.py         # Seed Manzanares 2088 + 8 unidades + docs
+│   └── generate_pdfs_manzanares.py # Genera PDFs reales con reportlab + sube a S3
+│
+├── templates/
+│   └── proyecto_template.csv      # Template CSV para carga de proyectos desde WhatsApp
 │
 ├── docs/
-│   ├── CONTEXT.md
-│   └── IMPLEMENTATION_PLAN.md
+│   ├── CONTEXT.md                 # Contexto completo del proyecto
+│   └── IMPLEMENTATION_PLAN.md     # Plan de fases con progreso
 │
-├── .env.example
+├── .env                           # Variables de entorno (todas centralizadas)
 ├── requirements.txt
-├── Dockerfile                 # Para deploy en cualquier plataforma
-├── railway.toml               # Config Railway (producción)
-├── render.yaml                # Config Render (desarrollo gratis)
+├── Dockerfile
+├── railway.toml                   # Config Railway (producción)
+├── render.yaml                    # Config Render (desarrollo gratis)
 └── README.md
+```
+
+### Estructura de S3 Storage
+
+```
+{bucket}/
+└── projects/
+    ├── torre-palermo/
+    │   ├── brochure_torre_palermo.pdf
+    │   └── lista_precios_torre_palermo.pdf
+    ├── manzanares-2088/
+    │   ├── brochure_manzanares_2088.pdf
+    │   ├── lista_de_precios_manzanares_2088.pdf
+    │   ├── memoria_descriptiva_manzanares_2088.pdf
+    │   ├── plano_1a_manzanares_2088.pdf
+    │   └── ...
+    └── _templates/
+        └── proyecto_template.csv
 ```
 
 ---
@@ -1053,9 +1144,10 @@ DATABASE_URL=postgresql://user:password@host:5432/realia
 
 # AI
 ANTHROPIC_API_KEY=
-OPENAI_API_KEY=                  # Whisper transcription + embeddings
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001   # Modelo para dev (barato). Cambiar para prod.
+OPENAI_API_KEY=                              # Whisper transcription + embeddings (pendiente)
 
-# WhatsApp provider: "twilio" for dev, "meta" for production
+# WhatsApp provider: "twilio" para dev, "meta" para produccion
 WHATSAPP_PROVIDER=twilio
 
 # Twilio WhatsApp Sandbox (dev)
@@ -1063,17 +1155,25 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_WHATSAPP_NUMBER=+14155238886
 
-# WhatsApp Cloud API / Meta (production)
+# WhatsApp Cloud API / Meta (produccion)
 WHATSAPP_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
 WHATSAPP_VERIFY_TOKEN=
 
-# S3-compatible storage (compartido entre Realia, NocoDB, Chatwoot)
-S3_ENDPOINT_URL=
+# S3-compatible storage (Supabase Storage)
+S3_ENDPOINT_URL=https://xxx.storage.supabase.co/storage/v1/s3
 S3_ACCESS_KEY_ID=
 S3_SECRET_ACCESS_KEY=
-S3_BUCKET_NAME=realia-docs
-S3_PUBLIC_URL=
+S3_BUCKET_NAME=real-state
+S3_PUBLIC_URL=https://xxx.supabase.co/storage/v1/object/public/real-state
+S3_REGION=us-west-2
+
+# Dev: forzar desarrollador (Twilio sandbox comparte numero entre proyectos)
+# En produccion dejarlo vacio — se resuelve por whatsapp_number del proyecto
+ACTIVE_DEVELOPER_ID=
+
+# Dev: teléfono que entra como developer (vacío = siempre lead)
+DEV_PHONE=
 
 # Chatwoot (DB propia en Railway, comunicacion via API/webhooks)
 CHATWOOT_BASE_URL=
@@ -1118,6 +1218,11 @@ SECRET_KEY=
 | **Railway como plataforma unica de deploy** | Todo corre en Railway: Realia (FastAPI), NocoDB, Chatwoot, las 2 instancias de PG. Simplifica networking (comunicacion interna sin internet publico), deploy, logs, y scaling. El unico servicio externo de infra es Cloudflare R2 para S3 storage. |
 | **Comunicacion entre servicios por API + webhooks** | Realia ↔ Chatwoot y NocoDB → Realia se comunican via HTTP. Sin colas ni message brokers. Cada servicio tiene su webhook endpoint en Realia. Mantenemos la complejidad baja. |
 | **WhatsApp provider pattern (Twilio / Meta)** | `WHATSAPP_PROVIDER` env var selecciona Twilio (sandbox gratis, setup 5min) o Meta (Cloud API, produccion). El resto del código trabaja con `IncomingMessage` normalizado y funciones `send_text`, `send_document`, etc. Cambiar provider = cambiar 1 variable de entorno. |
+| **Calificación progresiva en el prompt** | 7 campos (name, intent, financing, timeline, budget, bedrooms, location). Se inyectan al system prompt del lead como "datos conocidos" y "datos faltantes". Claude integra preguntas de calificación naturalmente en la conversación, max 1 por mensaje. |
+| **Extracción con Claude post-mensaje** | Después de cada intercambio, Claude analiza la conversación y extrae datos estructurados (JSON). Merge inteligente: nunca sobreescribe con null. Scoring automático basado en campos completados. |
+| **Carga de proyectos por CSV** | El developer manda un CSV por WhatsApp con datos del proyecto + unidades. El agente parsea, muestra resumen, pide confirmación, y crea todo en la DB. Lo que no completó en el CSV lo puede agregar después por WhatsApp (action `update_project`). Template descargable. |
+| **DEV_PHONE para dual-role testing** | En desarrollo, un solo teléfono puede actuar como developer o lead según la variable `DEV_PHONE`. Simplifica testing sin necesidad de dos números. |
+| **Supabase Storage en vez de Cloudflare R2** | Se eligió Supabase Storage por tener UI integrada para explorar archivos y API S3-compatible. Migración a R2 o AWS S3 es transparente (cambiar env vars). |
 
 ---
 

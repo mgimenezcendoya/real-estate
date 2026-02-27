@@ -1,6 +1,6 @@
 # Plan de Implementación — Realia V1
 
-Estado actual: estructura completa, modelos definidos, stubs en todos los módulos.
+Estado actual: Fases 0, 1A, 1B (parcial), 3 (parcial) completas.
 Objetivo: llegar a un flujo testeable end-to-end lo antes posible, luego iterar.
 
 ---
@@ -10,34 +10,45 @@ Objetivo: llegar a un flujo testeable end-to-end lo antes posible, luego iterar.
 | Archivo | Estado | Notas |
 |---|---|---|
 | `app/main.py` | OK | Routers registrados |
-| `app/config.py` | OK | Todas las env vars |
+| `app/config.py` | OK | Todas las env vars, incluyendo `ACTIVE_DEVELOPER_ID` y `DEV_PHONE` |
 | `app/database.py` | OK | Pool asyncpg |
 | `app/models/*` | OK | Pydantic models completos |
-| `migrations/001_initial_schema.sql` | OK | 15 tablas, pgvector |
+| `migrations/001_initial_schema.sql` | OK | 16 tablas (incl. `unit_notes`), pgvector, 7 índices |
+| `migrations/002_lead_qualification_fields.sql` | OK | Incremental: `budget_usd`, `bedrooms`, `location_pref` en `leads` |
+| `migrations/003_project_details.sql` | OK | Incremental: campos detallados en `projects` |
+| `migrations/004_unit_notes.sql` | OK | Incremental: tabla `unit_notes` |
 | `modules/whatsapp/webhook.py` | OK | Parseo de mensajes, routing |
-| `modules/whatsapp/sender.py` | OK | Envio texto, docs, imagenes, templates |
-| `modules/whatsapp/media.py` | OK | Download de media de WA |
+| `modules/whatsapp/sender.py` | OK | Envío texto, docs, imágenes, templates |
+| `modules/whatsapp/media.py` | OK | Download de media + `download_media_with_filename` |
 | `modules/whatsapp/templates.py` | OK | Templates formateados |
-| `modules/agent/router.py` | **Parcial** | Fallback single-project, falta mapeo real |
-| `modules/agent/session.py` | OK | CRUD sesiones y conversaciones |
-| `modules/agent/prompts.py` | OK | System prompts |
-| `modules/agent/classifier.py` | **Parcial** | Llama Claude pero devuelve hardcoded `["otro"]` |
-| `modules/agent/lead_handler.py` | **Stub** | Solo setup, logica TODO |
-| `modules/agent/dev_handler.py` | **Stub** | Solo checks, logica TODO |
-| `modules/rag/ingestion.py` | **Parcial** | Flujo armado, falta extract PDF y embeddings reales |
+| `modules/whatsapp/providers/base.py` | OK | `IncomingMessage` normalizado + `WhatsAppProvider` protocol |
+| `modules/whatsapp/providers/twilio.py` | OK | Twilio provider con `follow_redirects=True` y extracción de filename |
+| `modules/whatsapp/providers/meta.py` | OK | Meta Cloud API provider |
+| `modules/agent/router.py` | OK | `resolve_developer` por `ACTIVE_DEVELOPER_ID` (dev) o `whatsapp_number` (prod), routing lead vs developer por `DEV_PHONE` |
+| `modules/agent/session.py` | OK | CRUD sesiones, `get_developer_context` multi-proyecto, conversaciones |
+| `modules/agent/prompts.py` | OK | System prompts para lead + developer, extraction prompt, acciones admin |
+| `modules/agent/classifier.py` | OK | Llama Claude, parsea JSON multi-intent |
+| `modules/agent/lead_handler.py` | OK | Flujo completo: sesión → contexto multi-proyecto → calificación → Claude → doc sharing → WA |
+| `modules/agent/dev_handler.py` | OK | Admin mode completo: commands, unit mgmt, notes, PDF upload, CSV project load, doc sharing |
+| `modules/rag/ingestion.py` | **Parcial** | `find_document_for_sharing` funciona, falta extract PDF y embeddings reales |
 | `modules/rag/chunker.py` | **Parcial** | Generic chunking funciona, especializados son TODO |
 | `modules/rag/retrieval.py` | OK* | Funciona pero depende de embeddings stub |
-| `modules/storage.py` | **Parcial** | Upload devuelve placeholder, download funciona |
+| `modules/storage.py` | OK | Upload a Supabase S3, presigned URLs, estructura `projects/{slug}/{filename}` |
+| `modules/project_loader.py` | OK | Parseo CSV → crear proyecto + unidades |
 | `modules/media/transcription.py` | OK | Whisper API |
-| `modules/media/processor.py` | **Parcial** | detect_document_type heurístico, extract_obra devuelve `{}` |
-| `modules/leads/qualification.py` | OK | Scoring y next question |
+| `modules/media/processor.py` | **Parcial** | `detect_document_type` heurístico, `extract_obra` devuelve `{}` |
+| `modules/leads/qualification.py` | OK | 7 campos, scoring progresivo, extracción con Claude |
 | `modules/leads/alerts.py` | OK | Alerta WA al vendedor |
 | `modules/leads/nurturing.py` | **Parcial** | Falta generar mensaje con Claude |
 | `modules/handoff/manager.py` | OK | check/initiate/close handoff |
 | `modules/handoff/chatwoot.py` | **Stub** | Webhook endpoint OK, API calls TODO |
 | `modules/nocodb_webhook.py` | **Stub** | Endpoint OK, handler TODO |
 | `modules/obra/*` | OK | CRUD updates, milestones, notifier |
-| `app/admin/api.py` | **Parcial** | Endpoints definidos, muchos devuelven `[]` |
+| `app/admin/api.py` | **Parcial** | Upload docs, manage units/projects, CSV loader, leads/metrics stubs |
+| `templates/proyecto_template.csv` | OK | Template CSV para carga de proyectos |
+| `scripts/seed_dev.py` | OK | Seed Torre Palermo + 7 unidades |
+| `scripts/seed_manzanares.py` | OK | Seed Manzanares 2088 + 8 unidades + docs |
+| `scripts/generate_pdfs_manzanares.py` | OK | Genera PDFs reales con reportlab y sube a S3 |
 
 ---
 
@@ -45,15 +56,11 @@ Objetivo: llegar a un flujo testeable end-to-end lo antes posible, luego iterar.
 
 ### Fase 0: Infra base (poder hacer deploy y recibir un mensaje)
 
-**Objetivo:** Deploy gratis, webhook conectado, un mensaje de WA llega y se loguea.
-
-**Plataforma:** Neon (PostgreSQL) + ngrok + Twilio Sandbox. Gratis. Migración a Render/Railway después es solo cambiar env vars.
-
 **Estado: COMPLETA**
 
 - [x] Crear base de datos en Neon (free tier) — habilitar extensión `vector` y `pgcrypto`
-- [x] Correr migración SQL contra la PG de Neon — 14 tablas + 7 índices creados
-- [x] Crear `.env` local con `DATABASE_URL` de Neon
+- [x] Correr migración SQL contra la PG de Neon — 16 tablas + 7 índices creados
+- [x] Crear `.env` local con todas las variables
 - [x] Instalar dependencias (`venv` + `pip install -r requirements.txt`)
 - [x] Levantar FastAPI local (`uvicorn app.main:app --reload --port 8000`)
 - [x] Exponer con ngrok — `/health` responde OK desde internet
@@ -62,141 +69,127 @@ Objetivo: llegar a un flujo testeable end-to-end lo antes posible, luego iterar.
 - [x] Configurar webhook de Twilio apuntando a `{ngrok_url}/whatsapp/webhook`
 - [x] Mensaje de WA llega al webhook — 200 OK confirmado
 
-**Nota dev:** Se usa ngrok + Twilio Sandbox para desarrollo (iteración rápida, sin deploys, sin verificación Meta). Render + Meta Cloud API se configura cuando el código esté estable.
+---
 
-**Test:** Enviar un mensaje de WA vía Twilio Sandbox → ver en logs de la terminal que llegó.
+### Fase 1A: Agente Lead básico (sin RAG)
+
+**Estado: COMPLETA**
+
+- [x] `agent/classifier.py` — Parsea respuesta JSON de Claude (multi-intent)
+- [x] `agent/lead_handler.py` — Flujo completo: sesión → contexto proyecto → Claude → respuesta WA → guardar en DB
+- [x] `agent/session.py` — `get_developer_context` consulta todos los proyectos del developer + units + docs
+- [x] `agent/prompts.py` — System prompt para agente inmobiliario
+- [x] Crear script `scripts/seed_dev.py` — Proyecto demo (Torre Palermo) + 7 unidades
+- [x] Modelo configurable via `ANTHROPIC_MODEL` env var (Claude Haiku 4.5 para dev)
+- [x] Test e2e: "hola" por WA → agente responde con info del proyecto ✓
 
 ---
 
-### Fase 1: Modo Lead básico (el agente responde)
+### Fase 1B: Lead Qualification + Document Sharing
 
-**Objetivo:** Un lead manda un mensaje, el agente responde con texto usando RAG.
+**Estado: COMPLETA**
 
-Archivos a implementar:
-
-- [ ] `agent/classifier.py` — Parsear la respuesta de Claude en vez de hardcodear `["otro"]`
-- [ ] `agent/lead_handler.py` — Flujo completo:
-  1. Obtener/crear sesion y lead
-  2. Clasificar intención
-  3. Si RAG → buscar contexto → generar respuesta con Claude → enviar por WA
-  4. Si calificación → hacer pregunta → actualizar lead score
-  5. Guardar conversación en DB
-- [ ] `agent/router.py` — Mapeo real de `phone_number_id` → `project_id` (query a tabla `projects`)
-- [ ] `rag/ingestion.py` — Implementar `generate_embedding` con OpenAI API real
-- [ ] `rag/ingestion.py` — Implementar `extract_text_from_pdf` (PyPDF2 o pdfplumber)
-- [ ] `storage.py` — Implementar `upload_file` real con aioboto3
-
-**Prerequisito:** Tener al menos 1 proyecto y 1-2 documentos ingresados en la DB para que RAG tenga contenido.
-
-**Seed data:**
-- [ ] Crear script `scripts/seed_dev.py` que inserte un proyecto de prueba, unidades, y authorized_numbers
-
-**Test:** Enviar "cuanto sale un 2 ambientes?" por WA → el agente responde con info del proyecto seed.
+- [x] Lead Qualification — scoring progresivo con 7 campos (name, intent, financing, timeline, budget_usd, bedrooms, location_pref)
+- [x] Extracción de datos con Claude (`EXTRACTION_PROMPT`) al final de cada mensaje
+- [x] Merge inteligente de datos extraídos (nunca sobreescribe con null)
+- [x] Calificación inyectada al prompt del lead (campos conocidos + campos faltantes)
+- [x] Document Sharing — el agente detecta marcadores `[ENVIAR_DOC:tipo:unidad:proyecto-slug]` y envía PDFs
+- [x] `storage.py` — Upload a Supabase S3, presigned URLs funcionales
+- [x] `find_document_for_sharing` busca docs por tipo, unidad y proyecto en la DB
+- [x] Soporte multi-proyecto: el lead puede preguntar por cualquier proyecto del developer
+- [x] Seed data para Manzanares 2088 (8 unidades + 7 PDFs reales en S3)
 
 ---
 
 ### Fase 2: RAG con documentos reales
 
-**Objetivo:** Poder ingestar PDFs reales y que las respuestas usen esa información.
+**Estado: PENDIENTE**
 
+- [ ] `rag/ingestion.py` — Implementar `generate_embedding` con OpenAI API real
+- [ ] `rag/ingestion.py` — Implementar `extract_text_from_pdf` (PyPDF2 o pdfplumber)
 - [ ] `rag/chunker.py` — Mejorar chunking para listas de precios (tablas) y brochures
-- [ ] Crear endpoint o script para ingestar documentos manualmente: `POST /admin/ingest-document`
-- [ ] `rag/retrieval.py` — Testear calidad de retrieval con documentos reales del cliente ancla
-- [ ] Ajustar prompts en `agent/prompts.py` según resultados de testing
+- [ ] `rag/retrieval.py` — Testear calidad de retrieval con documentos reales
+- [ ] Ajustar prompts según resultados de testing
 
-**Test:** Subir PDF de lista de precios real → preguntar precios por WA → respuesta correcta.
+**Nota:** Actualmente la info relevante está en la DB (projects, units, documents metadata). El RAG será útil cuando haya documentos extensos (memorias descriptivas, contratos) cuyo contenido no cabe en el contexto.
 
 ---
 
-### Fase 3: Modo Developer básico
+### Fase 3: Modo Developer (Admin por WhatsApp)
 
-**Objetivo:** Un developer autorizado puede enviar updates de obra y documentos por WA.
+**Estado: COMPLETA**
 
-- [ ] `agent/dev_handler.py` — Implementar flujo:
-  1. Audio → transcripción (Whisper) → structured update → confirmar → guardar
-  2. PDF/imagen → clasificación conversacional → subir a S3 → ingestar en RAG
-  3. Texto → interpretar comando (query, config, update)
-- [ ] `media/processor.py` — `extract_obra_update`: parsear transcripción con Claude
-- [ ] Testear flujo de activación de número autorizado
-
-**Test:** Enviar audio de "la obra del proyecto X avanzó al 60%, ya terminamos la losa del piso 5" → el agente extrae datos estructurados → confirma → guarda.
+- [x] `agent/dev_handler.py` — Admin mode funcional con Claude para interpretar comandos
+- [x] Acciones implementadas:
+  - `update_unit_status` — Cambiar estado de unidades (available/reserved/sold)
+  - `update_unit_price` — Actualizar precio de unidades
+  - `add_unit_note` — Agregar notas/comentarios a unidades
+  - `get_lead_detail` — Ver detalle de un lead por teléfono
+  - `update_project` — Actualizar campos del proyecto por chat
+  - `create_project_instructions` — Enviar template CSV para carga de nuevo proyecto
+- [x] PDF upload conversacional: developer manda PDF → agente pregunta proyecto y tipo → sube a S3 → registra en DB
+- [x] CSV project loader: developer manda CSV con datos del proyecto y unidades → resumen → confirmación → crea todo en DB
+- [x] Document sharing en modo admin (mismos marcadores que leads)
+- [x] Greeting personalizado en modo admin (`🔧 Modo Admin — {nombre}`)
+- [x] Detección real de filename desde headers HTTP de Twilio
+- [x] Routing developer por `DEV_PHONE` (dev) o `authorized_numbers` (prod)
+- [x] Template CSV (`templates/proyecto_template.csv`) con todos los campos
 
 ---
 
 ### Fase 4: Handoff a Chatwoot
 
-**Objetivo:** Cuando un lead está caliente, se crea conversación en Chatwoot y el vendedor puede responder.
+**Estado: PENDIENTE**
 
 - [ ] Deploy Chatwoot en Railway con su PostgreSQL propia
-- [ ] Configurar inbox de WhatsApp en Chatwoot (o custom inbox)
-- [ ] `handoff/chatwoot.py` — Implementar:
-  1. `create_chatwoot_conversation`: crear contacto + conversación con contexto
-  2. `forward_to_chatwoot`: reenviar mensajes del lead durante handoff
-  3. `handle_chatwoot_webhook`: `message_created` → forward respuesta del vendedor por WA
-  4. `handle_chatwoot_webhook`: `conversation_resolved` → cerrar handoff
+- [ ] Configurar inbox de WhatsApp en Chatwoot
+- [ ] `handoff/chatwoot.py` — Implementar create/forward/webhook handlers
 - [ ] Configurar webhook de Chatwoot → `{railway_url}/chatwoot/webhook`
-
-**Test:** Lead dice "quiero agendar una visita" → handoff se activa → vendedor ve conversación en Chatwoot → vendedor responde → lead recibe respuesta por WA.
 
 ---
 
 ### Fase 5: NocoDB como panel de gestión
 
-**Objetivo:** El equipo del developer puede ver y editar datos desde NocoDB.
+**Estado: PENDIENTE**
 
 - [ ] Deploy NocoDB en Railway, conectar a la PG de Realia
 - [ ] Configurar tablas expuestas: projects, units, leads, documents, obra_updates
-- [ ] Configurar S3 (Cloudflare R2) como storage de attachments en NocoDB
-- [ ] `nocodb_webhook.py` — Implementar handlers:
-  1. Nuevo documento subido → trigger ingesta RAG
-  2. Cambio en config de proyecto → invalidar cache
-- [ ] Configurar webhooks de NocoDB → `{railway_url}/nocodb/webhook`
-
-**Test:** Subir PDF desde NocoDB → aparece en RAG → lead puede preguntar sobre ese contenido.
+- [ ] Configurar S3 como storage de attachments en NocoDB
+- [ ] `nocodb_webhook.py` — Implementar handlers
 
 ---
 
 ### Fase 6: Seguimiento de obra + notificaciones
 
-**Objetivo:** Developers registran hitos, compradores reciben notificaciones personalizadas.
+**Estado: PENDIENTE**
 
-- [ ] Conectar flujo completo: obra update → milestone check → notificación a compradores
+- [ ] Conectar flujo: obra update → milestone check → notificación a compradores
 - [ ] `leads/nurturing.py` — Implementar generación de mensaje con Claude
-- [ ] Configurar cron jobs (Render cron o Railway cron) para nurturing y obra notifications
-- [ ] `admin/api.py` — Implementar endpoints de métricas básicas
-
-**Test:** Developer registra hito "Losa piso 5 completa" → compradores de unidades en piso 5 reciben mensaje personalizado por WA.
+- [ ] Configurar cron jobs para nurturing y obra notifications
+- [ ] `admin/api.py` — Implementar endpoints de métricas
 
 ---
 
-## Dependencias externas a configurar
+## Dependencias externas
 
-| Servicio | Qué se necesita | Fase | Costo |
+| Servicio | Qué se necesita | Fase | Estado |
 |---|---|---|---|
-| Neon | Cuenta, base de datos con pgvector | 0 | Gratis (0.5GB) |
-| Render | Cuenta, conectar repo GitHub | 0 | Gratis (spin-down) |
-| Twilio | Cuenta + WhatsApp Sandbox activado | 0 | Gratis (sandbox) |
-| WhatsApp Cloud API (Meta) | Business account, phone number, app en Meta Developers | prod | Gratis (1000 conv/mes) |
-| Anthropic | API key con créditos | 1 | ~$5-10/mes dev |
-| OpenAI | API key con créditos (Whisper + embeddings) | 1 | ~$2-5/mes dev |
-| Cloudflare R2 | Bucket + access keys | 1 | Gratis (10GB) |
-| Railway | Cuenta, proyecto completo | 4 | $5-20/mes |
-| Chatwoot | Deploy en Railway | 4 | (incluido en Railway) |
-| NocoDB | Deploy en Railway | 5 | (incluido en Railway) |
-
-### Migración dev → prod (cuando llegue el momento)
-
-1. `pg_dump` desde Neon → `pg_restore` en Railway PostgreSQL
-2. En Railway: crear servicios (Realia, Chatwoot, NocoDB), 2x PostgreSQL
-3. Copiar env vars, cambiar `DATABASE_URL` a la nueva PG
-4. Actualizar webhook URLs en WhatsApp, Chatwoot, NocoDB
-5. Done — la app es idéntica, solo cambia dónde corre
+| Neon | PostgreSQL con pgvector | 0 | ✅ Configurado |
+| Twilio | WhatsApp Sandbox | 0 | ✅ Configurado |
+| ngrok | Tunnel local | 0 | ✅ Configurado |
+| Anthropic | API key (Claude Haiku 4.5) | 1 | ✅ Configurado |
+| Supabase Storage | S3-compatible storage | 1 | ✅ Configurado |
+| OpenAI | Whisper + embeddings | 2 | ⬜ Pendiente |
+| WhatsApp Cloud API (Meta) | Business account | prod | ⬜ Pendiente |
+| Railway | Deploy completo | 4 | ⬜ Pendiente |
+| Chatwoot | Inbox de ventas | 4 | ⬜ Pendiente |
+| NocoDB | Panel de gestión | 5 | ⬜ Pendiente |
 
 ---
 
 ## Notas
 
 - **Fase 1 es el hito critico.** Si un lead puede mandar un mensaje y recibir una respuesta inteligente, tenemos producto. Todo lo demás es iteración.
-- **No optimizar antes de probar.** Chunking básico primero, mejorar con docs reales después.
+- **El RAG no es urgente** porque la info esencial (proyectos, unidades, precios, amenities, formas de pago) ya está en la DB y se inyecta como contexto. El RAG agrega valor cuando haya docs extensos (memorias, contratos).
 - **Seed data antes de testear.** Sin datos en la DB, no hay nada que probar.
-- **Logging agresivo al principio.** Loguear todo: mensajes entrantes, clasificaciones, queries RAG, respuestas. Después se limpia.
+- **Logging agresivo al principio.** Loguear todo: mensajes entrantes, clasificaciones, respuestas. Después se limpia.

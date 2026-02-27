@@ -4,8 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-from app.config import get_settings
+from app.config import get_settings, reload_settings
+
+reload_settings()
 from app.database import get_pool, close_pool
 from app.modules.whatsapp.webhook import router as whatsapp_router
 from app.modules.handoff.chatwoot import router as chatwoot_router

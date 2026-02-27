@@ -46,12 +46,15 @@ async def receive_message(request: Request):
             msg.message_type,
             msg.text[:80] if msg.text else "(media)",
         )
-        await route_message(
-            phone_number_id=get_settings().whatsapp_phone_number_id,
-            sender_phone=msg.sender_phone,
-            message_id=msg.message_id,
-            message_type=msg.message_type,
-            message=msg,
-        )
+        try:
+            await route_message(
+                phone_number_id=get_settings().whatsapp_phone_number_id,
+                sender_phone=msg.sender_phone,
+                message_id=msg.message_id,
+                message_type=msg.message_type,
+                message=msg,
+            )
+        except Exception as e:
+            logger.exception("Error processing message from %s: %s", msg.sender_phone, e)
 
     return {"status": "ok"}

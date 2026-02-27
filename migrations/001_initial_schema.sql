@@ -1,5 +1,7 @@
--- Realia: Initial schema
+-- Realia: Schema completo (crear desde cero)
 -- Requires: PostgreSQL with pgvector extension
+-- Uso: ejecutar este archivo para crear todas las tablas en una DB nueva.
+-- Las migraciones incrementales (002+) solo se necesitan en DBs existentes.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "vector";
@@ -20,6 +22,18 @@ CREATE TABLE projects (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     developer_id UUID REFERENCES developers(id),
     name TEXT NOT NULL,
+    slug TEXT UNIQUE,
+    address TEXT,
+    neighborhood TEXT,
+    city TEXT DEFAULT 'CABA',
+    description TEXT,
+    amenities TEXT[],
+    total_floors INT,
+    total_units INT,
+    construction_start DATE,
+    estimated_delivery DATE,
+    delivery_status VARCHAR(30) DEFAULT 'en_pozo',
+    payment_info TEXT,
     whatsapp_number TEXT UNIQUE,
     status VARCHAR(20) DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW()
@@ -34,6 +48,14 @@ CREATE TABLE units (
     area_m2 DECIMAL,
     price_usd DECIMAL,
     status VARCHAR(20) DEFAULT 'available',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE unit_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    unit_id UUID NOT NULL REFERENCES units(id),
+    author_name TEXT,
+    note TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -62,6 +84,9 @@ CREATE TABLE leads (
     intent VARCHAR(20),
     financing VARCHAR(20),
     timeline VARCHAR(20),
+    budget_usd INTEGER,
+    bedrooms SMALLINT,
+    location_pref TEXT,
     score VARCHAR(10),
     source TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -207,6 +232,11 @@ CREATE INDEX idx_leads_project_score ON leads(project_id, score);
 CREATE INDEX idx_leads_phone ON leads(phone);
 CREATE INDEX idx_conversations_lead ON conversations(lead_id, created_at);
 CREATE INDEX idx_conversations_wa_msg ON conversations(wa_message_id);
+CREATE INDEX idx_documents_project_active ON documents(project_id, is_active);
 CREATE INDEX idx_document_chunks_project ON document_chunks(project_id);
+CREATE INDEX idx_unit_notes_unit ON unit_notes(unit_id, created_at);
 CREATE INDEX idx_handoffs_lead ON handoffs(lead_id, status);
 CREATE INDEX idx_authorized_phone ON authorized_numbers(phone, project_id);
+CREATE INDEX idx_projects_developer ON projects(developer_id);
+CREATE INDEX idx_projects_slug ON projects(slug);
+CREATE INDEX idx_dev_conversations_auth ON developer_conversations(authorized_number_id, created_at);

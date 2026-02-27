@@ -114,10 +114,36 @@ async def send_image(to: str, image_url: str, caption: str | None = None) -> dic
 
 
 async def download_media(media_id: str | None = None, media_url: str | None = None) -> bytes:
-    """Download media from Twilio. Media URLs are directly accessible with Basic Auth."""
+    """Download media from Twilio. Media URLs return a 307 redirect to the actual file."""
     settings = get_settings()
     auth = (settings.twilio_account_sid, settings.twilio_auth_token)
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         response = await client.get(media_url, auth=auth)
         return response.content
+
+
+async def download_media_with_filename(media_url: str) -> tuple[bytes, str | None]:
+    """Download media and extract the real filename from Content-Disposition header."""
+    settings = get_settings()
+    auth = (settings.twilio_account_sid, settings.twilio_auth_token)
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        response = await client.get(media_url, auth=auth)
+
+    filename = None
+    cd = response.headers.get("content-disposition", "")
+    if "filename=" in cd:
+        import re
+        match = re.search(r'filename="?([^";]+)"?', cd)
+        if match:
+            filename = match.group(1).strip()
+
+    if not filename:
+        final_url = str(response.url)
+        if "/" in final_url:
+            candidate = final_url.split("/")[-1].split("?")[0]
+            if "." in candidate:
+                filename = candidate
+
+    return response.content, filename

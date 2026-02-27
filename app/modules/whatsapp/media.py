@@ -20,6 +20,16 @@ async def download_media(media_id: str | None = None, media_url: str | None = No
     return await _get_provider().download_media(media_id=media_id, media_url=media_url)
 
 
+async def download_media_with_filename(media_url: str) -> tuple[bytes, str | None]:
+    """Download media and try to extract the original filename. Falls back to None."""
+    settings = get_settings()
+    if settings.whatsapp_provider == "twilio":
+        from app.modules.whatsapp.providers import twilio
+        return await twilio.download_media_with_filename(media_url)
+    content = await _get_provider().download_media(media_url=media_url)
+    return content, None
+
+
 async def get_media_url(media_id: str) -> str:
     """Get download URL for a media file. On Twilio, the URL comes directly in the webhook."""
     settings = get_settings()
