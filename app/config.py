@@ -29,10 +29,14 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_whatsapp_number: str = ""  # e.g. +14155238886
 
-    # Chatwoot
+    # Chatwoot (deprecated — kept for backward compat)
     chatwoot_base_url: str = ""
     chatwoot_api_token: str = ""
     chatwoot_account_id: str = ""
+
+    # Telegram Handoff Bot
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
 
     # S3-compatible storage (Supabase Storage, Cloudflare R2, AWS S3)
     s3_endpoint_url: str = ""

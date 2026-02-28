@@ -20,7 +20,11 @@ from app.modules.agent.session import (
     save_conversation_message,
     update_lead_qualification,
 )
-from app.modules.handoff.manager import check_active_handoff
+from app.modules.handoff.manager import (
+    check_active_handoff,
+    handle_lead_message_during_handoff,
+    initiate_handoff,
+)
 from app.modules.leads.qualification import (
     build_missing_fields,
     build_qualification_status,
@@ -36,6 +40,7 @@ from app.modules.whatsapp.sender import send_document_message, send_text_message
 logger = logging.getLogger(__name__)
 
 DOC_MARKER_RE = re.compile(r"\[ENVIAR_DOC:(\w+):(\w+)(?::([a-zA-Z0-9_-]+))?\]")
+HANDOFF_MARKER_RE = re.compile(r"\[HANDOFF:([^\]]+)\]")
 
 
 async def handle_lead_message(
@@ -51,8 +56,8 @@ async def handle_lead_message(
 
     active_handoff = await check_active_handoff(sender_phone, default_project_id)
     if active_handoff:
-        from app.modules.handoff.chatwoot import forward_to_chatwoot
-        await forward_to_chatwoot(handoff=active_handoff, message=message)
+        if message.text:
+            await handle_lead_message_during_handoff(active_handoff, message.text)
         return
 
     session = await get_or_create_session(sender_phone, default_project_id)
@@ -84,6 +89,7 @@ async def handle_lead_message(
     )
 
     clean_text, doc_request = _extract_doc_marker(response_text)
+    clean_text, handoff_trigger = _extract_handoff_marker(clean_text)
 
     await save_conversation_message(
         lead_id=lead_id,
@@ -98,6 +104,17 @@ async def handle_lead_message(
     if doc_request:
         asyncio.create_task(
             _send_document(developer_id, sender_phone, doc_request)
+        )
+
+    if handoff_trigger:
+        context = _build_handoff_context(qualification, history, text)
+        asyncio.create_task(
+            initiate_handoff(
+                lead_id=lead_id,
+                project_id=default_project_id,
+                trigger=handoff_trigger,
+                context_summary=context,
+            )
         )
 
     asyncio.create_task(
@@ -116,6 +133,44 @@ def _extract_doc_marker(text: str) -> tuple[str, dict | None]:
     unit = match.group(2) if match.group(2) != "NONE" else None
     project_slug = match.group(3) if match.group(3) else None
     return clean, {"doc_type": doc_type, "unit_identifier": unit, "project_slug": project_slug}
+
+
+def _extract_handoff_marker(text: str) -> tuple[str, str | None]:
+    """Parse and remove [HANDOFF:reason] marker from Claude's response."""
+    match = HANDOFF_MARKER_RE.search(text)
+    if not match:
+        return text, None
+    clean = HANDOFF_MARKER_RE.sub("", text).rstrip()
+    return clean, match.group(1)
+
+
+def _build_handoff_context(qualification: dict, history: list[dict], last_message: str) -> str:
+    """Build a summary for the seller from qualification data and recent conversation."""
+    parts = []
+
+    if qualification.get("name"):
+        parts.append(f"Nombre: {qualification['name']}")
+    if qualification.get("intent"):
+        labels = {"investment": "Inversión", "own_home": "Vivienda propia", "rental": "Renta"}
+        parts.append(f"Intención: {labels.get(qualification['intent'], qualification['intent'])}")
+    if qualification.get("budget_usd"):
+        parts.append(f"Presupuesto: USD {qualification['budget_usd']:,}")
+    if qualification.get("bedrooms"):
+        parts.append(f"Busca: {qualification['bedrooms']} ambientes")
+    if qualification.get("financing"):
+        labels = {"own_capital": "Capital propio", "needs_financing": "Necesita financiación", "mixed": "Mixto"}
+        parts.append(f"Financiamiento: {labels.get(qualification['financing'], qualification['financing'])}")
+    if qualification.get("timeline"):
+        labels = {"immediate": "Inmediato", "3_months": "3 meses", "6_months": "6 meses", "1_year_plus": "+1 año"}
+        parts.append(f"Plazo: {labels.get(qualification['timeline'], qualification['timeline'])}")
+
+    recent = [m["content"] for m in history[-4:] if m.get("content")]
+    if last_message:
+        recent.append(last_message)
+    if recent:
+        parts.append(f"\nÚltimos mensajes:\n" + "\n".join(f"  - {m[:100]}" for m in recent))
+
+    return "\n".join(parts) if parts else "Sin datos de calificación"
 
 
 async def _send_document(developer_id: str, to_phone: str, doc_request: dict) -> None:
