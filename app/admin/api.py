@@ -9,7 +9,7 @@ from typing import Optional
 from fastapi import APIRouter, File, Form, Request, UploadFile
 
 from app.database import get_pool
-from app.modules.handoff.chatwoot import handle_chatwoot_webhook
+from app.modules.handoff.telegram import _handle_update as handle_telegram_update
 from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
 from app.modules.project_loader import parse_project_csv, create_project_from_parsed, build_summary
@@ -216,13 +216,13 @@ async def bulk_update_unit_status(request: Request):
     return {"updated": results}
 
 
-# --- Chatwoot webhook ---
+# --- Telegram webhook (admin fallback) ---
 
-@router.post("/chatwoot/webhook")
-async def chatwoot_webhook(request: Request):
-    """Receive webhook events from Chatwoot."""
+@router.post("/telegram/webhook")
+async def telegram_webhook_admin(request: Request):
+    """Receive webhook events from Telegram (admin fallback route)."""
     body = await request.json()
-    await handle_chatwoot_webhook(body)
+    await handle_telegram_update(body)
     return {"status": "ok"}
 
 

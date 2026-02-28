@@ -1,10 +1,14 @@
 """
-Handoff Manager: orchestrates the handoff flow between leads and sales team via Chatwoot.
+Handoff Manager: orchestrates the handoff flow between leads and sales team via Telegram.
 """
 
+import logging
+
 from app.database import get_pool
-from app.modules.handoff.chatwoot import create_chatwoot_conversation
+from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message
 from app.modules.whatsapp.sender import send_text_message
+
+logger = logging.getLogger(__name__)
 
 
 async def check_active_handoff(phone: str, project_id: str) -> dict | None:
@@ -28,38 +32,51 @@ async def initiate_handoff(
     trigger: str,
     context_summary: str,
 ) -> dict:
-    """Start a handoff: create record, notify Chatwoot, message the lead."""
+    """Start a handoff: create record, send Telegram alert, message the lead."""
     pool = await get_pool()
+
+    existing = await pool.fetchrow(
+        "SELECT id FROM handoffs WHERE lead_id = $1 AND project_id = $2 AND status = 'active'",
+        lead_id, project_id,
+    )
+    if existing:
+        logger.info("Handoff already active for lead %s", lead_id)
+        return dict(existing)
 
     handoff = await pool.fetchrow(
         """
-        INSERT INTO handoffs (lead_id, project_id, trigger, context_summary)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO handoffs (lead_id, project_id, trigger, context_summary, status)
+        VALUES ($1, $2, $3, $4, 'pending')
         RETURNING *
         """,
-        lead_id,
-        project_id,
-        trigger,
-        context_summary,
+        lead_id, project_id, trigger, context_summary,
     )
 
-    # Create conversation in Chatwoot
-    await create_chatwoot_conversation(
+    lead = await pool.fetchrow("SELECT phone, name FROM leads WHERE id = $1", lead_id)
+    project = await pool.fetchrow("SELECT name FROM projects WHERE id = $1", project_id)
+    score = await pool.fetchval("SELECT score FROM leads WHERE id = $1", lead_id)
+
+    await send_handoff_alert(
         handoff_id=str(handoff["id"]),
-        lead_id=lead_id,
-        project_id=project_id,
+        lead_name=lead["name"] or "Sin nombre",
+        lead_phone=lead["phone"],
+        project_name=project["name"] if project else "?",
+        score=score or "?",
         context_summary=context_summary,
     )
 
-    # Notify the lead
-    lead = await pool.fetchrow("SELECT phone FROM leads WHERE id = $1", lead_id)
     if lead:
         await send_text_message(
             lead["phone"],
-            "Te paso con un asesor comercial. Ya le comparti el contexto de nuestra conversacion.",
+            "Te paso con un asesor comercial. Ya le compartí el contexto de nuestra conversación para que no tengas que repetir nada.",
         )
 
     return dict(handoff)
+
+
+async def handle_lead_message_during_handoff(handoff: dict, text: str) -> None:
+    """Forward a lead message to the active Telegram handoff thread."""
+    await forward_lead_message(str(handoff["id"]), text)
 
 
 async def close_handoff(handoff_id: str, lead_note: str | None = None) -> None:
@@ -82,5 +99,6 @@ async def close_handoff(handoff_id: str, lead_note: str | None = None) -> None:
         if lead:
             await send_text_message(
                 lead["phone"],
-                "Gracias por hablar con nuestro equipo. Si necesitas algo mas, segui escribiendome.",
+                "Gracias por hablar con nuestro equipo. Si necesitás algo más, seguí escribiéndome.",
             )
+    logger.info("Handoff %s closed", handoff_id)
