@@ -1,11 +1,11 @@
 """
-RAG Ingestion: processes documents (PDF), chunks them, generates embeddings,
-and stores them in pgvector. Files are stored in S3 and referenced by URL.
+RAG Ingestion: uploads documents to S3 and registers them in the database.
+PDF content is read natively by Claude at query time — no text extraction needed.
 """
 
 from app.database import get_pool
-from app.modules.rag.chunker import chunk_document
 from app.modules.storage import upload_file
+from app.modules.rag.retrieval import invalidate_document_cache
 
 
 async def ingest_document(
@@ -19,59 +19,45 @@ async def ingest_document(
     source: str = "whatsapp",
     uploaded_by: str | None = None,
 ) -> dict:
-    """Full ingestion: upload to S3, version, extract, chunk, embed."""
+    """Upload document to S3 and register in DB with version control."""
     pool = await get_pool()
 
-    # Upload to S3
     file_url = await upload_file(content, project_slug, doc_type, filename)
 
-    # Deactivate previous version (same doc_type + unit if applicable)
+    # Deactivate previous version and invalidate its cache
     if unit_identifier:
+        old_docs = await pool.fetch(
+            "SELECT id FROM documents WHERE project_id = $1 AND doc_type = $2 AND unit_identifier = $3 AND is_active = TRUE",
+            project_id, doc_type, unit_identifier,
+        )
         await pool.execute(
             "UPDATE documents SET is_active = FALSE WHERE project_id = $1 AND doc_type = $2 AND unit_identifier = $3 AND is_active = TRUE",
             project_id, doc_type, unit_identifier,
         )
     else:
+        old_docs = await pool.fetch(
+            "SELECT id FROM documents WHERE project_id = $1 AND doc_type = $2 AND unit_identifier IS NULL AND is_active = TRUE",
+            project_id, doc_type,
+        )
         await pool.execute(
             "UPDATE documents SET is_active = FALSE WHERE project_id = $1 AND doc_type = $2 AND unit_identifier IS NULL AND is_active = TRUE",
             project_id, doc_type,
         )
 
-    # Create document record
+    for old in old_docs:
+        invalidate_document_cache(str(old["id"]))
+
     doc = await pool.fetchrow(
         """
         INSERT INTO documents (project_id, doc_type, filename, file_url, file_size_bytes, unit_identifier, floor, source, uploaded_by, rag_status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'processing')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'ready')
         RETURNING id, version
         """,
         project_id, doc_type, filename, file_url, len(content),
         unit_identifier, floor, source, uploaded_by,
     )
-    document_id = str(doc["id"])
 
-    try:
-        text = await extract_text_from_pdf(content)
-        chunks = chunk_document(text, doc_type)
-
-        for chunk in chunks:
-            chunk_meta = chunk.get("metadata", {})
-            if unit_identifier:
-                chunk_meta["unit"] = unit_identifier
-            if floor:
-                chunk_meta["floor"] = floor
-
-            embedding = await generate_embedding(chunk["content"])
-            await pool.execute(
-                "INSERT INTO document_chunks (document_id, project_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5)",
-                document_id, project_id, chunk["content"], embedding, chunk_meta,
-            )
-
-        await pool.execute("UPDATE documents SET rag_status = 'ready' WHERE id = $1", document_id)
-        return {"document_id": document_id, "chunks_created": len(chunks), "file_url": file_url}
-
-    except Exception:
-        await pool.execute("UPDATE documents SET rag_status = 'error' WHERE id = $1", document_id)
-        raise
+    return {"document_id": str(doc["id"]), "file_url": file_url}
 
 
 async def find_document_for_sharing(
@@ -118,15 +104,3 @@ async def list_available_documents(project_id: str, doc_type: str | None = None)
             project_id,
         )
     return [dict(r) for r in rows]
-
-
-async def extract_text_from_pdf(content: bytes) -> str:
-    """Extract text from a PDF file."""
-    # TODO: Implement PDF text extraction (pypdf, pdfplumber, or similar)
-    return ""
-
-
-async def generate_embedding(text: str) -> list[float]:
-    """Generate an embedding vector using OpenAI text-embedding-3-small."""
-    # TODO: Call OpenAI embeddings API
-    return [0.0] * 1536

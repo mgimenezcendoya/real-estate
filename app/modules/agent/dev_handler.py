@@ -16,7 +16,8 @@ from app.database import get_pool
 from app.modules.agent.prompts import DEVELOPER_SYSTEM_PROMPT, DEV_ACTION_PROMPT
 from app.modules.project_loader import parse_project_csv, create_project_from_parsed, build_summary
 from app.modules.rag.ingestion import find_document_for_sharing
-from app.modules.storage import get_presigned_url_for_document, upload_file
+from app.modules.rag.retrieval import get_developer_document_blocks
+from app.modules.storage import upload_file
 from app.modules.whatsapp.media import download_media, download_media_with_filename
 from app.modules.whatsapp.providers.base import IncomingMessage
 from app.modules.whatsapp.sender import send_document_message, send_text_message
@@ -66,6 +67,7 @@ async def handle_developer_message(
     await _save_dev_message(auth_number["id"], developer["default_project_id"], "user", text)
 
     action_response = await _classify_and_respond(
+        developer_id=developer_id,
         developer_name=developer["developer_name"],
         dev_name=dev_name,
         context=context,
@@ -477,15 +479,13 @@ async def _send_document(developer_id: str, to_phone: str, doc_request: dict) ->
         if not doc:
             logger.warning("Document not found for dev: %s", doc_request)
             return
-        try:
-            document_url = get_presigned_url_for_document(doc["file_url"])
-        except Exception:
-            document_url = doc["file_url"]
-        await send_document_message(
+        document_url = doc["file_url"]
+        logger.info("Sending doc to dev %s: type=%s url=%s", to_phone, doc_request["doc_type"], document_url)
+        result = await send_document_message(
             to=to_phone, document_url=document_url,
             filename=doc["filename"], caption=doc["filename"],
         )
-        logger.info("Sent document %s to dev %s", doc["filename"], to_phone)
+        logger.info("Twilio response for dev doc send: %s", result)
     except Exception as e:
         logger.error("Failed to send document to dev %s: %s", to_phone, e)
 
@@ -604,6 +604,7 @@ async def _save_dev_message(auth_number_id: str, project_id: str, role: str, con
 # ---------- Claude interaction ----------
 
 async def _classify_and_respond(
+    developer_id: str,
     developer_name: str,
     dev_name: str,
     context: str,
@@ -621,7 +622,23 @@ async def _classify_and_respond(
     system += f"\n\nEstado actual de los proyectos:\n{context}"
     system += f"\n\n{DEV_ACTION_PROMPT}"
 
+    doc_blocks = await get_developer_document_blocks(developer_id)
+
     messages = []
+
+    if doc_blocks:
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Documentos del proyecto adjuntos para consulta:"},
+                *doc_blocks,
+            ],
+        })
+        messages.append({
+            "role": "assistant",
+            "content": '{"action": "none", "params": {}, "reply": "Tengo los documentos del proyecto disponibles para consultar."}',
+        })
+
     for msg in history:
         role = "user" if msg["role"] == "user" else "assistant"
         messages.append({"role": role, "content": msg["content"]})

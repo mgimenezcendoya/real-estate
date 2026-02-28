@@ -29,7 +29,7 @@ from app.modules.leads.qualification import (
     merge_qualification,
 )
 from app.modules.rag.ingestion import find_document_for_sharing
-from app.modules.storage import get_presigned_url_for_document
+from app.modules.rag.retrieval import get_developer_document_blocks
 from app.modules.whatsapp.providers.base import IncomingMessage
 from app.modules.whatsapp.sender import send_document_message, send_text_message
 
@@ -75,6 +75,7 @@ async def handle_lead_message(
     history = await get_conversation_history(lead_id, limit=15)
 
     response_text = await _generate_response(
+        developer_id=developer_id,
         developer_name=developer["developer_name"],
         developer_context=developer_context,
         qualification=qualification,
@@ -130,30 +131,29 @@ async def _send_document(developer_id: str, to_phone: str, doc_request: dict) ->
             logger.warning("Document not found: %s", doc_request)
             return
 
-        try:
-            document_url = get_presigned_url_for_document(doc["file_url"])
-        except Exception:
-            document_url = doc["file_url"]
+        document_url = doc["file_url"]
+        logger.info("Sending doc to %s: type=%s url=%s", to_phone, doc_request["doc_type"], document_url)
 
-        await send_document_message(
+        result = await send_document_message(
             to=to_phone,
             document_url=document_url,
             filename=doc["filename"],
             caption=doc["filename"],
         )
-        logger.info("Sent document %s to %s", doc["filename"], to_phone)
+        logger.info("Twilio response for doc send: %s", result)
     except Exception as e:
         logger.error("Failed to send document to %s: %s", to_phone, e)
 
 
 async def _generate_response(
+    developer_id: str,
     developer_name: str,
     developer_context: str,
     qualification: dict,
     conversation_history: list[dict],
     user_message: str,
 ) -> str:
-    """Call Claude to generate a response for the lead."""
+    """Call Claude to generate a response, with project PDFs as native attachments."""
     settings = get_settings()
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -164,7 +164,23 @@ async def _generate_response(
     )
     system += f"\n\nInformacion de los proyectos:\n{developer_context}"
 
+    doc_blocks = await get_developer_document_blocks(developer_id)
+
     messages = []
+
+    if doc_blocks:
+        messages.append({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Documentos del proyecto adjuntos para consulta:"},
+                *doc_blocks,
+            ],
+        })
+        messages.append({
+            "role": "assistant",
+            "content": "Entendido, tengo los documentos del proyecto disponibles para consultar.",
+        })
+
     for msg in conversation_history[:-1]:
         role = "user" if msg["sender_type"] == "lead" else "assistant"
         messages.append({"role": role, "content": msg["content"]})
