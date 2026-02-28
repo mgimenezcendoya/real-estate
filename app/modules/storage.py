@@ -38,6 +38,12 @@ async def upload_file(
     filename: str,
 ) -> str:
     """Upload a file to S3 and return the public URL."""
+    if filename.lower().endswith(".pdf") and not file_bytes[:5] == b"%PDF-":
+        raise ValueError(
+            f"El archivo '{filename}' no es un PDF válido "
+            f"({len(file_bytes)} bytes, header={file_bytes[:20]!r})"
+        )
+
     settings = get_settings()
     key = _build_key(project_slug, doc_type, filename)
 
@@ -52,7 +58,7 @@ async def upload_file(
     )
 
     public_url = f"{settings.s3_public_url}/{key}"
-    logger.info("Uploaded %s to %s", filename, public_url)
+    logger.info("Uploaded %s (%d bytes) to %s", filename, len(file_bytes), public_url)
     return public_url
 
 
