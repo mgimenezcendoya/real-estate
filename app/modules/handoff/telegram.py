@@ -33,6 +33,9 @@ async def _tg_request(method: str, payload: dict) -> dict:
         return data
 
 
+TG_MAX_MSG_LEN = 4096
+
+
 async def send_handoff_alert(
     handoff_id: str,
     lead_name: str,
@@ -40,8 +43,9 @@ async def send_handoff_alert(
     project_name: str,
     score: str,
     context_summary: str,
+    conversation_history: list[dict] | None = None,
 ) -> int | None:
-    """Create a Forum Topic for this handoff and post the alert inside it."""
+    """Create a Forum Topic for this handoff, post alert + full conversation history."""
     settings = get_settings()
     if not settings.telegram_bot_token or not settings.telegram_chat_id:
         logger.warning("Telegram not configured, skipping handoff alert")
@@ -59,22 +63,28 @@ async def send_handoff_alert(
         logger.error("Failed to create topic for handoff %s: %s", handoff_id, topic_data)
         return None
 
-    text = (
-        f"🔔 *NUEVO HANDOFF*\n\n"
+    alert_text = (
+        f"🔔 *NUEVO HANDOFF — {project_name}*\n\n"
         f"👤 *{lead_name}*\n"
         f"📱 +{lead_phone}\n"
         f"🎯 Score: {score}\n\n"
-        f"📋 *Contexto:*\n{context_summary}\n\n"
-        f"_Escribí directo acá para hablar con el lead._\n"
-        f"_Escribí /cerrar cuando termines._"
+    )
+    if context_summary:
+        alert_text += f"📋 *Datos del lead:*\n{context_summary}\n\n"
+    alert_text += (
+        "_Escribí directo acá para hablar con el lead._\n"
+        "_Escribí /cerrar cuando termines._"
     )
 
     await _tg_request("sendMessage", {
         "chat_id": settings.telegram_chat_id,
         "message_thread_id": thread_id,
-        "text": text,
+        "text": alert_text,
         "parse_mode": "Markdown",
     })
+
+    if conversation_history:
+        await _send_conversation_history(settings.telegram_chat_id, thread_id, conversation_history)
 
     pool = await get_pool()
     await pool.execute(
@@ -84,6 +94,46 @@ async def send_handoff_alert(
     logger.info("Handoff %s: Topic created (thread_id=%s, name=%s)", handoff_id, thread_id, topic_name)
 
     return thread_id
+
+
+async def _send_conversation_history(
+    chat_id: str, thread_id: int, history: list[dict],
+) -> None:
+    """Format and send conversation history to a topic, splitting if too long."""
+    lines = ["📋 *HISTORIAL DE CONVERSACIÓN*\n"]
+    for msg in history:
+        sender = "👤 Lead" if msg.get("sender_type") == "lead" else "🤖 Agente"
+        content = msg.get("content", "")
+        lines.append(f"{sender}: {content}")
+
+    full_text = "\n".join(lines)
+
+    chunks = _split_message(full_text)
+    for chunk in chunks:
+        await _tg_request("sendMessage", {
+            "chat_id": chat_id,
+            "message_thread_id": thread_id,
+            "text": chunk,
+            "parse_mode": "Markdown",
+        })
+
+
+def _split_message(text: str) -> list[str]:
+    """Split a message into chunks that fit Telegram's 4096 char limit."""
+    if len(text) <= TG_MAX_MSG_LEN:
+        return [text]
+
+    chunks = []
+    while text:
+        if len(text) <= TG_MAX_MSG_LEN:
+            chunks.append(text)
+            break
+        split_at = text.rfind("\n", 0, TG_MAX_MSG_LEN)
+        if split_at <= 0:
+            split_at = TG_MAX_MSG_LEN
+        chunks.append(text[:split_at])
+        text = text[split_at:].lstrip("\n")
+    return chunks
 
 
 async def forward_lead_message(handoff_id: str, text: str) -> None:

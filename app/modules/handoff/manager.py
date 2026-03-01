@@ -31,6 +31,7 @@ async def initiate_handoff(
     project_id: str,
     trigger: str,
     context_summary: str,
+    conversation_history: list[dict] | None = None,
 ) -> dict:
     """Start a handoff: create record, send Telegram alert, message the lead."""
     pool = await get_pool()
@@ -63,6 +64,7 @@ async def initiate_handoff(
         project_name=project["name"] if project else "?",
         score=score or "?",
         context_summary=context_summary,
+        conversation_history=conversation_history,
     )
 
     if lead:

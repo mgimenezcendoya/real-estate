@@ -107,13 +107,16 @@ async def handle_lead_message(
         )
 
     if handoff_trigger:
-        context = _build_handoff_context(qualification, history, text)
+        qual_summary, full_history = _build_handoff_context(
+            qualification, history, text, clean_text,
+        )
         asyncio.create_task(
             initiate_handoff(
                 lead_id=lead_id,
                 project_id=default_project_id,
                 trigger=handoff_trigger,
-                context_summary=context,
+                context_summary=qual_summary,
+                conversation_history=full_history,
             )
         )
 
@@ -144,8 +147,10 @@ def _extract_handoff_marker(text: str) -> tuple[str, str | None]:
     return clean, match.group(1)
 
 
-def _build_handoff_context(qualification: dict, history: list[dict], last_message: str) -> str:
-    """Build a summary for the seller from qualification data and recent conversation."""
+def _build_handoff_context(
+    qualification: dict, history: list[dict], last_message: str, last_response: str,
+) -> tuple[str, list[dict]]:
+    """Build qualification summary and full conversation history for handoff."""
     parts = []
 
     if qualification.get("name"):
@@ -164,13 +169,13 @@ def _build_handoff_context(qualification: dict, history: list[dict], last_messag
         labels = {"immediate": "Inmediato", "3_months": "3 meses", "6_months": "6 meses", "1_year_plus": "+1 año"}
         parts.append(f"Plazo: {labels.get(qualification['timeline'], qualification['timeline'])}")
 
-    recent = [m["content"] for m in history[-4:] if m.get("content")]
-    if last_message:
-        recent.append(last_message)
-    if recent:
-        parts.append(f"\nÚltimos mensajes:\n" + "\n".join(f"  - {m[:100]}" for m in recent))
+    qualification_summary = "\n".join(parts) if parts else "Sin datos de calificación"
 
-    return "\n".join(parts) if parts else "Sin datos de calificación"
+    full_history = list(history)
+    full_history.append({"sender_type": "lead", "content": last_message})
+    full_history.append({"sender_type": "agent", "content": last_response})
+
+    return qualification_summary, full_history
 
 
 async def _send_document(developer_id: str, to_phone: str, doc_request: dict) -> None:
