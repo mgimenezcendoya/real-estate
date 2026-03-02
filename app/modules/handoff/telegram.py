@@ -6,6 +6,7 @@ in a Telegram group, so sellers can write directly without reply chains.
 import logging
 
 import httpx
+from anthropic import AsyncAnthropic
 from fastapi import APIRouter, Request
 
 from app.config import get_settings
@@ -84,7 +85,7 @@ async def send_handoff_alert(
     })
 
     if conversation_history:
-        await _send_conversation_history(settings.telegram_chat_id, thread_id, conversation_history)
+        await _send_context_message(settings.telegram_chat_id, thread_id, conversation_history)
 
     pool = await get_pool()
     await pool.execute(
@@ -96,19 +97,24 @@ async def send_handoff_alert(
     return thread_id
 
 
-async def _send_conversation_history(
+async def _send_context_message(
     chat_id: str, thread_id: int, history: list[dict],
 ) -> None:
-    """Format and send conversation history to a topic, splitting if too long."""
-    lines = ["📋 *HISTORIAL DE CONVERSACIÓN*\n"]
-    for msg in history:
+    """Generate a Claude summary of the conversation + last messages, send to topic."""
+    summary = await _summarize_conversation(history)
+
+    last_msgs = history[-4:] if len(history) > 4 else history
+    recent_lines = []
+    for msg in last_msgs:
         sender = "👤 Lead" if msg.get("sender_type") == "lead" else "🤖 Agente"
-        content = msg.get("content", "")
-        lines.append(f"{sender}: {content}")
+        content = (msg.get("content") or "")[:300]
+        recent_lines.append(f"{sender}: {content}")
 
-    full_text = "\n".join(lines)
+    text = f"📋 *RESUMEN DE CONVERSACIÓN*\n\n{summary}"
+    if recent_lines:
+        text += "\n\n💬 *Últimos mensajes:*\n" + "\n\n".join(recent_lines)
 
-    chunks = _split_message(full_text)
+    chunks = _split_message(text)
     for chunk in chunks:
         await _tg_request("sendMessage", {
             "chat_id": chat_id,
@@ -116,6 +122,29 @@ async def _send_conversation_history(
             "text": chunk,
             "parse_mode": "Markdown",
         })
+
+
+async def _summarize_conversation(history: list[dict]) -> str:
+    """Use Claude to generate a short summary of the conversation."""
+    settings = get_settings()
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    conv_text = "\n".join(
+        f"{'Lead' if m.get('sender_type') == 'lead' else 'Agente'}: {m.get('content', '')}"
+        for m in history
+    )
+
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=200,
+            system="Sos un asistente que resume conversaciones de ventas inmobiliarias. Generá un resumen conciso en español de 3-4 líneas que capture: qué busca el lead, qué se habló, y por qué se derivó a un vendedor. No uses markdown ni emojis.",
+            messages=[{"role": "user", "content": f"Resumí esta conversación:\n\n{conv_text}"}],
+        )
+        return response.content[0].text
+    except Exception as e:
+        logger.error("Failed to summarize conversation: %s", e)
+        return "No se pudo generar resumen."
 
 
 def _split_message(text: str) -> list[str]:

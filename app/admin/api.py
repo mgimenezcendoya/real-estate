@@ -246,23 +246,104 @@ async def run_obra_notifications():
 @router.get("/leads")
 async def list_leads(project_id: str, score: str | None = None):
     """List leads for a project, optionally filtered by score."""
-    return []
+    pool = await get_pool()
+    if score:
+        rows = await pool.fetch(
+            """
+            SELECT id, project_id, phone, name, intent, financing, timeline,
+                   budget_usd, bedrooms, location_pref, score, source,
+                   created_at, last_contact
+            FROM leads
+            WHERE project_id = $1 AND score = $2
+            ORDER BY last_contact DESC NULLS LAST, created_at DESC
+            """,
+            project_id, score,
+        )
+    else:
+        rows = await pool.fetch(
+            """
+            SELECT id, project_id, phone, name, intent, financing, timeline,
+                   budget_usd, bedrooms, location_pref, score, source,
+                   created_at, last_contact
+            FROM leads
+            WHERE project_id = $1
+            ORDER BY last_contact DESC NULLS LAST, created_at DESC
+            """,
+            project_id,
+        )
+    return [dict(r) for r in rows]
 
 
 @router.get("/leads/{lead_id}")
 async def get_lead(lead_id: str):
     """Get full lead detail including conversation history."""
-    return {}
+    pool = await get_pool()
+    lead = await pool.fetchrow(
+        """
+        SELECT id, project_id, phone, name, intent, financing, timeline,
+               budget_usd, bedrooms, location_pref, score, source,
+               created_at, last_contact
+        FROM leads WHERE id = $1
+        """,
+        lead_id,
+    )
+    if not lead:
+        return {"error": f"Lead {lead_id} not found"}
+
+    conversations = await pool.fetch(
+        """
+        SELECT id, role, sender_type, content, media_type, created_at
+        FROM conversations
+        WHERE lead_id = $1
+        ORDER BY created_at ASC
+        """,
+        lead_id,
+    )
+
+    return {
+        **dict(lead),
+        "conversations": [dict(c) for c in conversations],
+    }
 
 
 @router.get("/metrics/{project_id}")
 async def get_metrics(project_id: str):
     """Get project metrics."""
+    pool = await get_pool()
+
+    # Lead counts by score
+    score_rows = await pool.fetch(
+        """
+        SELECT score, COUNT(*) AS count
+        FROM leads
+        WHERE project_id = $1
+        GROUP BY score
+        """,
+        project_id,
+    )
+    score_counts = {r["score"]: r["count"] for r in score_rows}
+    total_leads = sum(score_counts.values())
+
+    # Unit counts by status
+    unit_rows = await pool.fetch(
+        """
+        SELECT status, COUNT(*) AS count
+        FROM units
+        WHERE project_id = $1
+        GROUP BY status
+        """,
+        project_id,
+    )
+    unit_counts = {r["status"]: r["count"] for r in unit_rows}
+
     return {
-        "total_leads": 0,
-        "hot": 0,
-        "warm": 0,
-        "cold": 0,
+        "total_leads": total_leads,
+        "hot": score_counts.get("hot", 0),
+        "warm": score_counts.get("warm", 0),
+        "cold": score_counts.get("cold", 0),
+        "units_available": unit_counts.get("available", 0),
+        "units_reserved": unit_counts.get("reserved", 0),
+        "units_sold": unit_counts.get("sold", 0),
     }
 
 
