@@ -144,9 +144,9 @@ export default function LeadsPage() {
                     <div className="space-y-3">
                         {[
                             { label: 'Teléfono', value: selected.phone },
-                            { label: 'Intención', value: INTENT_LABELS[selected.intent] || selected.intent || '—' },
+                            { label: 'Intención', value: (selected.intent && INTENT_LABELS[selected.intent]) || selected.intent || '—' },
                             { label: 'Financiamiento', value: selected.financing || '—' },
-                            { label: 'Timeline', value: TIMELINE_LABELS[selected.timeline] || selected.timeline || '—' },
+                            { label: 'Timeline', value: (selected.timeline && TIMELINE_LABELS[selected.timeline]) || selected.timeline || '—' },
                             { label: 'Presupuesto', value: selected.budget_usd ? `USD ${Number(selected.budget_usd).toLocaleString('es-AR')}` : '—' },
                             { label: 'Ambientes', value: selected.bedrooms ? `${selected.bedrooms} amb.` : '—' },
                             { label: 'Zona preferida', value: selected.location_pref || '—' },
