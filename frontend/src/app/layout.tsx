@@ -10,10 +10,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className="flex h-screen overflow-hidden">
+      <body className="flex h-screen overflow-hidden antialiased">
         <Sidebar />
-        <main className="flex-1 overflow-auto bg-[#090B10]">
-          {children}
+        <main className="flex-1 overflow-auto bg-transparent relative">
+          <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay"></div>
+          <div className="relative z-10 w-full h-full">
+            {children}
+          </div>
         </main>
       </body>
     </html>

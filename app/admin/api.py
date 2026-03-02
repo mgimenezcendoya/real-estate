@@ -142,13 +142,15 @@ VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
 async def list_projects(developer_id: str | None = None):
     """List projects, optionally filtered by developer."""
     pool = await get_pool()
+    columns = """id, developer_id, name, slug, address, neighborhood, city,
+                 total_floors, total_units, delivery_status, status, created_at"""
     if developer_id:
         rows = await pool.fetch(
-            "SELECT id, developer_id, name, status, created_at FROM projects WHERE developer_id = $1 ORDER BY name",
+            f"SELECT {columns} FROM projects WHERE developer_id = $1 ORDER BY name",
             developer_id,
         )
     else:
-        rows = await pool.fetch("SELECT id, developer_id, name, status, created_at FROM projects ORDER BY name")
+        rows = await pool.fetch(f"SELECT {columns} FROM projects ORDER BY name")
     return [dict(r) for r in rows]
 
 

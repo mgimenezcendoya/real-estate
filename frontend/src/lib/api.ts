@@ -108,4 +108,13 @@ export const api = {
 
   uploadDocument: (formData: FormData) =>
     fetch(`${BASE_URL}/admin/upload-document`, { method: 'POST', body: formData }).then(r => r.json()),
+
+  loadProject: (csvFile: File, developerId: string) => {
+    const formData = new FormData();
+    formData.append('csv_file', csvFile);
+    formData.append('developer_id', developerId);
+    return fetch(`${BASE_URL}/admin/load-project`, { method: 'POST', body: formData }).then(r => r.json());
+  },
+
+  getTemplateUrl: () => `${BASE_URL}/admin/project-template/download`,
 };
