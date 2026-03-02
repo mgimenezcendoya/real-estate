@@ -47,15 +47,25 @@ export interface Lead {
   phone: string;
   name: string;
   intent: string;
-  financing: string;
-  timeline: string;
+  financing?: string;
+  timeline?: string;
   budget_usd: number;
   bedrooms: number;
   location_pref: string;
-  score: 'hot' | 'warm' | 'cold';
-  source: string;
+  score?: 'hot' | 'warm' | 'cold' | null;
+  source?: string;
   created_at: string;
-  last_contact: string;
+  last_contact?: string;
+  project_name?: string;
+}
+
+export interface Conversation {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  sender_type: 'lead' | 'ai' | 'human';
+  content: string;
+  media_type: string | null;
+  created_at: string;
 }
 
 export interface Document {
@@ -97,9 +107,23 @@ export const api = {
   updateUnitStatus: (unitId: string, status: string) =>
     fetcher(`/admin/units/${unitId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
-  getLeads: (projectId: string, score?: string) =>
-    fetcher<Lead[]>(`/admin/leads?project_id=${projectId}${score ? `&score=${score}` : ''}`),
-  getLead: (id: string) => fetcher<Lead>(`/admin/leads/${id}`),
+  getLeads: (projectId?: string, score?: string) => {
+    const params = new URLSearchParams();
+    if (projectId) params.append('project_id', projectId);
+    if (score) params.append('score', score);
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    return fetcher<Lead[]>(`/admin/leads${queryString}`);
+  },
+  getLead: (id: string) => fetcher<Lead & { conversations: Conversation[] }>(`/admin/leads/${id}`),
+
+  sendLeadMessage: async (leadId: string, content: string): Promise<void> => {
+    const res = await fetch(`${BASE_URL}/admin/leads/${leadId}/message`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) throw new Error('Failed to send message');
+  },
 
   getMetrics: (projectId: string) => fetcher<Metrics>(`/admin/metrics/${projectId}`),
 
