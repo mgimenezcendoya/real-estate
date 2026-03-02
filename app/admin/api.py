@@ -6,9 +6,17 @@ and cron-triggered background jobs.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.admin.auth import create_token, verify_token
+from app.config import get_settings
 from app.database import get_pool
+from app.modules.handoff.manager import (
+    close_handoff_by_lead_id,
+    ensure_handoff_for_human_reply,
+    get_active_handoff_by_lead_id,
+)
 from app.modules.handoff.telegram import _handle_update as handle_telegram_update
 from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
@@ -20,6 +28,37 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
+
+
+# --- Auth (login for web panel) ---
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/auth/login")
+async def auth_login(body: LoginBody):
+    """Validate credentials and return a token. Credentials from env ADMIN_USERNAME, ADMIN_PASSWORD."""
+    settings = get_settings()
+    if not settings.admin_username or not settings.admin_password:
+        raise HTTPException(status_code=503, detail="Login not configured")
+    if body.username != settings.admin_username or body.password != settings.admin_password:
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    token = create_token(body.username)
+    return {"token": token, "user": body.username}
+
+
+@router.get("/auth/me")
+async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Return current user if token is valid."""
+    if not credentials or credentials.scheme != "Bearer":
+        return {"user": None}
+    username = verify_token(credentials.credentials)
+    if not username:
+        return {"user": None}
+    return {"user": username}
 
 
 # --- Document upload ---
@@ -314,13 +353,39 @@ async def get_lead(lead_id: str):
 class SendMessageRequest(BaseModel):
     content: str
 
+@router.get("/leads/{lead_id}/handoff")
+async def get_lead_handoff(lead_id: str):
+    """Get current handoff (HITL) status for a lead."""
+    handoff = await get_active_handoff_by_lead_id(lead_id)
+    return {"active": handoff is not None, "handoff_id": str(handoff["id"]) if handoff else None}
+
+
+@router.post("/leads/{lead_id}/handoff/start")
+async def start_lead_handoff(lead_id: str):
+    """Start human-in-the-loop (takeover) for this lead from the frontend."""
+    try:
+        handoff = await ensure_handoff_for_human_reply(lead_id)
+        return {"ok": True, "handoff_id": str(handoff["id"])}
+    except ValueError as e:
+        return {"error": str(e)}
+
+
+@router.post("/leads/{lead_id}/handoff/close")
+async def close_lead_handoff(lead_id: str):
+    """End human takeover and return control to the agent."""
+    closed = await close_handoff_by_lead_id(lead_id)
+    return {"ok": True, "closed": closed}
+
+
 @router.post("/leads/{lead_id}/message")
 async def send_lead_message(lead_id: str, request: SendMessageRequest):
-    """Send a message to a lead as a human agent."""
+    """Send a message to a lead as a human agent. Activates HITL if not already active."""
     pool = await get_pool()
     lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
     if not lead:
         return {"error": f"Lead {lead_id} not found"}
+
+    await ensure_handoff_for_human_reply(lead_id)
 
     # Guardamos en bd
     await pool.execute(

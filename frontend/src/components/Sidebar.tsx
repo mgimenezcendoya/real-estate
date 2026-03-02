@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Building2, LayoutDashboard, Users, FileText, HardHat, Menu, X, ChevronRight, Inbox, MessageSquare } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Building2, HardHat, X, ChevronRight, MessageSquare, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
+import { useAuth } from '@/contexts/AuthContext';
 
 const navItems = [
     { href: '/proyectos', label: 'Proyectos', icon: Building2 },
@@ -13,7 +14,14 @@ const navItems = [
 
 export default function Sidebar() {
     const pathname = usePathname();
+    const router = useRouter();
+    const { user, logout } = useAuth();
     const [collapsed, setCollapsed] = useState(false);
+
+    const handleLogout = () => {
+        logout();
+        router.replace('/');
+    };
 
     return (
         <aside
@@ -73,19 +81,38 @@ export default function Sidebar() {
             </nav>
 
             {/* Footer */}
-            {!collapsed && (
-                <div className="px-5 py-6 mt-auto border-t border-[rgba(255,255,255,0.06)] bg-white/[0.02]">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                            <span className="text-indigo-300 text-xs font-bold">JD</span>
+            <div className={clsx("mt-auto border-t border-[rgba(255,255,255,0.06)] bg-white/[0.02]", collapsed ? "px-0 py-4 flex justify-center" : "px-5 py-6")}>
+                {collapsed ? (
+                    <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="p-2 rounded-xl text-[#8B91A8] hover:bg-white/5 hover:text-white transition-colors"
+                        title="Cerrar sesión"
+                    >
+                        <LogOut size={18} />
+                    </button>
+                ) : (
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center flex-shrink-0">
+                                <span className="text-indigo-300 text-xs font-bold">
+                                    {(user || 'A').charAt(0).toUpperCase()}
+                                </span>
+                            </div>
+                            <p className="text-sm text-white font-medium truncate">{user || 'Admin'}</p>
                         </div>
-                        <div>
-                            <p className="text-sm text-white font-medium">Juan Developer</p>
-                            <p className="text-xs text-indigo-400/80">Admin</p>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] font-medium text-[#94A3B8] hover:bg-white/5 hover:text-white transition-colors"
+                            title="Cerrar sesión"
+                        >
+                            <LogOut size={14} />
+                            Salir
+                        </button>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </aside>
     );
 }

@@ -7,10 +7,12 @@ and document sharing.
 import asyncio
 import logging
 import re
+from datetime import datetime, timezone
 
 from anthropic import AsyncAnthropic
 
 from app.config import get_settings
+from app.database import get_pool
 from app.modules.agent.prompts import LEAD_SYSTEM_PROMPT
 from app.modules.agent.session import (
     get_or_create_session,
@@ -22,6 +24,7 @@ from app.modules.agent.session import (
 )
 from app.modules.handoff.manager import (
     check_active_handoff,
+    close_handoff,
     handle_lead_message_during_handoff,
     initiate_handoff,
 )
@@ -57,8 +60,27 @@ async def handle_lead_message(
     active_handoff = await check_active_handoff(sender_phone, default_project_id)
     if active_handoff:
         if message.text:
-            await handle_lead_message_during_handoff(active_handoff, message.text)
-        return
+            # If lead didn't reply in 30 min, return control to agent
+            pool = await get_pool()
+            last_user = await pool.fetchrow(
+                """
+                SELECT created_at FROM conversations
+                WHERE lead_id = $1 AND role = 'user'
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                active_handoff["lead_id"],
+            )
+            if last_user:
+                last_at = last_user["created_at"]
+                if last_at.tzinfo is None:
+                    last_at = last_at.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - last_at).total_seconds() > 30 * 60:
+                    logger.info("Handoff timeout (30 min) for lead %s, returning to agent", active_handoff["lead_id"])
+                    await close_handoff(str(active_handoff["id"]), lead_note="timeout_30min", send_goodbye=False)
+                    active_handoff = None
+            if active_handoff:
+                await handle_lead_message_during_handoff(active_handoff, message.text)
+                return
 
     session = await get_or_create_session(sender_phone, default_project_id)
     lead_id = str(session["lead_id"])

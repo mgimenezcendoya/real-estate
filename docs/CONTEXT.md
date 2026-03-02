@@ -362,6 +362,8 @@ Agente: "Estamos chateando sobre Torres del Parque. Queres que te pase
 
 ### Módulo 2: Agente WhatsApp — Modo Lead (externo)
 
+El agente mantiene un **tono profesional**: cordial pero sin chistes, "jaja" ni juego con el usuario; respuestas concisas para ahorrar tokens y mantener credibilidad. Si el lead hace un comentario gracioso o provocador, se redirige con cortesía al tema (proyecto, visita, datos a recopilar). El prompt en `app/modules/agent/prompts.py` (LEAD_SYSTEM_PROMPT) define estas reglas.
+
 **Flujo de un lead nuevo:**
 1. Lead escribe al WhatsApp de la desarrolladora
 2. Webhook recibe → identifica usuario por teléfono
@@ -590,6 +592,17 @@ Entre que se dispara el handoff y el vendedor responde, el agente mantiene la co
 - Si el lead pregunta algo nuevo, responde normalmente y agrega: "Martín se va a sumar en breve para ayudarte con lo que necesites"
 - Si pasan más de 2 minutos sin respuesta del vendedor: "Martín está terminando con otro cliente, ya te atiende"
 
+#### HITL desde el panel web (Inbox Next.js)
+
+Además de Telegram/Chatwoot, el handoff se puede gestionar desde el **panel web** (Inbox en Next.js):
+
+- **Activar HITL:** cuando el lead pide humano (el agente emite `[HANDOFF]`) o cuando un operador hace "Tomar conversación" o envía el primer mensaje desde el Inbox; en ambos casos se crea/activa un handoff y el agente deja de responder a ese lead.
+- **Durante el takeover:** los mensajes del lead se reenvían a Telegram (si está configurado) o solo se registran; las respuestas se envían desde el panel con "Enviar" (POST `/admin/leads/{id}/message`), que además asegura handoff activo.
+- **Volver al agente:** el operador hace "Terminar intervención" (POST `/admin/leads/{id}/handoff/close`), o **timeout de 30 minutos**: si el lead no escribe en 30 min, el siguiente mensaje del lead lo atiende de nuevo el agente (se cierra el handoff automáticamente sin enviar mensaje de despedida).
+- **API:** `GET /admin/leads/{id}/handoff` (estado), `POST .../handoff/start`, `POST .../handoff/close`.
+
+El Inbox muestra una conversación por persona (agrupado por teléfono), con el último proyecto de interés; los mensajes del agente se distinguen visualmente de usuario y humano.
+
 #### WhatsApp sigue para lo operativo
 
 El Modo Developer por WhatsApp (audios de obra, PDFs, updates) no cambia. Chatwoot es solo para el handoff de ventas. El developer sigue mandando audios y documentos por WhatsApp al número del proyecto.
@@ -632,6 +645,22 @@ NocoDB se conecta directamente al PostgreSQL de Realia y expone las tablas como 
 #### Registro y atribución
 
 Toda la conversación queda en la tabla `conversations` de Realia, incluyendo mensajes del vendedor humano (synceados desde Chatwoot). El campo `sender_type` distingue si fue generado por el agente (`'agent'`) o por un humano (`'human'`). Esto es crítico para la atribución de revenue share.
+
+### Módulo 6b: Panel web Realia (Next.js)
+
+Panel unificado en `frontend/` (Next.js 16, React 19, Tailwind) desplegado junto al backend (p. ej. Render).
+
+**Proyectos (`/proyectos`):**
+- Listado de proyectos con tarjetas: nombre, ubicación, unidades, pisos, **cantidad de leads**, avance real.
+- "Nuevo Proyecto": modal para subir CSV (mismo template que por WhatsApp); descarga de template y envío a `POST /admin/load-project`.
+
+**Inbox (`/inbox`):**
+- Conversaciones agrupadas por **teléfono** (una fila por persona); se muestra el **último proyecto de interés** (del lead con último contacto más reciente).
+- Al abrir una conversación se fusionan los mensajes de todos los leads de ese teléfono (todos los proyectos) en un solo hilo ordenado por fecha.
+- Diferenciación visual de mensajes: Usuario, Realia AI (Bot), Soporte (Humano).
+- **Human-in-the-loop:** estado "Modo agente" / "Takeover humano activo"; botón "Tomar conversación" (activa handoff); botón "Terminar intervención" (cierra handoff). Al enviar un mensaje desde el panel se activa handoff automáticamente. Polling cada 5 s de mensajes y estado de handoff.
+
+**Deploy:** Backend y frontend en `render.yaml` (servicios `realia` y `realia-frontend`). Frontend necesita `NEXT_PUBLIC_API_URL` apuntando al backend; backend necesita `CORS_ORIGINS` con la URL del frontend para permitir peticiones desde el navegador.
 
 ---
 
@@ -1187,6 +1216,18 @@ NOCODB_API_TOKEN=
 # App
 ENVIRONMENT=development
 SECRET_KEY=
+
+# Admin panel login (web): usuario y contraseña para acceder al workspace. Si no se configuran, el login devuelve 503.
+ADMIN_USERNAME=
+ADMIN_PASSWORD=
+
+# CORS (backend): orígenes permitidos separados por coma. Incluir URL del frontend en producción.
+# Ejemplo: http://localhost:3000,https://realia-frontend.onrender.com
+CORS_ORIGINS=
+
+# Frontend (Next.js, build-time): URL del backend para las llamadas API.
+# En local no hace falta; en Render configurar la URL del servicio realia.
+NEXT_PUBLIC_API_URL=
 ```
 
 ---

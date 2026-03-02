@@ -1,9 +1,28 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+const AUTH_TOKEN_KEY = 'realia_token';
+
+function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(AUTH_TOKEN_KEY);
+}
+
+export function setAuthToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  else sessionStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
 async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers,
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json();
@@ -62,7 +81,7 @@ export interface Lead {
 export interface Conversation {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  sender_type: 'lead' | 'ai' | 'human';
+  sender_type: 'lead' | 'ai' | 'agent' | 'human';
   content: string;
   media_type: string | null;
   created_at: string;
@@ -117,28 +136,60 @@ export const api = {
   getLead: (id: string) => fetcher<Lead & { conversations: Conversation[] }>(`/admin/leads/${id}`),
 
   sendLeadMessage: async (leadId: string, content: string): Promise<void> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (getAuthToken()) headers['Authorization'] = `Bearer ${getAuthToken()}`;
     const res = await fetch(`${BASE_URL}/admin/leads/${leadId}/message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ content }),
     });
     if (!res.ok) throw new Error('Failed to send message');
   },
+
+  getLeadHandoff: (leadId: string) =>
+    fetcher<{ active: boolean; handoff_id: string | null }>(`/admin/leads/${leadId}/handoff`),
+
+  startLeadHandoff: (leadId: string) =>
+    fetcher<{ ok: boolean; handoff_id: string }>(`/admin/leads/${leadId}/handoff/start`, { method: 'POST' }),
+
+  closeLeadHandoff: (leadId: string) =>
+    fetcher<{ ok: boolean; closed: boolean }>(`/admin/leads/${leadId}/handoff/close`, { method: 'POST' }),
 
   getMetrics: (projectId: string) => fetcher<Metrics>(`/admin/metrics/${projectId}`),
 
   getDocuments: (projectId: string, docType?: string) =>
     fetcher<Document[]>(`/admin/documents/${projectId}${docType ? `?doc_type=${docType}` : ''}`),
 
-  uploadDocument: (formData: FormData) =>
-    fetch(`${BASE_URL}/admin/upload-document`, { method: 'POST', body: formData }).then(r => r.json()),
+  uploadDocument: (formData: FormData) => {
+    const headers: Record<string, string> = {};
+    if (getAuthToken()) headers['Authorization'] = `Bearer ${getAuthToken()}`;
+    return fetch(`${BASE_URL}/admin/upload-document`, { method: 'POST', headers, body: formData }).then(r => r.json());
+  },
 
   loadProject: (csvFile: File, developerId: string) => {
     const formData = new FormData();
     formData.append('csv_file', csvFile);
     formData.append('developer_id', developerId);
-    return fetch(`${BASE_URL}/admin/load-project`, { method: 'POST', body: formData }).then(r => r.json());
+    const headers: Record<string, string> = {};
+    if (getAuthToken()) headers['Authorization'] = `Bearer ${getAuthToken()}`;
+    return fetch(`${BASE_URL}/admin/load-project`, { method: 'POST', headers, body: formData }).then(r => r.json());
   },
 
   getTemplateUrl: () => `${BASE_URL}/admin/project-template/download`,
+
+  login: (username: string, password: string) =>
+    fetch(`${BASE_URL}/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.detail || data.error || 'Error al iniciar sesión';
+        throw new Error(typeof msg === 'string' ? msg : msg.message || 'Error al iniciar sesión');
+      }
+      return data as { token: string; user: string };
+    }),
+
+  authMe: () => fetcher<{ user: string | null }>('/admin/auth/me'),
 };

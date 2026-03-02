@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     nocodb_base_url: str = ""
     nocodb_api_token: str = ""
 
+    # Admin panel login (web)
+    admin_username: str = ""
+    admin_password: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
