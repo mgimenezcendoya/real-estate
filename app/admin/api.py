@@ -14,6 +14,8 @@ from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
 from app.modules.project_loader import parse_project_csv, create_project_from_parsed, build_summary
 from app.modules.storage import upload_file
+from app.modules.whatsapp.sender import send_text_message
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -246,33 +248,35 @@ async def run_obra_notifications():
 # --- Analytics / Pipeline ---
 
 @router.get("/leads")
-async def list_leads(project_id: str, score: str | None = None):
-    """List leads for a project, optionally filtered by score."""
+async def list_leads(project_id: str | None = None, score: str | None = None):
+    """List leads for a project, optionally filtered by score. If no project_id is provided, lists all leads."""
     pool = await get_pool()
+    conditions = []
+    params = []
+    
+    if project_id:
+        conditions.append(f"l.project_id = ${len(params) + 1}")
+        params.append(project_id)
+        
     if score:
-        rows = await pool.fetch(
-            """
-            SELECT id, project_id, phone, name, intent, financing, timeline,
-                   budget_usd, bedrooms, location_pref, score, source,
-                   created_at, last_contact
-            FROM leads
-            WHERE project_id = $1 AND score = $2
-            ORDER BY last_contact DESC NULLS LAST, created_at DESC
-            """,
-            project_id, score,
-        )
-    else:
-        rows = await pool.fetch(
-            """
-            SELECT id, project_id, phone, name, intent, financing, timeline,
-                   budget_usd, bedrooms, location_pref, score, source,
-                   created_at, last_contact
-            FROM leads
-            WHERE project_id = $1
-            ORDER BY last_contact DESC NULLS LAST, created_at DESC
-            """,
-            project_id,
-        )
+        conditions.append(f"l.score = ${len(params) + 1}")
+        params.append(score)
+        
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    
+    query = f"""
+        SELECT 
+            l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
+            l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
+            l.created_at, l.last_contact,
+            p.name as project_name
+        FROM leads l
+        LEFT JOIN projects p ON l.project_id = p.id
+        {where_clause}
+        ORDER BY l.last_contact DESC NULLS LAST, l.created_at DESC
+    """
+    
+    rows = await pool.fetch(query, *params)
     return [dict(r) for r in rows]
 
 
@@ -306,6 +310,40 @@ async def get_lead(lead_id: str):
         **dict(lead),
         "conversations": [dict(c) for c in conversations],
     }
+
+class SendMessageRequest(BaseModel):
+    content: str
+
+@router.post("/leads/{lead_id}/message")
+async def send_lead_message(lead_id: str, request: SendMessageRequest):
+    """Send a message to a lead as a human agent."""
+    pool = await get_pool()
+    lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
+    if not lead:
+        return {"error": f"Lead {lead_id} not found"}
+
+    # Guardamos en bd
+    await pool.execute(
+        """
+        INSERT INTO conversations (lead_id, role, sender_type, content)
+        VALUES ($1, 'assistant', 'human', $2)
+        """,
+        lead_id, request.content
+    )
+
+    # Actualizamos el ultimo contacto
+    await pool.execute(
+        "UPDATE leads SET last_contact = NOW() WHERE id = $1", lead_id
+    )
+
+    # Enviamos via WhatsApp
+    try:
+        await send_text_message(to=lead["phone"], text=request.content)
+    except Exception as e:
+        logger.error(f"Error sending message to {lead['phone']}: {e}")
+        return {"error": "Failed to dispatch message to WhatsApp provider"}
+
+    return {"status": "ok"}
 
 
 @router.get("/metrics/{project_id}")

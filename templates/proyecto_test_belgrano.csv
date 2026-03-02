@@ -1,0 +1,22 @@
+## TEMPLATE PARA CARGAR PROYECTO
+## Completá lo que puedas. Lo que no tengas dejalo vacío.
+## El resto lo podés completar después por WhatsApp.
+##
+## SECCIÓN 1: DATOS DEL PROYECTO (completar en la primera fila de datos)
+## SECCIÓN 2: UNIDADES (una fila por unidad)
+##
+## Guardar como CSV (separado por comas) y enviar por WhatsApp.
+
+proyecto_nombre,proyecto_direccion,proyecto_barrio,proyecto_ciudad,proyecto_descripcion,proyecto_pisos_total,proyecto_unidades_total,proyecto_inicio_obra,proyecto_entrega_estimada,proyecto_estado_obra,proyecto_formas_pago,proyecto_amenities,unidad,piso,ambientes,m2,precio_usd,estado
+Av. del Libertador 6200,Av. del Libertador 6200,Belgrano,CABA,Edificio de categoría con vista al río y amenities premium. Doble cochera opcional. Ubicación privilegiada sobre Libertador.,10,12,2025-06-01,2028-06-01,en_construccion,"40% anticipo USD + 24 cuotas en pesos ajustadas por CAC + 10% contra posesión. Descuento contado: 7%.","Rooftop con parrilla y deck | Piscina climatizada | Gym equipado | Coworking | SUM | Bicicletero | Seguridad 24hs | Cocheras subterráneas",1A,1,2,55,92000,disponible
+,,,,,,,,,,,,1B,1,2,58,96000,vendida
+,,,,,,,,,,,,2A,2,2,60,98000,disponible
+,,,,,,,,,,,,2B,2,3,75,125000,reservada
+,,,,,,,,,,,,3A,3,3,78,132000,disponible
+,,,,,,,,,,,,4A,4,3,80,138000,disponible
+,,,,,,,,,,,,5A,5,3,82,145000,disponible
+,,,,,,,,,,,,6A,6,4,95,168000,reservada
+,,,,,,,,,,,,7A,7,4,98,175000,disponible
+,,,,,,,,,,,,8A,8,4,100,185000,disponible
+,,,,,,,,,,,,9A,9,4,105,198000,disponible
+,,,,,,,,,,,,PH,10,5,145,320000,disponible

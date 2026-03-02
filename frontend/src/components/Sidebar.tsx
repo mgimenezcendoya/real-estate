@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, LayoutDashboard, Users, FileText, HardHat, Menu, X, ChevronRight } from 'lucide-react';
+import { Building2, LayoutDashboard, Users, FileText, HardHat, Menu, X, ChevronRight, Inbox, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 
 const navItems = [
     { href: '/proyectos', label: 'Proyectos', icon: Building2 },
+    { href: '/inbox', label: 'Inbox', icon: MessageSquare },
 ];
 
 export default function Sidebar() {
