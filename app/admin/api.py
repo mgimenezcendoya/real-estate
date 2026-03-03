@@ -3,6 +3,7 @@ Admin API: internal endpoints for document upload, analytics, pipeline visibilit
 and cron-triggered background jobs.
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -20,8 +21,9 @@ from app.modules.handoff.manager import (
 from app.modules.handoff.telegram import _handle_update as handle_telegram_update
 from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
+from datetime import datetime, timezone, date as date_type
 from app.modules.project_loader import parse_project_csv, create_project_from_parsed, build_summary
-from app.modules.storage import upload_file
+from app.modules.storage import upload_file, upload_obra_foto
 from app.modules.whatsapp.sender import send_text_message
 from pydantic import BaseModel
 
@@ -319,6 +321,135 @@ async def list_leads(project_id: str | None = None, score: str | None = None):
     return [dict(r) for r in rows]
 
 
+UPDATABLE_LEAD_FIELDS = {
+    "name", "score", "source", "budget_usd", "intent", "timeline", "financing", "bedrooms", "location_pref",
+}
+
+
+@router.patch("/leads/{lead_id}")
+async def update_lead(lead_id: str, request: Request):
+    """Update editable lead fields."""
+    pool = await get_pool()
+    body = await request.json()
+
+    fields_to_update = {k: v for k, v in body.items() if k in UPDATABLE_LEAD_FIELDS}
+    if not fields_to_update:
+        return {"error": f"No valid fields. Allowed: {', '.join(sorted(UPDATABLE_LEAD_FIELDS))}"}
+
+    set_clauses = []
+    params = [lead_id]
+    for i, (field, value) in enumerate(fields_to_update.items(), start=2):
+        set_clauses.append(f"{field} = ${i}")
+        params.append(value)
+
+    sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, name, score"
+    row = await pool.fetchrow(sql, *params)
+    if not row:
+        return {"error": f"Lead {lead_id} not found"}
+
+    logger.info("Lead %s updated: %s", lead_id, list(fields_to_update.keys()))
+    return {"updated": list(fields_to_update.keys()), "lead_id": str(row["id"]), "name": row["name"], "score": row["score"]}
+
+
+@router.get("/leads/{lead_id}/notes")
+async def get_lead_notes(lead_id: str):
+    """Get notes for a lead."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, author_name, note, created_at FROM lead_notes WHERE lead_id = $1 ORDER BY created_at DESC",
+        lead_id,
+    )
+    return [dict(r) for r in rows]
+
+
+class NoteBody(BaseModel):
+    note: str
+    author_name: Optional[str] = None
+
+
+@router.post("/leads/{lead_id}/notes")
+async def add_lead_note(lead_id: str, body: NoteBody):
+    """Add a note to a lead."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "INSERT INTO lead_notes (lead_id, author_name, note) VALUES ($1, $2, $3) RETURNING id, author_name, note, created_at",
+        lead_id, body.author_name, body.note,
+    )
+    return dict(row)
+
+
+@router.delete("/leads/{lead_id}/notes/{note_id}")
+async def delete_lead_note(lead_id: str, note_id: str):
+    """Delete a note."""
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM lead_notes WHERE id = $1 AND lead_id = $2",
+        note_id, lead_id,
+    )
+    deleted = result.split()[-1] != "0"
+    return {"deleted": deleted}
+
+
+@router.get("/analytics/{project_id}")
+async def get_analytics(project_id: str):
+    """Get analytics dashboard data for a project."""
+    pool = await get_pool()
+
+    lead_counts, unit_stats, weekly_rows, source_rows = await asyncio.gather(
+        pool.fetchrow(
+            "SELECT COUNT(*) as leads_total, COUNT(*) FILTER (WHERE score='hot') as leads_hot FROM leads WHERE project_id = $1",
+            project_id,
+        ),
+        pool.fetchrow(
+            """
+            SELECT
+                COUNT(*) FILTER (WHERE status='reserved') as units_reserved,
+                COUNT(*) FILTER (WHERE status='sold') as units_sold,
+                COALESCE(SUM(price_usd) FILTER (WHERE status='reserved'), 0) as reserved_usd,
+                COALESCE(SUM(price_usd) FILTER (WHERE status='sold'), 0) as sold_usd,
+                COALESCE(SUM(price_usd), 0) as potential_usd
+            FROM units WHERE project_id = $1
+            """,
+            project_id,
+        ),
+        pool.fetch(
+            """
+            SELECT DATE_TRUNC('week', created_at)::date as week,
+                COUNT(*) FILTER (WHERE score='hot') as hot,
+                COUNT(*) FILTER (WHERE score='warm') as warm,
+                COUNT(*) FILTER (WHERE score='cold') as cold
+            FROM leads
+            WHERE project_id = $1 AND created_at >= NOW() - INTERVAL '8 weeks'
+            GROUP BY week ORDER BY week
+            """,
+            project_id,
+        ),
+        pool.fetch(
+            "SELECT COALESCE(source, 'Sin fuente') as source, COUNT(*) as count FROM leads WHERE project_id = $1 GROUP BY source ORDER BY count DESC",
+            project_id,
+        ),
+    )
+
+    return {
+        "funnel": {
+            "leads_total": lead_counts["leads_total"],
+            "leads_hot": lead_counts["leads_hot"],
+            "units_reserved": unit_stats["units_reserved"],
+            "units_sold": unit_stats["units_sold"],
+        },
+        "revenue": {
+            "potential_usd": float(unit_stats["potential_usd"]),
+            "reserved_usd": float(unit_stats["reserved_usd"]),
+            "sold_usd": float(unit_stats["sold_usd"]),
+        },
+        "weekly_leads": [
+            {"week": str(r["week"]), "hot": r["hot"], "warm": r["warm"], "cold": r["cold"]}
+            for r in weekly_rows
+        ],
+        "lead_sources": [{"source": r["source"], "count": r["count"]} for r in source_rows],
+    }
+
+
 @router.get("/leads/{lead_id}")
 async def get_lead(lead_id: str):
     """Get full lead detail including conversation history."""
@@ -467,6 +598,539 @@ async def list_documents(project_id: str, doc_type: str | None = None):
             project_id,
         )
     return [dict(r) for r in rows]
+
+
+# ---------- Obra tracking ----------
+
+STANDARD_ETAPAS = [
+    {"nombre": "Excavación y cimientos",    "orden": 1, "peso_pct": 8},
+    {"nombre": "Estructura",                "orden": 2, "peso_pct": 30},
+    {"nombre": "Mampostería y cerramientos","orden": 3, "peso_pct": 15},
+    {"nombre": "Instalaciones",             "orden": 4, "peso_pct": 15},
+    {"nombre": "Terminaciones interiores",  "orden": 5, "peso_pct": 18},
+    {"nombre": "Terminaciones exteriores",  "orden": 6, "peso_pct": 7},
+    {"nombre": "Áreas comunes y amenities", "orden": 7, "peso_pct": 5},
+    {"nombre": "Inspecciones y habilitación","orden": 8, "peso_pct": 2},
+]
+
+
+@router.post("/obra/{project_id}/init")
+async def init_obra_etapas(project_id: str):
+    """Initialize the 8 standard obra stages for a project. No-op if already initialized."""
+    pool = await get_pool()
+    existing = await pool.fetchval(
+        "SELECT COUNT(*) FROM obra_etapas WHERE project_id = $1", project_id
+    )
+    if existing > 0:
+        return {"already_initialized": True, "count": existing}
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for e in STANDARD_ETAPAS:
+                await conn.execute(
+                    "INSERT INTO obra_etapas (project_id, nombre, orden, peso_pct, es_standard) VALUES ($1, $2, $3, $4, TRUE)",
+                    project_id, e["nombre"], e["orden"], e["peso_pct"],
+                )
+
+    logger.info("Initialized %d obra etapas for project %s", len(STANDARD_ETAPAS), project_id)
+    return {"initialized": len(STANDARD_ETAPAS)}
+
+
+@router.get("/obra/{project_id}")
+async def get_obra(project_id: str):
+    """Get full obra data: etapas with nested updates+fotos, calculated overall progress."""
+    pool = await get_pool()
+
+    etapas = await pool.fetch(
+        "SELECT id, nombre, orden, peso_pct, es_standard, activa, porcentaje_completado FROM obra_etapas WHERE project_id = $1 ORDER BY orden",
+        project_id,
+    )
+    if not etapas:
+        return {"etapas": [], "progress": 0}
+
+    updates = await pool.fetch(
+        """SELECT id, etapa_id, fecha, nota_publica, nota_interna, scope,
+                  unit_identifier, floor, enviado, created_at
+           FROM obra_updates WHERE project_id = $1 ORDER BY fecha DESC, created_at DESC""",
+        project_id,
+    )
+
+    fotos = await pool.fetch(
+        """SELECT f.id, f.update_id, f.file_url, f.filename, f.scope,
+                  f.unit_identifier, f.floor, f.caption
+           FROM obra_fotos f
+           JOIN obra_updates u ON u.id = f.update_id
+           WHERE u.project_id = $1
+           ORDER BY f.uploaded_at ASC""",
+        project_id,
+    )
+
+    fotos_by_update: dict = {}
+    for f in fotos:
+        uid = str(f["update_id"])
+        fotos_by_update.setdefault(uid, []).append(dict(f))
+
+    updates_by_etapa: dict = {}
+    for u in updates:
+        eid = str(u["etapa_id"]) if u["etapa_id"] else None
+        if eid:
+            u_dict = dict(u)
+            u_dict["fotos"] = fotos_by_update.get(str(u["id"]), [])
+            updates_by_etapa.setdefault(eid, []).append(u_dict)
+
+    result = []
+    for etapa in etapas:
+        e_dict = dict(etapa)
+        e_dict["updates"] = updates_by_etapa.get(str(etapa["id"]), [])
+        result.append(e_dict)
+
+    active = [e for e in result if e["activa"]]
+    total_weight = sum(float(e["peso_pct"]) for e in active)
+    progress = 0
+    if total_weight:
+        weighted = sum(float(e["peso_pct"]) * e["porcentaje_completado"] / 100 for e in active)
+        progress = round(weighted / total_weight * 100)
+
+    return {"etapas": result, "progress": progress}
+
+
+@router.patch("/obra/etapas/{etapa_id}")
+async def patch_etapa(etapa_id: str, request: Request):
+    """Update an etapa: nombre, peso_pct, porcentaje_completado, activa."""
+    pool = await get_pool()
+    body = await request.json()
+    ALLOWED = {"nombre", "peso_pct", "porcentaje_completado", "activa"}
+    fields = {k: v for k, v in body.items() if k in ALLOWED}
+    if not fields:
+        return {"error": "No valid fields"}
+
+    if "peso_pct" in fields:
+        project_id = await pool.fetchval(
+            "SELECT project_id FROM obra_etapas WHERE id = $1", etapa_id
+        )
+        other_sum = await pool.fetchval(
+            "SELECT COALESCE(SUM(peso_pct), 0) FROM obra_etapas WHERE project_id = $1 AND id != $2",
+            project_id, etapa_id,
+        )
+        new_total = round(float(other_sum) + float(fields["peso_pct"]))
+        if new_total != 100:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La suma de los pesos debe ser exactamente 100%. Total resultante: {new_total}%",
+            )
+
+    set_clauses = []
+    params = [etapa_id]
+    for i, (k, v) in enumerate(fields.items(), start=2):
+        set_clauses.append(f"{k} = ${i}")
+        params.append(v)
+
+    row = await pool.fetchrow(
+        f"UPDATE obra_etapas SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, nombre, porcentaje_completado",
+        *params,
+    )
+    if not row:
+        return {"error": "Etapa not found"}
+    return dict(row)
+
+
+@router.put("/obra/{project_id}/pesos")
+async def update_pesos(project_id: str, request: Request):
+    """Batch-update peso_pct for all etapas. Validates sum == 100."""
+    pool = await get_pool()
+    body = await request.json()  # [{"id": "uuid", "peso_pct": N}, ...]
+    total = sum(float(item["peso_pct"]) for item in body)
+    if round(total) != 100:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La suma de los pesos debe ser exactamente 100%. Total: {round(total)}%",
+        )
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            for item in body:
+                await conn.execute(
+                    "UPDATE obra_etapas SET peso_pct = $1 WHERE id = $2 AND project_id = $3",
+                    float(item["peso_pct"]), item["id"], project_id,
+                )
+    return {"ok": True}
+
+
+@router.post("/obra/{project_id}/etapas")
+async def add_etapa(project_id: str, request: Request):
+    """Add a custom etapa to a project."""
+    pool = await get_pool()
+    body = await request.json()
+
+    max_orden = await pool.fetchval(
+        "SELECT COALESCE(MAX(orden), 0) FROM obra_etapas WHERE project_id = $1", project_id
+    )
+    orden = body.get("orden", max_orden + 1)
+    nombre = body.get("nombre", "Etapa personalizada")
+    peso_pct = body.get("peso_pct", 0)
+
+    row = await pool.fetchrow(
+        "INSERT INTO obra_etapas (project_id, nombre, orden, peso_pct, es_standard) VALUES ($1, $2, $3, $4, FALSE) RETURNING id, nombre, orden, peso_pct, es_standard, activa, porcentaje_completado",
+        project_id, nombre, orden, peso_pct,
+    )
+    return dict(row)
+
+
+@router.post("/obra/{project_id}/updates")
+async def create_obra_update(
+    project_id: str,
+    etapa_id: str = Form(...),
+    porcentaje_etapa: int = Form(...),
+    nota_publica: str = Form(""),
+    nota_interna: Optional[str] = Form(None),
+    scope: str = Form("general"),
+    unit_identifier: Optional[str] = Form(None),
+    floor_num: Optional[int] = Form(None),
+    fotos: list[UploadFile] = File(default=[]),
+):
+    """Create an obra update: saves record, uploads photos, updates etapa progress."""
+    pool = await get_pool()
+
+    project = await pool.fetchrow("SELECT slug FROM projects WHERE id = $1", project_id)
+    if not project:
+        return {"error": "Project not found"}
+
+    update = await pool.fetchrow(
+        """INSERT INTO obra_updates (project_id, etapa_id, fecha, nota_publica, nota_interna, scope, unit_identifier, floor, source)
+           VALUES ($1, $2, NOW()::date, $3, $4, $5, $6, $7, 'admin')
+           RETURNING id, fecha""",
+        project_id, etapa_id,
+        nota_publica or None, nota_interna,
+        scope, unit_identifier, floor_num,
+    )
+    update_id = str(update["id"])
+
+    await pool.execute(
+        "UPDATE obra_etapas SET porcentaje_completado = $1 WHERE id = $2",
+        porcentaje_etapa, etapa_id,
+    )
+
+    uploaded_fotos = []
+    for foto in fotos:
+        if not foto.filename:
+            continue
+        content = await foto.read()
+        if not content:
+            continue
+        identifier = unit_identifier or (str(floor_num) if floor_num else None)
+        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier)
+        foto_row = await pool.fetchrow(
+            """INSERT INTO obra_fotos (project_id, update_id, file_url, filename, scope, unit_identifier, floor)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING id, file_url, filename, scope, unit_identifier, floor""",
+            project_id, update_id, file_url, foto.filename, scope, unit_identifier, floor_num,
+        )
+        uploaded_fotos.append(dict(foto_row))
+
+    logger.info("Obra update %s created for project %s (etapa %s, %d%%)", update_id, project_id, etapa_id, porcentaje_etapa)
+    return {
+        "update_id": update_id,
+        "fecha": str(update["fecha"]),
+        "porcentaje_etapa": porcentaje_etapa,
+        "fotos": uploaded_fotos,
+    }
+
+
+@router.delete("/obra/updates/{update_id}")
+async def delete_obra_update(update_id: str):
+    """Delete an obra update and its photos."""
+    pool = await get_pool()
+    await pool.execute("DELETE FROM obra_fotos WHERE update_id = $1", update_id)
+    result = await pool.execute("DELETE FROM obra_updates WHERE id = $1", update_id)
+    deleted = result.split()[-1] != "0"
+    return {"deleted": deleted}
+
+
+@router.post("/obra/{project_id}/notify/{update_id}")
+async def notify_obra_update(project_id: str, update_id: str):
+    """Send WhatsApp notification to all active buyers about an obra update."""
+    sent = await notify_buyers_of_update(project_id, update_id)
+    return {"sent": sent}
+
+
+# ---------- Reservations ----------
+
+class ReservationBody(BaseModel):
+    unit_id: str
+    lead_id: Optional[str] = None
+    buyer_name: Optional[str] = None
+    buyer_phone: str
+    buyer_email: Optional[str] = None
+    amount_usd: Optional[float] = None
+    payment_method: Optional[str] = None   # efectivo|transferencia|cheque|financiacion
+    notes: Optional[str] = None
+    signed_at: Optional[str] = None        # YYYY-MM-DD
+
+
+class ReservationPatchBody(BaseModel):
+    status: str   # cancelled | converted
+
+
+@router.post("/reservations/{project_id}")
+async def create_reservation(project_id: str, body: ReservationBody):
+    """Create a reservation for a unit. Also marks the unit as 'reserved' if it was 'available'."""
+    pool = await get_pool()
+
+    unit = await pool.fetchrow(
+        "SELECT id, identifier, status FROM units WHERE id = $1 AND project_id = $2",
+        body.unit_id, project_id,
+    )
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada en este proyecto")
+
+    if unit["status"] == "sold":
+        raise HTTPException(status_code=409, detail=f"La unidad {unit['identifier']} ya está vendida")
+
+    existing = await pool.fetchval(
+        "SELECT id FROM reservations WHERE unit_id = $1 AND status = 'active'",
+        body.unit_id,
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail=f"La unidad {unit['identifier']} ya tiene una reserva activa")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            if unit["status"] == "available":
+                await conn.execute(
+                    "UPDATE units SET status = 'reserved' WHERE id = $1",
+                    body.unit_id,
+                )
+
+            signed_at_val = (
+                datetime.strptime(body.signed_at, "%Y-%m-%d").date()
+                if body.signed_at else None
+            )
+            row = await conn.fetchrow(
+                """
+                INSERT INTO reservations
+                    (project_id, unit_id, lead_id, buyer_name, buyer_phone, buyer_email,
+                     amount_usd, payment_method, notes, signed_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                RETURNING id, project_id, unit_id, lead_id, buyer_name, buyer_phone,
+                          buyer_email, amount_usd, payment_method, notes, signed_at,
+                          status, created_at
+                """,
+                project_id, body.unit_id, body.lead_id or None,
+                body.buyer_name, body.buyer_phone, body.buyer_email,
+                body.amount_usd, body.payment_method, body.notes,
+                signed_at_val,
+            )
+
+    u = await pool.fetchrow(
+        "SELECT identifier, floor, bedrooms, area_m2, price_usd FROM units WHERE id = $1",
+        body.unit_id,
+    )
+
+    result = dict(row)
+    result["unit_identifier"] = u["identifier"]
+    result["unit_floor"] = u["floor"]
+    result["unit_bedrooms"] = u["bedrooms"]
+    result["unit_area_m2"] = float(u["area_m2"]) if u["area_m2"] is not None else None
+    result["unit_price_usd"] = float(u["price_usd"]) if u["price_usd"] is not None else None
+    if result.get("amount_usd") is not None:
+        result["amount_usd"] = float(result["amount_usd"])
+
+    logger.info("Reservation created for unit %s (project %s)", u["identifier"], project_id)
+    return result
+
+
+@router.get("/reservations/{project_id}")
+async def list_reservations(project_id: str, status: Optional[str] = None):
+    """List reservations for a project, optionally filtered by status."""
+    pool = await get_pool()
+
+    conditions = ["r.project_id = $1"]
+    params = [project_id]
+    if status:
+        conditions.append(f"r.status = ${len(params) + 1}")
+        params.append(status)
+
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""
+        SELECT r.id, r.project_id, r.unit_id, r.lead_id, r.buyer_name, r.buyer_phone,
+               r.buyer_email, r.amount_usd, r.payment_method, r.notes, r.signed_at,
+               r.status, r.created_at,
+               u.identifier as unit_identifier, u.floor as unit_floor,
+               u.bedrooms as unit_bedrooms, u.area_m2 as unit_area_m2, u.price_usd as unit_price_usd,
+               p.name as project_name
+        FROM reservations r
+        JOIN units u ON u.id = r.unit_id
+        JOIN projects p ON p.id = r.project_id
+        WHERE {where}
+        ORDER BY r.created_at DESC
+        """,
+        *params,
+    )
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("amount_usd") is not None:
+            d["amount_usd"] = float(d["amount_usd"])
+        if d.get("unit_area_m2") is not None:
+            d["unit_area_m2"] = float(d["unit_area_m2"])
+        if d.get("unit_price_usd") is not None:
+            d["unit_price_usd"] = float(d["unit_price_usd"])
+        result.append(d)
+    return result
+
+
+@router.get("/reservation/{reservation_id}")
+async def get_reservation(reservation_id: str):
+    """Get a single reservation with unit and project details."""
+    pool = await get_pool()
+
+    row = await pool.fetchrow(
+        """
+        SELECT r.id, r.project_id, r.unit_id, r.lead_id, r.buyer_name, r.buyer_phone,
+               r.buyer_email, r.amount_usd, r.payment_method, r.notes, r.signed_at,
+               r.status, r.created_at,
+               u.identifier as unit_identifier, u.floor as unit_floor,
+               u.bedrooms as unit_bedrooms, u.area_m2 as unit_area_m2, u.price_usd as unit_price_usd,
+               p.name as project_name, p.address as project_address
+        FROM reservations r
+        JOIN units u ON u.id = r.unit_id
+        JOIN projects p ON p.id = r.project_id
+        WHERE r.id = $1
+        """,
+        reservation_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    d = dict(row)
+    if d.get("amount_usd") is not None:
+        d["amount_usd"] = float(d["amount_usd"])
+    if d.get("unit_area_m2") is not None:
+        d["unit_area_m2"] = float(d["unit_area_m2"])
+    if d.get("unit_price_usd") is not None:
+        d["unit_price_usd"] = float(d["unit_price_usd"])
+    return d
+
+
+@router.patch("/reservations/{reservation_id}")
+async def patch_reservation(reservation_id: str, body: ReservationPatchBody):
+    """Change reservation status: cancelled or converted."""
+    if body.status not in ("cancelled", "converted"):
+        raise HTTPException(status_code=400, detail="Estado debe ser 'cancelled' o 'converted'")
+
+    pool = await get_pool()
+
+    reservation = await pool.fetchrow(
+        "SELECT id, unit_id, status FROM reservations WHERE id = $1",
+        reservation_id,
+    )
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    if reservation["status"] != "active":
+        raise HTTPException(status_code=409, detail=f"La reserva ya está en estado '{reservation['status']}'")
+
+    unit_id = reservation["unit_id"]
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE reservations SET status = $1, updated_at = NOW() WHERE id = $2",
+                body.status, reservation_id,
+            )
+
+            if body.status == "cancelled":
+                await conn.execute(
+                    "UPDATE units SET status = 'available' WHERE id = $1",
+                    unit_id,
+                )
+            elif body.status == "converted":
+                await conn.execute(
+                    "UPDATE units SET status = 'sold' WHERE id = $1",
+                    unit_id,
+                )
+                # Register buyer using reservation data
+                res_data = await conn.fetchrow(
+                    "SELECT project_id, lead_id, buyer_name, buyer_phone, signed_at FROM reservations WHERE id = $1",
+                    reservation_id,
+                )
+                if res_data:
+                    await conn.execute(
+                        """
+                        INSERT INTO buyers (project_id, unit_id, lead_id, name, phone, signed_at)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        res_data["project_id"], unit_id, res_data["lead_id"],
+                        res_data["buyer_name"], res_data["buyer_phone"], res_data["signed_at"],
+                    )
+
+    logger.info("Reservation %s status changed to %s", reservation_id, body.status)
+    return {"reservation_id": reservation_id, "status": body.status}
+
+
+# ---------- Buyers ----------
+
+class BuyerBody(BaseModel):
+    unit_id: str
+    name: str
+    phone: str
+    lead_id: Optional[str] = None
+    signed_at: Optional[str] = None
+
+
+@router.get("/buyers/{project_id}")
+async def list_buyers(project_id: str):
+    """List active buyers for a project with their unit details."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT b.id, b.lead_id, b.unit_id, b.phone, b.name, b.signed_at, b.status,
+                  u.identifier as unit_identifier, u.floor as unit_floor,
+                  u.bedrooms, u.area_m2, u.price_usd
+           FROM buyers b
+           JOIN units u ON b.unit_id = u.id
+           WHERE b.project_id = $1 AND b.status = 'active'
+           ORDER BY b.signed_at DESC NULLS LAST""",
+        project_id,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/buyers/{project_id}")
+async def create_buyer(project_id: str, body: BuyerBody):
+    """Register a buyer for a sold unit."""
+    pool = await get_pool()
+
+    unit = await pool.fetchrow(
+        "SELECT id, identifier FROM units WHERE id = $1 AND project_id = $2",
+        body.unit_id, project_id,
+    )
+    if not unit:
+        return {"error": "Unidad no encontrada"}
+
+    existing = await pool.fetchval(
+        "SELECT id FROM buyers WHERE unit_id = $1 AND status = 'active'", body.unit_id
+    )
+    if existing:
+        return {"error": f"Ya existe un comprador activo para la unidad {unit['identifier']}"}
+
+    signed_at = datetime.now(timezone.utc)
+    if body.signed_at:
+        try:
+            signed_at = datetime.fromisoformat(body.signed_at)
+        except ValueError:
+            pass
+
+    row = await pool.fetchrow(
+        """INSERT INTO buyers (project_id, unit_id, lead_id, name, phone, signed_at)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, phone""",
+        project_id, body.unit_id, body.lead_id or None,
+        body.name, body.phone, signed_at,
+    )
+
+    logger.info("Buyer registered: %s for unit %s (project %s)", body.name, unit["identifier"], project_id)
+    return dict(row)
 
 
 # ---------- Project loading from CSV ----------

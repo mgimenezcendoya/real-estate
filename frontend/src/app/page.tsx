@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { HardHat, Lock, User, Loader2, AlertCircle } from 'lucide-react';
-import clsx from 'clsx';
+import { HardHat, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,44 +33,41 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-indigo-500/10 rounded-full blur-[120px] -translate-y-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] translate-y-1/2 pointer-events-none" />
-
-      <div className="relative z-10 w-full max-w-[420px] mx-auto flex justify-center">
-        {/* Card */}
-        <div className="glass-elevated rounded-3xl border border-[rgba(255,255,255,0.08)] shadow-2xl overflow-hidden w-full">
-          <div className="p-10">
-            {/* Logo & title */}
-            <div className="flex flex-col items-center mb-10">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 mb-5">
-                <HardHat size={32} className="text-white" />
+    <div className="min-h-screen w-full flex items-center justify-center p-6 bg-gray-50">
+      <div className="w-full max-w-[400px] mx-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden animate-fade-in-up">
+          <div className="p-8">
+            {/* Logo */}
+            <div className="flex flex-col items-center mb-8">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-md shadow-indigo-500/20 mb-4">
+                <HardHat size={28} className="text-white" />
               </div>
-              <h1 className="text-2xl font-display font-bold text-white tracking-tight mb-1">
+              <h1 className="text-2xl font-display font-bold text-gray-900 tracking-tight mb-1">
                 REALIA Workspace
               </h1>
-              <p className="text-[#94A3B8] text-sm text-center">
+              <p className="text-gray-500 text-sm text-center">
                 Ingresá con tu cuenta para continuar
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-200 text-sm">
-                  <AlertCircle size={18} className="flex-shrink-0 text-red-400" />
-                  <span>{error}</span>
-                </div>
+                <Alert variant="destructive" className="bg-red-50 border-red-200 text-red-700">
+                  <AlertDescription className="text-sm">{error}</AlertDescription>
+                </Alert>
               )}
 
-              <div className="space-y-2">
-                <label htmlFor="username" className="block text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">
+              {/* Username */}
+              <div className="space-y-1.5">
+                <label htmlFor="username" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Usuario
                 </label>
-                <div className="flex rounded-xl border border-white/10 bg-white/5 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/30 transition-all">
-                  <div className="w-12 flex-shrink-0 flex items-center justify-center text-[#94A3B8] border-r border-white/10">
-                    <User size={18} aria-hidden />
+                <div className={cn(
+                  'flex rounded-xl border bg-white overflow-hidden transition-all',
+                  'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-400'
+                )}>
+                  <div className="w-11 flex-shrink-0 flex items-center justify-center text-gray-400 border-r border-gray-200">
+                    <User size={16} />
                   </div>
                   <input
                     id="username"
@@ -76,61 +76,63 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Ej: admin"
-                    className={clsx(
-                      'flex-1 min-w-0 bg-transparent px-4 py-3.5 text-white placeholder:text-[#64748B]',
-                      'focus:outline-none border-0'
-                    )}
+                    className="flex-1 min-w-0 bg-transparent px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none text-sm"
                     disabled={loading}
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="password" className="block text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">
+              {/* Password */}
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Contraseña
                 </label>
-                <div className="flex rounded-xl border border-white/10 bg-white/5 overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/50 focus-within:border-indigo-500/30 transition-all">
-                  <div className="w-12 flex-shrink-0 flex items-center justify-center text-[#94A3B8] border-r border-white/10">
-                    <Lock size={18} aria-hidden />
+                <div className={cn(
+                  'flex rounded-xl border bg-white overflow-hidden transition-all',
+                  'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-400'
+                )}>
+                  <div className="w-11 flex-shrink-0 flex items-center justify-center text-gray-400 border-r border-gray-200">
+                    <Lock size={16} />
                   </div>
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Ej: admin"
-                    className={clsx(
-                      'flex-1 min-w-0 bg-transparent px-4 py-3.5 text-white placeholder:text-[#64748B]',
-                      'focus:outline-none border-0'
-                    )}
+                    placeholder="••••••••"
+                    className="flex-1 min-w-0 bg-transparent px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none text-sm"
                     disabled={loading}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="w-11 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className={clsx(
-                  'w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white transition-all',
-                  'bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-400 hover:to-indigo-500',
-                  'shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_25px_rgba(99,102,241,0.5)]',
-                  'disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none'
-                )}
+                className="w-full py-5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white border-0 transition-colors rounded-xl mt-2"
               >
                 {loading ? (
                   <>
-                    <Loader2 size={20} className="animate-spin" />
+                    <Loader2 size={16} className="animate-spin mr-2" />
                     Ingresando...
                   </>
                 ) : (
                   'Ingresar'
                 )}
-              </button>
+              </Button>
             </form>
 
-            <p className="mt-6 text-center text-[11px] text-[#64748B]">
+            <p className="mt-5 text-center text-[11px] text-gray-400">
               Acceso restringido al equipo autorizado.
             </p>
           </div>

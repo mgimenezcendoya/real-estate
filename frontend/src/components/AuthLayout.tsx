@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import Sidebar from '@/components/Sidebar';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -23,10 +24,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex h-screen items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-400/50 border-t-indigo-400 rounded-full animate-spin" />
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
           </div>
-          <p className="text-sm text-[#94A3B8] font-medium">Verificando sesión...</p>
+          <p className="text-sm text-gray-500 font-medium">Verificando sesión...</p>
         </div>
       </div>
     );
@@ -41,22 +42,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex h-screen items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-400/50 border-t-indigo-400 rounded-full animate-spin" />
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
           </div>
-          <p className="text-sm text-[#94A3B8] font-medium">Redirigiendo...</p>
+          <p className="text-sm text-gray-500 font-medium">Redirigiendo...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <>
+    <NotificationsProvider>
       <Sidebar />
       <main className="flex-1 overflow-auto bg-transparent relative">
         <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay" />
         <div className="relative z-10 w-full h-full">{children}</div>
       </main>
-    </>
+    </NotificationsProvider>
   );
 }

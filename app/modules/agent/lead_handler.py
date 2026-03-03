@@ -270,7 +270,7 @@ async def _generate_response(
 
     response = await client.messages.create(
         model=settings.anthropic_model,
-        max_tokens=500,
+        max_tokens=800,
         system=system,
         messages=messages,
     )
