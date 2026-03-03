@@ -136,6 +136,26 @@ async def update_lead_qualification(lead_id: str, qualification: dict, score: st
     )
 
 
+async def get_test_mode(phone: str) -> bool:
+    """Check if a developer phone is in lead test mode (DB-persisted)."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT test_mode FROM authorized_numbers WHERE phone = $1 LIMIT 1",
+        phone,
+    )
+    return bool(row["test_mode"]) if row else False
+
+
+async def set_test_mode(phone: str, active: bool) -> None:
+    """Persist lead test mode for a developer phone across all their authorized_numbers rows."""
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE authorized_numbers SET test_mode = $1 WHERE phone = $2",
+        active,
+        phone,
+    )
+
+
 async def get_developer_context(developer_id: str) -> str:
     """Load ALL projects for a developer with full details, units, and documents."""
     pool = await get_pool()
