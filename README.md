@@ -43,33 +43,82 @@ Set `WHATSAPP_PROVIDER=twilio` in `.env` for development, `meta` for production.
 
 ## API Endpoints
 
+### Core
 | Endpoint | Method | Description |
 |---|---|---|
 | `/health` | GET | Health check |
-| `/whatsapp/webhook` | GET | WhatsApp verification (Meta) |
-| `/whatsapp/webhook` | POST | Receive WhatsApp messages (Twilio or Meta) |
-| `/chatwoot/webhook` | POST | Chatwoot events |
+| `/whatsapp/webhook` | GET/POST | WhatsApp webhook (verification + incoming messages) |
 | `/nocodb/webhook` | POST | NocoDB record change events |
-| `/admin/upload-document` | POST | Upload PDF to a project |
+
+### Auth
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/auth/login` | POST | Login — returns JWT token |
+| `/admin/auth/me` | GET | Verify token and return current user |
+
+### Projects & Units
+| Endpoint | Method | Description |
+|---|---|---|
 | `/admin/projects` | GET | List all projects |
 | `/admin/projects/{id}` | GET/PATCH | Get or update project details |
 | `/admin/units/{project_id}` | GET | List units for a project |
 | `/admin/units/{id}/status` | PATCH | Update unit status |
 | `/admin/units/bulk-status` | PATCH | Bulk update unit statuses |
-| `/admin/documents/{project_id}` | GET | List project documents |
 | `/admin/load-project` | POST | Create project from CSV upload |
 | `/admin/project-template` | GET | CSV template info |
 | `/admin/project-template/download` | GET | Download CSV template file |
-| `/admin/leads` | GET | List leads (all or by project_id) |
-| `/admin/leads/{id}` | GET | Lead detail with conversations |
+
+### Leads
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/leads` | GET | List leads (all or by `?project_id=&score=`) |
+| `/admin/leads/{id}` | GET/PATCH | Lead detail + conversations; update editable fields |
+| `/admin/leads/{id}/notes` | GET/POST | List or add team notes |
+| `/admin/leads/{id}/notes/{note_id}` | DELETE | Delete a note |
 | `/admin/leads/{id}/message` | POST | Send message as human (activates HITL) |
-| `/admin/leads/{id}/handoff` | GET | Handoff status (active or not) |
-| `/admin/leads/{id}/handoff/start` | POST | Start human takeover from frontend |
+| `/admin/leads/{id}/handoff` | GET | Handoff status |
+| `/admin/leads/{id}/handoff/start` | POST | Start human takeover |
 | `/admin/leads/{id}/handoff/close` | POST | End human takeover, return to agent |
-| `/admin/metrics/{project_id}` | GET | Project metrics (incl. total_leads) |
-| `/admin/chat` | POST | Local chat (dev/testing) |
-| `/admin/jobs/nurturing` | POST | Trigger nurturing batch |
-| `/admin/jobs/obra-notifications` | POST | Trigger obra notifications |
+
+### Reservations
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/reservations/{project_id}` | POST | Create reservation (also marks unit as reserved) |
+| `/admin/reservations/{project_id}` | GET | List reservations (`?status=active\|cancelled\|converted`) |
+| `/admin/reservation/{reservation_id}` | GET | Reservation detail (used by print page) |
+| `/admin/reservations/{reservation_id}` | PATCH | Change status: `cancelled` → unit available; `converted` → unit sold + buyer created |
+
+### Buyers
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/buyers/{project_id}` | GET | List active buyers with unit details |
+| `/admin/buyers/{project_id}` | POST | Register a buyer manually |
+
+### Documents
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/documents/{project_id}` | GET | List active documents |
+| `/admin/upload-document` | POST | Upload PDF to a project |
+
+### Obra (construction tracking)
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/obra/{project_id}/init` | POST | Initialize 8 standard obra stages |
+| `/admin/obra/{project_id}` | GET | Full obra data: stages + updates + photos + overall progress |
+| `/admin/obra/etapas/{etapa_id}` | PATCH | Update stage (name, weight, completion %) |
+| `/admin/obra/{project_id}/pesos` | PUT | Batch-update stage weights (must sum to 100) |
+| `/admin/obra/{project_id}/etapas` | POST | Add a custom stage |
+| `/admin/obra/{project_id}/updates` | POST | Create obra update with photos |
+| `/admin/obra/updates/{update_id}` | DELETE | Delete update and its photos |
+| `/admin/obra/{project_id}/notify/{update_id}` | POST | Notify buyers via WhatsApp |
+
+### Analytics & Jobs
+| Endpoint | Method | Description |
+|---|---|---|
+| `/admin/metrics/{project_id}` | GET | Project metrics (leads by score, units by status) |
+| `/admin/analytics/{project_id}` | GET | Full analytics: funnel, revenue, weekly leads, sources |
+| `/admin/jobs/nurturing` | POST | Trigger nurturing batch (cron) |
+| `/admin/jobs/obra-notifications` | POST | Trigger obra notifications (cron) |
 
 ## Developer Mode (Admin via WhatsApp)
 
@@ -85,13 +134,39 @@ Authorized phone numbers get admin access via WhatsApp. Commands include:
 
 ## Frontend (Next.js)
 
-Panel web en `frontend/` (Next.js 16, React 19, Tailwind):
-
-- **Login** (`/`): acceso con usuario y contraseña (configurar `ADMIN_USERNAME` y `ADMIN_PASSWORD` en el backend). Tras ingresar se redirige a Proyectos.
-- **Proyectos** (`/proyectos`): listado de proyectos con unidades, pisos, leads y avance; botón "Nuevo Proyecto" sube CSV (mismo template que WhatsApp).
-- **Inbox** (`/inbox`): conversaciones agrupadas por teléfono (una por persona), último proyecto de interés; mensajes usuario/agente/humano diferenciados; Human-in-the-Loop: "Tomar conversación", "Terminar intervención", polling cada 5 s.
+Panel web en `frontend/` — Next.js 16, React 19, TypeScript 5, Tailwind CSS 4, shadcn/ui v3.
 
 Desarrollo local: `cd frontend && npm run dev` (puerto 3000). El front usa `NEXT_PUBLIC_API_URL` (default `http://localhost:8000`).
+
+### Rutas
+
+| Ruta | Descripción |
+|---|---|
+| `/` | Login con usuario/contraseña (JWT en sessionStorage) |
+| `/proyectos` | Listado de proyectos con métricas; modal "Nuevo Proyecto" sube CSV |
+| `/proyectos/[id]` | Dashboard: funnel de leads, revenue (disponible/reservado/vendido), gráfico semanal, fuentes |
+| `/proyectos/[id]/unidades` | Grilla de unidades por piso; click abre Sheet con cambio de estado; marcar "reserved" abre flujo de reserva |
+| `/proyectos/[id]/leads` | Kanban hot/warm/cold; Sheet de detalle con score, edición, notas del equipo, botón "Reservar unidad" |
+| `/proyectos/[id]/reservas` | Lista de reservas con filtros (activa/cancelada/convertida); convertir en venta o cancelar con confirmación |
+| `/proyectos/[id]/documentos` | Gestión de documentos por tipo; upload de PDFs |
+| `/proyectos/[id]/obra` | Seguimiento de etapas de obra: barra de progreso, actualizar % por etapa, cargar updates con fotos |
+| `/proyectos/[id]/reservas/[id]/print` | Comprobante de reserva imprimible (auto-abre diálogo de impresión), sin navegación del proyecto |
+| `/inbox` | Conversaciones WhatsApp agrupadas por teléfono; Human-in-the-Loop con polling cada 1.5 s |
+
+### Migraciones
+
+Aplicar en orden:
+
+```bash
+psql $DATABASE_URL < migrations/001_initial_schema.sql
+psql $DATABASE_URL < migrations/002_lead_qualification_fields.sql
+psql $DATABASE_URL < migrations/003_project_details.sql
+psql $DATABASE_URL < migrations/004_unit_notes.sql
+psql $DATABASE_URL < migrations/005_telegram_handoff.sql
+psql $DATABASE_URL < migrations/006_lead_notes.sql
+psql $DATABASE_URL < migrations/007_obra_etapas.sql
+psql $DATABASE_URL < migrations/009_reservations.sql
+```
 
 ### Dónde poner las variables en Render
 

@@ -97,6 +97,50 @@ def _build_key(project_slug: str, doc_type: str, filename: str) -> str:
     return f"projects/{project_slug}/{safe_filename}"
 
 
+async def upload_obra_foto(
+    file_bytes: bytes,
+    project_slug: str,
+    filename: str,
+    scope: str = "general",
+    identifier: str | None = None,
+) -> str:
+    """Upload an obra photo with structured path based on scope.
+
+    Paths:
+      general → projects/{slug}/obra/general/{filename}
+      unit    → projects/{slug}/obra/unidades/{identifier}/{filename}
+      floor   → projects/{slug}/obra/pisos/p{identifier}/{filename}
+    """
+    settings = get_settings()
+    safe_filename = filename.replace(" ", "_").lower()
+
+    if scope == "unit" and identifier:
+        key = f"projects/{project_slug}/obra/unidades/{identifier}/{safe_filename}"
+    elif scope == "floor" and identifier:
+        key = f"projects/{project_slug}/obra/pisos/p{identifier}/{safe_filename}"
+    else:
+        key = f"projects/{project_slug}/obra/general/{safe_filename}"
+
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    content_type = {
+        "jpg": "image/jpeg", "jpeg": "image/jpeg",
+        "png": "image/png", "webp": "image/webp",
+        "heic": "image/heic", "heif": "image/heic",
+    }.get(ext, "application/octet-stream")
+
+    client = _get_s3_client()
+    client.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=key,
+        Body=file_bytes,
+        ContentType=content_type,
+    )
+
+    public_url = f"{settings.s3_public_url}/{key}"
+    logger.info("Uploaded obra foto %s (%d bytes) to %s", filename, len(file_bytes), public_url)
+    return public_url
+
+
 def get_presigned_url_for_document(file_url: str) -> str:
     """Given a stored file_url, extract the key and generate a presigned URL."""
     settings = get_settings()

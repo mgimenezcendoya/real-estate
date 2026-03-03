@@ -25,10 +25,23 @@ def obra_update_confirmation(etapa: str, floor: int | None, porcentaje: int) -> 
     return f"Registre: {etapa}{floor_text} - {porcentaje}% avance. Confirmo este update?"
 
 
-def buyer_obra_notification(buyer_name: str, unit: str, etapa: str, porcentaje: int, nota: str) -> str:
-    return (
-        f"Hola {buyer_name}, te comparto novedades de tu unidad {unit}:\n\n"
-        f"Etapa: {etapa}\n"
-        f"Avance: {porcentaje}%\n\n"
-        f"{nota}"
-    )
+def buyer_obra_notification(
+    buyer_name: str,
+    unit: str,
+    etapa: str,
+    porcentaje: int,
+    nota: str,
+    project_name: str = "",
+    avance_general: int = 0,
+) -> str:
+    lines = [f"Hola {buyer_name} 👋"]
+    if project_name:
+        lines.append(f"Te contamos el último avance de {project_name}.\n")
+    if etapa:
+        lines.append(f"📍 Etapa actual: {etapa}")
+    if avance_general:
+        lines.append(f"📊 Avance general: {avance_general}%")
+    if nota:
+        lines.append(f"\n{nota}")
+    lines.append("\nAnte cualquier consulta, respondé este mensaje.")
+    return "\n".join(lines)

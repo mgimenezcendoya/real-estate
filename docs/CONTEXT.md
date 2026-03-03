@@ -48,10 +48,9 @@ Cada unidad no vendida representa **$60.000–$100.000 USD** de inventario inmov
 | Audio transcription | OpenAI Whisper API | API externa | API externa |
 | Embeddings | OpenAI text-embedding-3-small (1536 dims) | API externa | API externa |
 | WhatsApp | Twilio Sandbox (dev) / Meta Cloud API (prod) | Twilio sandbox (gratis) | Meta Cloud API |
-| Panel de gestion (V1) | NocoDB (open source) | — (Fase 5+) | Railway (servicio) |
+| Panel web | Next.js 16 + shadcn/ui v3 | localhost:3000 | Render / Railway |
 | Handoff / Inbox ventas | Chatwoot (open source) | — (Fase 4+) | Railway (servicio) |
-| Analytics (V1) | NocoDB views + Metabase o Streamlit | — | — |
-| Panel unificado (V2+) | Next.js admin panel propio | — | — |
+| Panel de gestión legacy | NocoDB (open source) | — (descartado, reemplazado por Next.js) | — |
 | Background jobs | Cron → endpoints internos | Render cron (free) | Railway cron |
 
 ### Estrategia de deploy
@@ -611,9 +610,9 @@ El Modo Developer por WhatsApp (audios de obra, PDFs, updates) no cambia. Chatwo
 |---|---|---|
 | **WhatsApp** (agente) | Lead | Consultas, calificacion, nurturing, recibir docs |
 | **WhatsApp** (modo developer) | Equipo obra/admin | Campo: audios, fotos, PDFs, hitos, updates rapidos |
-| **NocoDB** | Admin, director | Oficina: gestion de proyectos, unidades, empleados, precios, docs (batch upload), pipeline leads, obra manual |
-| **Chatwoot** | Equipo ventas | Handoff: conversaciones humanas con leads |
-| **WhatsApp** (notificacion) | Equipo ventas | Alerta de lead hot (con link a Chatwoot) |
+| **Panel web Next.js** | Admin, director, ventas | Oficina: proyectos, unidades, leads kanban, reservas, documentos, obra, inbox |
+| **Chatwoot** | Equipo ventas | Handoff: conversaciones humanas con leads (Fase 4) |
+| **WhatsApp** (notificacion) | Equipo ventas | Alerta de lead hot |
 
 ### Modulo 6: Panel de Gestion (NocoDB)
 
@@ -646,21 +645,33 @@ NocoDB se conecta directamente al PostgreSQL de Realia y expone las tablas como 
 
 Toda la conversación queda en la tabla `conversations` de Realia, incluyendo mensajes del vendedor humano (synceados desde Chatwoot). El campo `sender_type` distingue si fue generado por el agente (`'agent'`) o por un humano (`'human'`). Esto es crítico para la atribución de revenue share.
 
-### Módulo 6b: Panel web Realia (Next.js)
+### Módulo 6b: Panel web Realia (Next.js) — ✅ IMPLEMENTADO
 
-Panel unificado en `frontend/` (Next.js 16, React 19, Tailwind) desplegado junto al backend (p. ej. Render).
+Panel unificado en `frontend/` — Next.js 16, React 19, TypeScript 5, Tailwind CSS 4, shadcn/ui v3 (tema claro, estética OpenAI).
+Auth: JWT almacenado en `sessionStorage` bajo `realia_token`; rutas protegidas por `AuthLayout`.
 
-**Proyectos (`/proyectos`):**
-- Listado de proyectos con tarjetas: nombre, ubicación, unidades, pisos, **cantidad de leads**, avance real.
-- "Nuevo Proyecto": modal para subir CSV (mismo template que por WhatsApp); descarga de template y envío a `POST /admin/load-project`.
+**Rutas:**
 
-**Inbox (`/inbox`):**
-- Conversaciones agrupadas por **teléfono** (una fila por persona); se muestra el **último proyecto de interés** (del lead con último contacto más reciente).
-- Al abrir una conversación se fusionan los mensajes de todos los leads de ese teléfono (todos los proyectos) en un solo hilo ordenado por fecha.
-- Diferenciación visual de mensajes: Usuario, Realia AI (Bot), Soporte (Humano).
-- **Human-in-the-loop:** estado "Modo agente" / "Takeover humano activo"; botón "Tomar conversación" (activa handoff); botón "Terminar intervención" (cierra handoff). Al enviar un mensaje desde el panel se activa handoff automáticamente. Polling cada 5 s de mensajes y estado de handoff.
+| Ruta | Descripción |
+|---|---|
+| `/` | Login — usuario/contraseña configurados via `ADMIN_USERNAME`/`ADMIN_PASSWORD` |
+| `/proyectos` | Tarjetas de proyectos con métricas de leads + avance; modal "Nuevo Proyecto" sube CSV |
+| `/proyectos/[id]` | Dashboard: funnel (total/hot/reservadas/vendidas), revenue (disponible/reservado/vendido), gráfico semanal de leads, fuentes |
+| `/proyectos/[id]/unidades` | Grilla de unidades por piso con leyenda de estado; click abre Sheet con datos y cambio de estado; marcar `reserved` abre ReservationSheet |
+| `/proyectos/[id]/leads` | Kanban hot/warm/cold; Sheet con score, edición de campos, notas del equipo, "Reservar unidad", link WhatsApp |
+| `/proyectos/[id]/reservas` | Lista de reservas con chips de filtro (activas/canceladas/convertidas); acciones en hover: imprimir, convertir en venta, cancelar |
+| `/proyectos/[id]/documentos` | Documentos por tipo con upload directo |
+| `/proyectos/[id]/obra` | Etapas de obra con barra de progreso ponderada; modal de update con fotos; ajuste de pesos; notificar compradores |
+| `/proyectos/[id]/reservas/[id]/print` | Comprobante de reserva imprimible: auto-dispara `window.print()` tras 500 ms; layout limpio sin navegación |
+| `/inbox` | Conversaciones WhatsApp agrupadas por teléfono; mensajes diferenciados (lead/AI/humano); HITL con polling cada 1.5 s; "Tomar conversación" / "Terminar intervención" |
 
-**Deploy:** Backend y frontend en `render.yaml` (servicios `realia` y `realia-frontend`). Frontend necesita `NEXT_PUBLIC_API_URL` apuntando al backend; backend necesita `CORS_ORIGINS` con la URL del frontend para permitir peticiones desde el navegador.
+**Flujo de reserva asistida:**
+- Entrada desde **unidades** (trigger al marcar `reserved`) o desde **leads** (botón "Reservar unidad" en Sheet).
+- `ReservationSheet` captura: unidad, nombre/teléfono/email del comprador, monto seña, método de pago, fecha de firma, notas.
+- Al confirmar: `POST /admin/reservations/{project_id}` → unidad se marca `reserved` en DB → se abre comprobante en nueva pestaña para imprimir como PDF.
+- Desde la lista de reservas: **Convertir en venta** → unidad pasa a `sold` + se crea buyer; **Cancelar** → unidad vuelve a `available`.
+
+**Deploy:** `render.yaml` — servicios `realia` (FastAPI) y `realia-frontend` (Next.js). Frontend necesita `NEXT_PUBLIC_API_URL`; backend necesita `CORS_ORIGINS` con la URL del frontend.
 
 ---
 
@@ -1016,6 +1027,29 @@ CREATE TABLE obra_milestones (
 );
 ```
 
+### Reservaciones
+
+```sql
+CREATE TABLE reservations (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id     UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    unit_id        UUID NOT NULL REFERENCES units(id),
+    lead_id        UUID REFERENCES leads(id),
+    buyer_name     TEXT,
+    buyer_phone    TEXT NOT NULL,
+    buyer_email    TEXT,
+    amount_usd     DECIMAL,
+    payment_method VARCHAR(30),   -- efectivo | transferencia | cheque | financiacion
+    notes          TEXT,
+    signed_at      DATE,
+    status         VARCHAR(20) NOT NULL DEFAULT 'active',  -- active | cancelled | converted
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- Una sola reserva activa por unidad (índice parcial único)
+CREATE UNIQUE INDEX idx_reservations_unit_active ON reservations(unit_id) WHERE status = 'active';
+```
+
 ### Handoffs
 
 ```sql
@@ -1119,11 +1153,48 @@ realia/
 │   └── admin/
 │       └── api.py                 # Endpoints admin: upload docs, manage units/projects, CSV loader
 │
+├── frontend/                          # Panel web Next.js
+│   └── src/
+│       ├── app/
+│       │   ├── page.tsx               # Login
+│       │   ├── inbox/page.tsx         # Conversaciones WhatsApp + HITL
+│       │   └── proyectos/
+│       │       ├── page.tsx           # Listado proyectos
+│       │       └── [id]/
+│       │           ├── layout.tsx     # Tabs de navegación del proyecto
+│       │           ├── page.tsx       # Dashboard analytics
+│       │           ├── unidades/page.tsx
+│       │           ├── leads/page.tsx
+│       │           ├── reservas/
+│       │           │   ├── page.tsx   # Lista de reservas
+│       │           │   └── [reservationId]/print/
+│       │           │       ├── layout.tsx   # Layout limpio (sin nav)
+│       │           │       └── page.tsx     # Comprobante imprimible
+│       │           ├── documentos/page.tsx
+│       │           └── obra/page.tsx
+│       ├── components/
+│       │   ├── AuthLayout.tsx
+│       │   ├── Sidebar.tsx
+│       │   ├── NewProjectModal.tsx
+│       │   ├── ReservationSheet.tsx   # Wizard de reserva reutilizable
+│       │   └── ui/                    # shadcn/ui components
+│       ├── contexts/
+│       │   └── AuthContext.tsx
+│       ├── hooks/
+│       │   └── useAsync.ts
+│       └── lib/
+│           ├── api.ts                 # Cliente HTTP tipado
+│           └── utils.ts               # cn() helper
+│
 ├── migrations/
-│   ├── 001_initial_schema.sql     # Schema completo (16 tablas, pgvector, índices)
-│   ├── 002_lead_qualification_fields.sql  # Incremental: campos calificación en leads
-│   ├── 003_project_details.sql    # Incremental: campos detallados en projects
-│   └── 004_unit_notes.sql         # Incremental: tabla unit_notes
+│   ├── 001_initial_schema.sql     # Schema base (pgvector, índices)
+│   ├── 002_lead_qualification_fields.sql  # Campos calificación en leads
+│   ├── 003_project_details.sql    # Campos detallados en projects
+│   ├── 004_unit_notes.sql         # Tabla unit_notes
+│   ├── 005_telegram_handoff.sql   # Handoff via Telegram
+│   ├── 006_lead_notes.sql         # Tabla lead_notes
+│   ├── 007_obra_etapas.sql        # Tablas obra_etapas, obra_updates, obra_fotos
+│   └── 009_reservations.sql       # Tabla reservations (índice parcial único)
 │
 ├── scripts/
 │   ├── seed_dev.py                # Seed Torre Palermo + 7 unidades
@@ -1269,19 +1340,25 @@ NEXT_PUBLIC_API_URL=
 
 ## 10. Roadmap
 
-### V1 (8 semanas)
+### V1 — Estado actual ✅
 
-| Semanas | Objetivo |
+| Módulo | Estado |
 |---|---|
-| 1-2 | RAG engine: ingesta, chunking, pgvector, endpoint de consulta testeable |
-| 3-4 | Agente WhatsApp Modo Lead: webhook, role router, calificación, estado persistente, alertas WhatsApp al vendedor |
-| 5-6 | Modo Developer: audio transcription (Whisper), ingesta de PDFs vía WhatsApp, updates de obra por audio/texto. Integración RAG + agente. Testing con docs reales del cliente ancla |
-| 7-8 | Seguimiento de obra: hitos, notificaciones personalizadas a compradores. Admin API básica para analytics |
+| Agente WhatsApp (lead mode) | ✅ Completo |
+| Calificación progresiva + scoring | ✅ Completo |
+| Document sharing (envío de PDFs por WA) | ✅ Completo |
+| Modo Developer (admin por WhatsApp) | ✅ Completo |
+| Seguimiento de obra + notificaciones a compradores | ✅ Completo |
+| Panel web Next.js completo | ✅ Completo |
+| Flujo de reserva asistida con comprobante PDF | ✅ Completo |
+| RAG (PDFs nativos a Claude) | ✅ Completo |
+| Handoff a Chatwoot | ⬜ Pendiente |
 
 ### V2 (post-piloto)
 
-- Next.js admin dashboard (pipeline de leads, analytics, config de proyectos)
+- RAG con embeddings para contexto muy grande (muchos PDFs pesados): selección semántica previa para no saturar el context window
+- Handoff completo a Chatwoot (inbox de ventas para humanos)
 - Simulador de cuotas y financiamiento (widget web embebible)
-- Ingesta de imágenes de planos con OCR/vision para extraer metadata automáticamente
+- Ingesta de imágenes de planos con OCR/vision
+- Multi-tenant: onboarding de nuevas desarrolladoras sin intervención técnica
 - Portal de captación de terrenos para próximos desarrollos
-- Multi-tenant completo para onboarding sin intervención técnica

@@ -1,195 +1,178 @@
 # Plan de Implementación — Realia V1
 
-Estado actual: Fases 0, 1A, 1B (parcial), 3 (parcial) completas.
-Objetivo: llegar a un flujo testeable end-to-end lo antes posible, luego iterar.
+Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 
 ---
 
 ## Estado del código
 
+### Backend
+
 | Archivo | Estado | Notas |
 |---|---|---|
-| `app/main.py` | OK | Routers registrados |
-| `app/config.py` | OK | Todas las env vars, incluyendo `ACTIVE_DEVELOPER_ID` y `DEV_PHONE` |
-| `app/database.py` | OK | Pool asyncpg |
-| `app/models/*` | OK | Pydantic models completos |
-| `migrations/001_initial_schema.sql` | OK | 16 tablas (incl. `unit_notes`), pgvector, 7 índices |
-| `migrations/002_lead_qualification_fields.sql` | OK | Incremental: `budget_usd`, `bedrooms`, `location_pref` en `leads` |
-| `migrations/003_project_details.sql` | OK | Incremental: campos detallados en `projects` |
-| `migrations/004_unit_notes.sql` | OK | Incremental: tabla `unit_notes` |
-| `modules/whatsapp/webhook.py` | OK | Parseo de mensajes, routing |
-| `modules/whatsapp/sender.py` | OK | Envío texto, docs, imágenes, templates |
-| `modules/whatsapp/media.py` | OK | Download de media + `download_media_with_filename` |
-| `modules/whatsapp/templates.py` | OK | Templates formateados |
-| `modules/whatsapp/providers/base.py` | OK | `IncomingMessage` normalizado + `WhatsAppProvider` protocol |
-| `modules/whatsapp/providers/twilio.py` | OK | Twilio provider con `follow_redirects=True` y extracción de filename |
-| `modules/whatsapp/providers/meta.py` | OK | Meta Cloud API provider |
-| `modules/agent/router.py` | OK | `resolve_developer` por `ACTIVE_DEVELOPER_ID` (dev) o `whatsapp_number` (prod), routing lead vs developer por `DEV_PHONE` |
-| `modules/agent/session.py` | OK | CRUD sesiones, `get_developer_context` multi-proyecto, conversaciones |
-| `modules/agent/prompts.py` | OK | System prompts para lead + developer, extraction prompt, acciones admin |
-| `modules/agent/classifier.py` | OK | Llama Claude, parsea JSON multi-intent |
-| `modules/agent/lead_handler.py` | OK | Flujo completo: sesión → contexto multi-proyecto → calificación → Claude → doc sharing → WA |
-| `modules/agent/dev_handler.py` | OK | Admin mode completo: commands, unit mgmt, notes, PDF upload, CSV project load, doc sharing |
-| `modules/rag/ingestion.py` | **Parcial** | `find_document_for_sharing` funciona, falta extract PDF y embeddings reales |
-| `modules/rag/chunker.py` | **Parcial** | Generic chunking funciona, especializados son TODO |
-| `modules/rag/retrieval.py` | OK* | Funciona pero depende de embeddings stub |
-| `modules/storage.py` | OK | Upload a Supabase S3, presigned URLs, estructura `projects/{slug}/{filename}` |
-| `modules/project_loader.py` | OK | Parseo CSV → crear proyecto + unidades |
-| `modules/media/transcription.py` | OK | Whisper API |
-| `modules/media/processor.py` | **Parcial** | `detect_document_type` heurístico, `extract_obra` devuelve `{}` |
-| `modules/leads/qualification.py` | OK | 7 campos, scoring progresivo, extracción con Claude |
-| `modules/leads/alerts.py` | OK | Alerta WA al vendedor |
-| `modules/leads/nurturing.py` | **Parcial** | Falta generar mensaje con Claude |
-| `modules/handoff/manager.py` | OK | check/initiate/close handoff |
-| `modules/handoff/chatwoot.py` | **Stub** | Webhook endpoint OK, API calls TODO |
-| `modules/nocodb_webhook.py` | **Stub** | Endpoint OK, handler TODO |
-| `modules/obra/*` | OK | CRUD updates, milestones, notifier |
-| `app/admin/api.py` | **Parcial** | Upload docs, manage units/projects, CSV loader, leads/metrics stubs |
-| `templates/proyecto_template.csv` | OK | Template CSV para carga de proyectos |
-| `scripts/seed_dev.py` | OK | Seed Torre Palermo + 7 unidades |
-| `scripts/seed_manzanares.py` | OK | Seed Manzanares 2088 + 8 unidades + docs |
-| `scripts/generate_pdfs_manzanares.py` | OK | Genera PDFs reales con reportlab y sube a S3 |
+| `app/main.py` | ✅ OK | Routers registrados |
+| `app/config.py` | ✅ OK | Todas las env vars |
+| `app/database.py` | ✅ OK | Pool asyncpg |
+| `migrations/001_initial_schema.sql` | ✅ OK | Schema base: projects, units, leads, conversations, sessions, etc. |
+| `migrations/002_lead_qualification_fields.sql` | ✅ OK | `budget_usd`, `bedrooms`, `location_pref` en `leads` |
+| `migrations/003_project_details.sql` | ✅ OK | Campos detallados en `projects` |
+| `migrations/004_unit_notes.sql` | ✅ OK | Tabla `unit_notes` |
+| `migrations/005_telegram_handoff.sql` | ✅ OK | Handoff via Telegram |
+| `migrations/006_lead_notes.sql` | ✅ OK | Tabla `lead_notes` |
+| `migrations/007_obra_etapas.sql` | ✅ OK | Tablas `obra_etapas`, `obra_updates`, `obra_fotos` |
+| `migrations/009_reservations.sql` | ✅ OK | Tabla `reservations` con índice parcial único por unidad |
+| `modules/whatsapp/webhook.py` | ✅ OK | Parseo de mensajes, routing |
+| `modules/whatsapp/sender.py` | ✅ OK | Envío texto, docs, imágenes, templates |
+| `modules/whatsapp/media.py` | ✅ OK | Download de media + `download_media_with_filename` |
+| `modules/whatsapp/templates.py` | ✅ OK | Templates formateados |
+| `modules/whatsapp/providers/base.py` | ✅ OK | `IncomingMessage` normalizado + `WhatsAppProvider` protocol |
+| `modules/whatsapp/providers/twilio.py` | ✅ OK | Twilio provider |
+| `modules/whatsapp/providers/meta.py` | ✅ OK | Meta Cloud API provider |
+| `modules/agent/router.py` | ✅ OK | Routing lead vs developer |
+| `modules/agent/session.py` | ✅ OK | CRUD sesiones, contexto multi-proyecto |
+| `modules/agent/prompts.py` | ✅ OK | System prompts para lead + developer |
+| `modules/agent/classifier.py` | ✅ OK | Parsea intención con Claude, JSON multi-intent |
+| `modules/agent/lead_handler.py` | ✅ OK | Flujo completo: sesión → contexto → calificación → Claude → doc sharing → WA |
+| `modules/agent/dev_handler.py` | ✅ OK | Admin mode: comandos, unit mgmt, PDF upload, CSV project load |
+| `modules/rag/ingestion.py` | ✅ OK | Upload a S3, versionado, `find_document_for_sharing` |
+| `modules/rag/chunker.py` | — | No se usa en la estrategia actual (PDFs nativos a Claude) |
+| `modules/rag/retrieval.py` | ✅ OK | Descarga PDFs de S3, convierte a base64, pasa como `document` blocks a Claude. Cache en memoria. |
+| `modules/storage.py` | ✅ OK | Upload a Supabase S3, presigned URLs |
+| `modules/project_loader.py` | ✅ OK | Parseo CSV → crear proyecto + unidades |
+| `modules/media/transcription.py` | ✅ OK | Whisper API |
+| `modules/leads/qualification.py` | ✅ OK | 7 campos, scoring progresivo, extracción con Claude |
+| `modules/leads/alerts.py` | ✅ OK | Alerta WA al vendedor |
+| `modules/leads/nurturing.py` | ⚠️ Parcial | Lógica base OK; generación de mensaje con Claude pendiente |
+| `modules/handoff/manager.py` | ✅ OK | check/initiate/close handoff |
+| `modules/handoff/telegram.py` | ✅ OK | Notificaciones vía Telegram |
+| `modules/handoff/chatwoot.py` | ⬜ Stub | Endpoint OK; API calls pendientes |
+| `modules/obra/notifier.py` | ✅ OK | Envío personalizado a compradores |
+| `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV |
+
+### Frontend (`frontend/`)
+
+| Archivo | Estado | Notas |
+|---|---|---|
+| `src/lib/api.ts` | ✅ OK | Cliente HTTP tipado con todos los endpoints |
+| `src/lib/utils.ts` | ✅ OK | `cn()` helper |
+| `src/contexts/AuthContext.tsx` | ✅ OK | JWT, login/logout, isAuthenticated |
+| `src/components/AuthLayout.tsx` | ✅ OK | Guard de rutas protegidas |
+| `src/components/Sidebar.tsx` | ✅ OK | Sidebar responsivo con Sheet en mobile |
+| `src/components/NewProjectModal.tsx` | ✅ OK | Modal de carga CSV |
+| `src/components/ReservationSheet.tsx` | ✅ OK | Wizard de reserva reutilizable (desde unidad o desde lead) |
+| `src/components/ui/` | ✅ OK | shadcn/ui v3: Sheet, Dialog, Badge, Avatar, Skeleton, Separator, etc. |
+| `src/hooks/useAsync.ts` | ✅ OK | Hook genérico con AbortController |
+| `src/app/page.tsx` | ✅ OK | Login |
+| `src/app/proyectos/page.tsx` | ✅ OK | Listado de proyectos |
+| `src/app/proyectos/[id]/page.tsx` | ✅ OK | Dashboard: funnel, revenue, gráfico semanal, fuentes |
+| `src/app/proyectos/[id]/layout.tsx` | ✅ OK | Tabs: Dashboard / Unidades / Leads / Reservas / Documentos / Obra |
+| `src/app/proyectos/[id]/unidades/page.tsx` | ✅ OK | Grilla por piso; trigger reserva al marcar `reserved` |
+| `src/app/proyectos/[id]/leads/page.tsx` | ✅ OK | Kanban; Sheet con notas, edición, "Reservar unidad" |
+| `src/app/proyectos/[id]/reservas/page.tsx` | ✅ OK | Lista con filtros, acciones hover, dialog de confirmación |
+| `src/app/proyectos/[id]/reservas/[id]/print/layout.tsx` | ✅ OK | Layout limpio sin navegación |
+| `src/app/proyectos/[id]/reservas/[id]/print/page.tsx` | ✅ OK | Comprobante imprimible con auto-print |
+| `src/app/proyectos/[id]/documentos/page.tsx` | ✅ OK | Gestión documentos por tipo |
+| `src/app/proyectos/[id]/obra/page.tsx` | ✅ OK | Etapas con barra de progreso, updates con fotos, notificación compradores |
+| `src/app/inbox/page.tsx` | ✅ OK | Conversaciones; HITL con polling 1.5 s |
 
 ---
 
 ## Fases de implementación
 
-### Fase 0: Infra base (poder hacer deploy y recibir un mensaje)
+### Fase 0: Infra base ✅ COMPLETA
 
-**Estado: COMPLETA**
-
-- [x] Crear base de datos en Neon (free tier) — habilitar extensión `vector` y `pgcrypto`
-- [x] Correr migración SQL contra la PG de Neon — 16 tablas + 7 índices creados
-- [x] Crear `.env` local con todas las variables
-- [x] Instalar dependencias (`venv` + `pip install -r requirements.txt`)
-- [x] Levantar FastAPI local (`uvicorn app.main:app --reload --port 8000`)
-- [x] Exponer con ngrok — `/health` responde OK desde internet
-- [x] Refactorizar WhatsApp module con provider pattern (Twilio + Meta intercambiables)
-- [x] Crear cuenta Twilio y configurar WhatsApp Sandbox
-- [x] Configurar webhook de Twilio apuntando a `{ngrok_url}/whatsapp/webhook`
-- [x] Mensaje de WA llega al webhook — 200 OK confirmado
+- [x] DB en Neon con pgvector y pgcrypto
+- [x] Migraciones SQL aplicadas
+- [x] FastAPI local + ngrok expuesto
+- [x] WhatsApp Sandbox (Twilio) configurado
+- [x] Primer mensaje end-to-end confirmado
 
 ---
 
-### Fase 1A: Agente Lead básico (sin RAG)
+### Fase 1A: Agente Lead básico ✅ COMPLETA
 
-**Estado: COMPLETA**
-
-- [x] `agent/classifier.py` — Parsea respuesta JSON de Claude (multi-intent)
-- [x] `agent/lead_handler.py` — Flujo completo: sesión → contexto proyecto → Claude → respuesta WA → guardar en DB
-- [x] `agent/session.py` — `get_developer_context` consulta todos los proyectos del developer + units + docs
-- [x] `agent/prompts.py` — System prompt para agente inmobiliario
-- [x] Crear script `scripts/seed_dev.py` — Proyecto demo (Torre Palermo) + 7 unidades
-- [x] Modelo configurable via `ANTHROPIC_MODEL` env var (Claude Haiku 4.5 para dev)
-- [x] Test e2e: "hola" por WA → agente responde con info del proyecto ✓
+- [x] `agent/classifier.py` — parseo JSON multi-intent
+- [x] `agent/lead_handler.py` — flujo completo
+- [x] `agent/session.py` — contexto multi-proyecto
+- [x] Seed scripts: Torre Palermo + Manzanares 2088
+- [x] Test e2e: "hola" por WA → respuesta inteligente
 
 ---
 
-### Fase 1B: Lead Qualification + Document Sharing
+### Fase 1B: Calificación + Document Sharing ✅ COMPLETA
 
-**Estado: COMPLETA**
-
-- [x] Lead Qualification — scoring progresivo con 7 campos (name, intent, financing, timeline, budget_usd, bedrooms, location_pref)
-- [x] Extracción de datos con Claude (`EXTRACTION_PROMPT`) al final de cada mensaje
-- [x] Merge inteligente de datos extraídos (nunca sobreescribe con null)
-- [x] Calificación inyectada al prompt del lead (campos conocidos + campos faltantes)
-- [x] Document Sharing — el agente detecta marcadores `[ENVIAR_DOC:tipo:unidad:proyecto-slug]` y envía PDFs
-- [x] `storage.py` — Upload a Supabase S3, presigned URLs funcionales
-- [x] `find_document_for_sharing` busca docs por tipo, unidad y proyecto en la DB
-- [x] Soporte multi-proyecto: el lead puede preguntar por cualquier proyecto del developer
-- [x] Seed data para Manzanares 2088 (8 unidades + 7 PDFs reales en S3)
+- [x] Scoring progresivo (7 campos: name, intent, financing, timeline, budget_usd, bedrooms, location_pref)
+- [x] Extracción con Claude post-mensaje (JSON → merge inteligente)
+- [x] Document sharing (marcadores `[ENVIAR_DOC:tipo:unidad:slug]`)
+- [x] Soporte multi-proyecto
 
 ---
 
-### Fase 2: RAG con documentos reales
+### Fase 2: RAG con documentos reales ✅ COMPLETA (estrategia cambiada)
 
-**Estado: PENDIENTE**
+**Decisión de diseño:** se descartaron embeddings/pgvector en favor de pasar los PDFs directamente a Claude como documentos nativos (base64). Claude lee el PDF con comprensión nativa — no hace falta chunking ni vectores.
 
-- [ ] `rag/ingestion.py` — Implementar `generate_embedding` con OpenAI API real
-- [ ] `rag/ingestion.py` — Implementar `extract_text_from_pdf` (PyPDF2 o pdfplumber)
-- [ ] `rag/chunker.py` — Mejorar chunking para listas de precios (tablas) y brochures
-- [ ] `rag/retrieval.py` — Testear calidad de retrieval con documentos reales
-- [ ] Ajustar prompts según resultados de testing
+- [x] `rag/retrieval.py` — `get_developer_document_blocks()`: descarga PDFs de S3, los convierte a base64, los pasa como content blocks de tipo `document` en la llamada a Claude. Cache en memoria por `document_id`.
+- [x] `rag/ingestion.py` — `ingest_document()`: sube a S3, versionado (anterior queda `is_active=false`), invalida cache. `find_document_for_sharing()`: busca docs en DB para enviar al lead por WhatsApp.
+- [x] `rag/chunker.py` — chunking genérico implementado; especializados (precios, planos, FAQ) son stubs — no necesarios con la estrategia actual.
+- [x] `rag_status = 'ready'` inmediato al subir — no hay pipeline de embeddings que esperar.
 
-**Nota:** Actualmente la info relevante está en la DB (projects, units, documents metadata). El RAG será útil cuando haya documentos extensos (memorias descriptivas, contratos) cuyo contenido no cabe en el contexto.
-
----
-
-### Fase 3: Modo Developer (Admin por WhatsApp)
-
-**Estado: COMPLETA**
-
-- [x] `agent/dev_handler.py` — Admin mode funcional con Claude para interpretar comandos
-- [x] Acciones implementadas:
-  - `update_unit_status` — Cambiar estado de unidades (available/reserved/sold)
-  - `update_unit_price` — Actualizar precio de unidades
-  - `add_unit_note` — Agregar notas/comentarios a unidades
-  - `get_lead_detail` — Ver detalle de un lead por teléfono
-  - `update_project` — Actualizar campos del proyecto por chat
-  - `create_project_instructions` — Enviar template CSV para carga de nuevo proyecto
-- [x] PDF upload conversacional: developer manda PDF → agente pregunta proyecto y tipo → sube a S3 → registra en DB
-- [x] CSV project loader: developer manda CSV con datos del proyecto y unidades → resumen → confirmación → crea todo en DB
-- [x] Document sharing en modo admin (mismos marcadores que leads)
-- [x] Greeting personalizado en modo admin (`🔧 Modo Admin — {nombre}`)
-- [x] Detección real de filename desde headers HTTP de Twilio
-- [x] Routing developer por `DEV_PHONE` (dev) o `authorized_numbers` (prod)
-- [x] Template CSV (`templates/proyecto_template.csv`) con todos los campos
+**Limitación conocida:** si los documentos son muy grandes (muchos PDFs pesados), el context window se llena. Para V2 se puede agregar filtrado semántico previo con embeddings para seleccionar qué docs pasar a Claude.
 
 ---
 
-### Fase 4: Handoff a Chatwoot
+### Fase 3: Modo Developer (Admin por WhatsApp) ✅ COMPLETA
 
-**Estado: PENDIENTE**
+- [x] `agent/dev_handler.py` — admin mode completo
+- [x] Acciones: update_unit_status, update_unit_price, add_unit_note, get_lead_detail, update_project, create_project_instructions
+- [x] PDF upload conversacional → S3 → DB
+- [x] CSV project loader → resumen → confirmación → crea proyecto + unidades
+- [x] Routing por `DEV_PHONE` (dev) o `authorized_numbers` (prod)
 
-- [ ] Deploy Chatwoot en Railway con su PostgreSQL propia
+---
+
+### Fase 4: Handoff a Chatwoot ⬜ PENDIENTE
+
+- [ ] Deploy Chatwoot en Railway
 - [ ] Configurar inbox de WhatsApp en Chatwoot
-- [ ] `handoff/chatwoot.py` — Implementar create/forward/webhook handlers
-- [ ] Configurar webhook de Chatwoot → `{railway_url}/chatwoot/webhook`
+- [ ] `handoff/chatwoot.py` — create/forward/webhook handlers
+- [ ] Webhook Chatwoot → `{url}/chatwoot/webhook`
 
 ---
 
-### Fase 5: NocoDB como panel de gestión
+### Fase 5: Seguimiento de obra + notificaciones ✅ COMPLETA (backend + frontend)
 
-**Estado: PENDIENTE**
-
-- [ ] Deploy NocoDB en Railway, conectar a la PG de Realia
-- [ ] Configurar tablas expuestas: projects, units, leads, documents, obra_updates
-- [ ] Configurar S3 como storage de attachments en NocoDB
-- [ ] `nocodb_webhook.py` — Implementar handlers
+- [x] Tabla `obra_etapas` con 8 etapas estándar (migration 007)
+- [x] CRUD etapas: crear, actualizar %, ajustar pesos (suma 100%)
+- [x] Updates con fotos (S3 + tabla `obra_fotos`)
+- [x] Notificaciones WhatsApp a compradores (`notify_buyers_of_update`)
+- [x] Frontend: barra de progreso ponderada, gestión de etapas, galería de fotos
 
 ---
 
-### Fase 6: Seguimiento de obra + notificaciones
+### Fase 6: Panel Web Next.js ✅ COMPLETA
 
-**Estado: PENDIENTE**
-
-- [ ] Conectar flujo: obra update → milestone check → notificación a compradores
-- [ ] `leads/nurturing.py` — Implementar generación de mensaje con Claude
-- [ ] Configurar cron jobs para nurturing y obra notifications
-- [ ] `admin/api.py` — Implementar endpoints de métricas
+- [x] Auth: JWT, login/logout, rutas protegidas
+- [x] Proyectos: listado, dashboard analytics, carga CSV
+- [x] Unidades: grilla por piso, cambio de estado, trigger de reserva
+- [x] Leads: kanban hot/warm/cold, Sheet con notas y edición
+- [x] Reservas: wizard (desde unidad o desde lead), lista con filtros, comprobante PDF imprimible
+- [x] Documentos: gestión por tipo
+- [x] Obra: etapas, progreso, updates con fotos
+- [x] Inbox: conversaciones WhatsApp con HITL (polling 1.5 s)
 
 ---
 
 ## Dependencias externas
 
-| Servicio | Qué se necesita | Fase | Estado |
-|---|---|---|---|
-| Neon | PostgreSQL con pgvector | 0 | ✅ Configurado |
-| Twilio | WhatsApp Sandbox | 0 | ✅ Configurado |
-| ngrok | Tunnel local | 0 | ✅ Configurado |
-| Anthropic | API key (Claude Haiku 4.5) | 1 | ✅ Configurado |
-| Supabase Storage | S3-compatible storage | 1 | ✅ Configurado |
-| OpenAI | Whisper + embeddings | 2 | ⬜ Pendiente |
-| WhatsApp Cloud API (Meta) | Business account | prod | ⬜ Pendiente |
-| Railway | Deploy completo | 4 | ⬜ Pendiente |
-| Chatwoot | Inbox de ventas | 4 | ⬜ Pendiente |
-| NocoDB | Panel de gestión | 5 | ⬜ Pendiente |
-
----
-
-## Notas
-
-- **Fase 1 es el hito critico.** Si un lead puede mandar un mensaje y recibir una respuesta inteligente, tenemos producto. Todo lo demás es iteración.
-- **El RAG no es urgente** porque la info esencial (proyectos, unidades, precios, amenities, formas de pago) ya está en la DB y se inyecta como contexto. El RAG agrega valor cuando haya docs extensos (memorias, contratos).
-- **Seed data antes de testear.** Sin datos en la DB, no hay nada que probar.
-- **Logging agresivo al principio.** Loguear todo: mensajes entrantes, clasificaciones, respuestas. Después se limpia.
+| Servicio | Qué se necesita | Estado |
+|---|---|---|
+| Neon | PostgreSQL + pgvector | ✅ Configurado |
+| Twilio | WhatsApp Sandbox | ✅ Configurado |
+| ngrok | Tunnel local | ✅ Configurado |
+| Anthropic | API key (Claude Haiku 4.5) | ✅ Configurado |
+| Supabase Storage | S3-compatible storage | ✅ Configurado |
+| OpenAI | Whisper + embeddings | ⬜ Pendiente (Fase 2) |
+| WhatsApp Cloud API (Meta) | Business account | ⬜ Pendiente (prod) |
+| Railway | Deploy completo | ⬜ Pendiente |
+| Chatwoot | Inbox de ventas | ⬜ Pendiente (Fase 4) |

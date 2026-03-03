@@ -207,10 +207,12 @@ async def get_developer_context(developer_id: str) -> str:
             lines.append(f"\nUnidades ({len(units)} total — {len(available)} disponibles, {len(reserved)} reservadas, {len(sold)} vendidas):")
             for u in units:
                 s = unit_status_labels.get(u["status"], u["status"])
+                price_str = f"USD {u['price_usd']:,.0f}" if u["price_usd"] else "precio a confirmar"
+                area_str = f"{u['area_m2']}m²" if u["area_m2"] else "superficie a confirmar"
                 lines.append(
                     f"  - {u['identifier']}: Piso {u['floor']}, "
-                    f"{u['bedrooms']} amb, {u['area_m2']}m², "
-                    f"USD {u['price_usd']:,.0f} ({s})"
+                    f"{u['bedrooms']} amb, {area_str}, "
+                    f"{price_str} ({s})"
                 )
 
         docs = await pool.fetch(
