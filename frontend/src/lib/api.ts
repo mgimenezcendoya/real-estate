@@ -85,7 +85,7 @@ export interface Lead {
 export interface Conversation {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  sender_type: 'lead' | 'ai' | 'agent' | 'human';
+  sender_type: 'lead' | 'ai' | 'agent' | 'human' | 'telegram';
   content: string;
   media_type: string | null;
   created_at: string;
