@@ -7,11 +7,10 @@ Supports role toggle: developers can switch to lead mode for testing.
 import logging
 
 from app.database import get_pool
+from app.modules.agent.session import get_test_mode, set_test_mode
 from app.modules.whatsapp.providers.base import IncomingMessage
 
 logger = logging.getLogger(__name__)
-
-_test_mode: dict[str, bool] = {}
 
 
 async def get_authorized_number(phone: str, developer_id: str) -> dict | None:
@@ -111,10 +110,11 @@ async def route_message(
 
     text = (message.text or "").strip().lower()
     if is_dev and auth and auth["status"] == "active":
-        toggle = _check_role_toggle(sender_phone, text)
+        in_test_mode = await get_test_mode(sender_phone)
+        toggle = _check_role_toggle(in_test_mode, text)
         if toggle == "to_lead":
             from app.modules.whatsapp.sender import send_text_message
-            _test_mode[sender_phone] = True
+            await set_test_mode(sender_phone, True)
             logger.info("Developer %s switched to LEAD test mode", sender_phone)
             await send_text_message(
                 to=sender_phone,
@@ -124,7 +124,7 @@ async def route_message(
             return
         if toggle == "to_admin":
             from app.modules.whatsapp.sender import send_text_message
-            _test_mode.pop(sender_phone, None)
+            await set_test_mode(sender_phone, False)
             logger.info("Developer %s switched back to ADMIN mode", sender_phone)
             dev_name = auth["name"] or "Developer"
             await send_text_message(
@@ -133,7 +133,7 @@ async def route_message(
             )
             return
 
-        if _test_mode.get(sender_phone):
+        if in_test_mode:
             is_dev = False
 
     if is_dev and auth:
@@ -160,12 +160,12 @@ async def route_message(
         )
 
 
-def _check_role_toggle(phone: str, text: str) -> str | None:
+def _check_role_toggle(in_test_mode: bool, text: str) -> str | None:
     """Detect role switch commands. Returns 'to_lead', 'to_admin', or None."""
     lead_keywords = ["modo usuario", "modo lead", "modo test", "modo cliente", "ser usuario", "ser lead", "test mode"]
     admin_keywords = ["modo admin", "modo developer", "modo dev", "volver admin", "volver a admin", "admin mode"]
 
-    if not _test_mode.get(phone):
+    if not in_test_mode:
         if any(kw in text for kw in lead_keywords):
             return "to_lead"
     else:

@@ -79,6 +79,15 @@ async def handle_lead_message(
                     await close_handoff(str(active_handoff["id"]), lead_note="timeout_30min", send_goodbye=False)
                     active_handoff = None
             if active_handoff:
+                lead_id = str(active_handoff["lead_id"])
+                await save_conversation_message(
+                    lead_id=lead_id,
+                    wa_message_id=message_id,
+                    role="user",
+                    sender_type="lead",
+                    content=message.text,
+                )
+                await pool.execute("UPDATE leads SET last_contact = NOW() WHERE id = $1", lead_id)
                 await handle_lead_message_during_handoff(active_handoff, message.text)
                 return
 

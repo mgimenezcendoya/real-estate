@@ -246,7 +246,7 @@ async def _handle_update(update: dict) -> None:
 
     await pool.execute(
         """INSERT INTO conversations (lead_id, role, sender_type, content)
-           VALUES ($1, 'assistant', 'human', $2)""",
+           VALUES ($1, 'assistant', 'telegram', $2)""",
         handoff["lead_id"], text,
     )
     logger.info("Telegram reply from %s forwarded to %s via topic %s", sender_name, handoff["phone"], thread_id)

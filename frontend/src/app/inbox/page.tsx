@@ -442,6 +442,7 @@ export default function InboxPage() {
                   const isUser = msg.role === 'user';
                   const isAI = msg.role === 'assistant' && (msg.sender_type === 'ai' || msg.sender_type === 'agent');
                   const isHuman = msg.role === 'assistant' && msg.sender_type === 'human';
+                  const isTelegram = msg.role === 'assistant' && msg.sender_type === 'telegram';
 
                   return (
                     <div
@@ -450,7 +451,8 @@ export default function InboxPage() {
                         'w-full border-t border-gray-100 first:border-t-0',
                         isUser && 'bg-white',
                         isAI && 'bg-indigo-50/40',
-                        isHuman && 'bg-sky-50/40'
+                        isHuman && 'bg-sky-50/40',
+                        isTelegram && 'bg-emerald-50/40'
                       )}
                     >
                       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex gap-4">
@@ -471,6 +473,11 @@ export default function InboxPage() {
                               <UserCircle2 size={18} className="text-white" />
                             </div>
                           )}
+                          {isTelegram && (
+                            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+                              <UserCircle2 size={18} className="text-white" />
+                            </div>
+                          )}
                           {!isUser && !isAI && !isHuman && (
                             <div className="w-9 h-9 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs">?</div>
                           )}
@@ -484,9 +491,10 @@ export default function InboxPage() {
                               isUser && 'text-gray-900',
                               isAI && 'text-indigo-700',
                               isHuman && 'text-sky-700',
-                              !isUser && !isAI && !isHuman && 'text-gray-500'
+                              isTelegram && 'text-emerald-700',
+                              !isUser && !isAI && !isHuman && !isTelegram && 'text-gray-500'
                             )}>
-                              {isUser ? (selectedLead?.name || 'Usuario') : isAI ? 'Realia AI' : isHuman ? 'Soporte Humano' : 'Sistema'}
+                              {isUser ? (selectedLead?.name || 'Usuario') : isAI ? 'Realia AI' : isHuman ? 'Soporte (Panel)' : isTelegram ? 'Soporte (Telegram)' : 'Sistema'}
                             </span>
                             {isAI && (
                               <Badge className="text-[10px] bg-indigo-100 text-indigo-700 border-indigo-200 uppercase tracking-wider font-bold">Bot</Badge>
