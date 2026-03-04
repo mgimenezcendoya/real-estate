@@ -664,6 +664,7 @@ Auth: JWT almacenado en `sessionStorage` bajo `realia_token`; rutas protegidas p
 | `/proyectos/[id]/obra` | Etapas de obra con barra de progreso ponderada; modal de update con fotos; ajuste de pesos; notificar compradores |
 | `/proyectos/[id]/reservas/[id]/print` | Comprobante de reserva imprimible: auto-dispara `window.print()` tras 500 ms; layout limpio sin navegación |
 | `/inbox` | Conversaciones WhatsApp agrupadas por teléfono; mensajes diferenciados (lead/AI/humano); HITL con polling cada 1.5 s; "Tomar conversación" / "Terminar intervención" |
+| `/tools` | Hub de herramientas para el mercado inmobiliario argentino. Primera herramienta: tipos de cambio ARS/USD (Oficial/Blue/MEP) con simulador de conversión bidireccional |
 
 **Flujo de reserva asistida:**
 - Entrada desde **unidades** (trigger al marcar `reserved`) o desde **leads** (botón "Reservar unidad" en Sheet).
@@ -672,6 +673,28 @@ Auth: JWT almacenado en `sessionStorage` bajo `realia_token`; rutas protegidas p
 - Desde la lista de reservas: **Convertir en venta** → unidad pasa a `sold` + se crea buyer; **Cancelar** → unidad vuelve a `available`.
 
 **Deploy:** `render.yaml` — servicios `realia` (FastAPI) y `realia-frontend` (Next.js). Frontend necesita `NEXT_PUBLIC_API_URL`; backend necesita `CORS_ORIGINS` con la URL del frontend.
+
+### Módulo 6c: Tools — Herramientas de mercado ✅ IMPLEMENTADO
+
+Panel `/tools` con utilidades específicas para el mercado inmobiliario argentino (donde las unidades se venden en USD pero los pagos ocurren en ARS).
+
+**Tipos de cambio ARS/USD** — `app/modules/tools/exchange_rates.py`
+
+- Fuente: `https://api.argentinadatos.com/v1/cotizaciones/dolares/{tipo}` (pública, sin auth)
+- Tipos: `oficial` (BCRA), `blue` (informal), `bolsa` → expuesto como `mep`
+- ⚠️ La API devuelve **301 redirect** → httpx debe usar `follow_redirects=True`
+- ⚠️ El tipo MEP se llama `bolsa` en la URL (no `mep`)
+- ⚠️ La API publica con **1 día de lag** — el dato de hoy no está disponible hasta el día siguiente
+- Cache en memoria con TTL de 15 minutos
+- Endpoints: `GET /admin/tools/exchange-rates`, `GET /admin/tools/exchange-rates/history/{tipo}?days=N`
+
+**Simulador de conversión** (frontend, cálculo local):
+- Toggle "Comprar USD / Vender USD" — define dirección y precio (venta / compra)
+- Pills Oficial / MEP / Blue con cotización en tiempo real
+- Input con separador de miles (formato es-AR: puntos para miles, coma decimal)
+- ⚠️ El estado interno usa **punto como decimal** (`"1000.5"`) → usar `parseFloat()` directo, NO `parseNum()` (que stripea todos los puntos)
+- Tabla comparativa de los 3 tipos, clickeable
+- Polling cada 5 minutos
 
 ---
 

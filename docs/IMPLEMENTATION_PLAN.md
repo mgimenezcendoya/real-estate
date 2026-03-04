@@ -47,17 +47,19 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `modules/handoff/telegram.py` | ✅ OK | Notificaciones vía Telegram |
 | `modules/handoff/chatwoot.py` | ⬜ Stub | Endpoint OK; API calls pendientes |
 | `modules/obra/notifier.py` | ✅ OK | Envío personalizado a compradores |
-| `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV |
+| `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV, tools/exchange-rates |
+| `app/modules/tools/__init__.py` | ✅ OK | Módulo tools |
+| `app/modules/tools/exchange_rates.py` | ✅ OK | Proxy + cache 15 min para ArgentinaDatos API; tipos oficial/blue/bolsa(mep); follow_redirects=True requerido |
 
 ### Frontend (`frontend/`)
 
 | Archivo | Estado | Notas |
 |---|---|---|
-| `src/lib/api.ts` | ✅ OK | Cliente HTTP tipado con todos los endpoints |
+| `src/lib/api.ts` | ✅ OK | Cliente HTTP tipado con todos los endpoints; tipos ExchangeRate, ExchangeRateHistory |
 | `src/lib/utils.ts` | ✅ OK | `cn()` helper |
 | `src/contexts/AuthContext.tsx` | ✅ OK | JWT, login/logout, isAuthenticated |
 | `src/components/AuthLayout.tsx` | ✅ OK | Guard de rutas protegidas |
-| `src/components/Sidebar.tsx` | ✅ OK | Sidebar responsivo con Sheet en mobile |
+| `src/components/Sidebar.tsx` | ✅ OK | Sidebar responsivo con Sheet en mobile; items: Proyectos, Inbox, Tools |
 | `src/components/NewProjectModal.tsx` | ✅ OK | Modal de carga CSV |
 | `src/components/ReservationSheet.tsx` | ✅ OK | Wizard de reserva reutilizable (desde unidad o desde lead) |
 | `src/components/ui/` | ✅ OK | shadcn/ui v3: Sheet, Dialog, Badge, Avatar, Skeleton, Separator, etc. |
@@ -74,6 +76,7 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `src/app/proyectos/[id]/documentos/page.tsx` | ✅ OK | Gestión documentos por tipo |
 | `src/app/proyectos/[id]/obra/page.tsx` | ✅ OK | Etapas con barra de progreso, updates con fotos, notificación compradores |
 | `src/app/inbox/page.tsx` | ✅ OK | Conversaciones; HITL con polling 1.5 s |
+| `src/app/tools/page.tsx` | ✅ OK | Tipos de cambio ARS/USD (cards) + simulador conversión bidireccional; polling 5 min |
 
 ---
 
@@ -160,6 +163,21 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - [x] Documentos: gestión por tipo
 - [x] Obra: etapas, progreso, updates con fotos
 - [x] Inbox: conversaciones WhatsApp con HITL (polling 1.5 s)
+- [x] Financiero: KPI cards, presupuesto vs ejecutado por categoría, tabla gastos
+- [x] Inversores: portal de inversores, envío de reporte por WhatsApp, historial
+- [x] Alertas: panel lateral con badge en sidebar, polling 60 s
+- [x] Proveedores/Pagos: tab "Pagos" dentro de /obra
+- [x] Tools: tipos de cambio ARS/USD + simulador de conversión
+
+---
+
+### Fase 7: Tools — Herramientas de mercado ✅ COMPLETA
+
+- [x] Sidebar: ítem "Tools" con ícono `Wrench`
+- [x] Backend: `app/modules/tools/exchange_rates.py` — proxy con cache 15 min para ArgentinaDatos API
+- [x] Endpoints: `GET /admin/tools/exchange-rates`, `GET /admin/tools/exchange-rates/history/{tipo}`
+- [x] Frontend: página `/tools` con cards de cotización (Oficial/MEP/Blue), polling 5 min
+- [x] Simulador: conversión bidireccional ARS↔USD con toggle Comprar/Vender, tabla comparativa, separador de miles
 
 ---
 
@@ -176,3 +194,4 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | WhatsApp Cloud API (Meta) | Business account | ⬜ Pendiente (prod) |
 | Railway | Deploy completo | ⬜ Pendiente |
 | Chatwoot | Inbox de ventas | ⬜ Pendiente (Fase 4) |
+| ArgentinaDatos API | Cotizaciones ARS/USD (oficial/blue/mep) | ✅ Configurado (proxy en backend) |
