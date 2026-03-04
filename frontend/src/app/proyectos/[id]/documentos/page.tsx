@@ -98,7 +98,7 @@ export default function DocumentosPage() {
             'gap-2 text-sm transition-all',
             showUpload
               ? 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
-              : 'bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm'
+              : 'bg-blue-700 hover:bg-blue-800 text-white border-0 shadow-sm'
           )}
           variant={showUpload ? 'outline' : 'default'}
         >
@@ -115,19 +115,19 @@ export default function DocumentosPage() {
       {showUpload && (
         <form
           onSubmit={handleUpload}
-          className="bg-white border border-indigo-200 rounded-2xl p-5 mb-6 space-y-4 animate-fade-in-up shadow-sm"
+          className="bg-white border border-blue-200 rounded-2xl p-5 mb-6 space-y-4 animate-fade-in-up shadow-sm"
         >
           <h3 className="text-gray-900 font-semibold text-sm">Nuevo documento</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs text-gray-500">Tipo de documento</Label>
               <Select value={uploadDocType} onValueChange={setUploadDocType}>
-                <SelectTrigger className="bg-white border-gray-200 text-gray-900 focus:ring-indigo-400 h-9">
+                <SelectTrigger className="bg-white border-gray-200 text-gray-900 focus:ring-blue-500 h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200 text-gray-900">
                   {DOC_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="focus:bg-indigo-50 focus:text-indigo-700">
+                    <SelectItem key={t} value={t} className="focus:bg-blue-50 focus:text-blue-800">
                       {DOC_LABELS[t] || t}
                     </SelectItem>
                   ))}
@@ -141,7 +141,7 @@ export default function DocumentosPage() {
                 placeholder="ej: 4B"
                 value={uploadUnit}
                 onChange={(e) => setUploadUnit(e.target.value)}
-                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-indigo-400 h-9"
+                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500 h-9"
               />
             </div>
           </div>
@@ -154,13 +154,13 @@ export default function DocumentosPage() {
             onClick={() => fileRef.current?.click()}
             className={cn(
               'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors select-none',
-              dragOver ? 'border-indigo-400 bg-indigo-50' :
-              uploadFile ? 'border-indigo-500 bg-indigo-50' :
-              'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
+              dragOver ? 'border-blue-500 bg-blue-50' :
+              uploadFile ? 'border-blue-500 bg-blue-50' :
+              'border-gray-300 hover:border-blue-500 hover:bg-gray-50'
             )}
           >
             <input type="file" ref={fileRef} accept=".pdf" className="hidden" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-            <Upload size={20} className={cn('mx-auto mb-2', uploadFile ? 'text-indigo-600' : 'text-gray-400')} />
+            <Upload size={20} className={cn('mx-auto mb-2', uploadFile ? 'text-blue-700' : 'text-gray-400')} />
             <p className="text-sm text-gray-500">
               {uploadFile ? (
                 <span className="text-gray-900 font-medium">{uploadFile.name}</span>
@@ -174,7 +174,7 @@ export default function DocumentosPage() {
             <Button
               type="submit"
               disabled={!uploadFile || uploading}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 gap-2"
+              className="bg-blue-700 hover:bg-blue-800 text-white border-0 gap-2"
             >
               {uploading ? (
                 <>
@@ -199,7 +199,7 @@ export default function DocumentosPage() {
           className={cn(
             'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
             !filter
-              ? 'bg-indigo-600 text-white border-indigo-600'
+              ? 'bg-blue-700 text-white border-blue-700'
               : 'bg-white text-gray-500 hover:text-gray-900 border-gray-200 hover:border-gray-300'
           )}
         >
@@ -212,7 +212,7 @@ export default function DocumentosPage() {
             className={cn(
               'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
               filter === t
-                ? 'bg-indigo-600 text-white border-indigo-600'
+                ? 'bg-blue-700 text-white border-blue-700'
                 : 'bg-white text-gray-500 hover:text-gray-900 border-gray-200 hover:border-gray-300'
             )}
           >
@@ -236,8 +236,8 @@ export default function DocumentosPage() {
         </div>
       ) : docs.length === 0 ? (
         <div className="flex flex-col items-center py-20 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-4">
-            <FileText size={26} className="text-indigo-600" />
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-4">
+            <FileText size={26} className="text-blue-700" />
           </div>
           <p className="text-gray-900 font-semibold mb-1">Sin documentos</p>
           <p className="text-gray-500 text-sm">Subí el primero con el botón de arriba.</p>
@@ -258,10 +258,10 @@ export default function DocumentosPage() {
                 {typeDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-indigo-300 transition-colors shadow-sm"
+                    className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-blue-300 transition-colors shadow-sm"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center flex-shrink-0">
-                      <FileText size={14} className="text-indigo-600" />
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                      <FileText size={14} className="text-blue-700" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-900 text-sm font-medium truncate">{doc.filename}</p>
@@ -284,7 +284,7 @@ export default function DocumentosPage() {
                         href={doc.file_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-400 hover:text-indigo-600 transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-gray-100"
+                        className="text-gray-400 hover:text-blue-700 transition-colors flex-shrink-0 p-1 rounded-lg hover:bg-gray-100"
                         title="Abrir documento"
                       >
                         <ExternalLink size={15} />

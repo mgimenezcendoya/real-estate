@@ -24,8 +24,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex h-screen items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-700 rounded-full animate-spin" />
           </div>
           <p className="text-sm text-gray-500 font-medium">Verificando sesión...</p>
         </div>
@@ -42,8 +42,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     return (
       <div className="flex h-screen items-center justify-center bg-transparent">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-700 rounded-full animate-spin" />
           </div>
           <p className="text-sm text-gray-500 font-medium">Redirigiendo...</p>
         </div>

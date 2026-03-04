@@ -110,8 +110,8 @@ export default function ReservasPage() {
             className={cn(
               'px-4 py-1.5 rounded-full text-sm font-medium border transition-all',
               activeFilter === key
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-blue-700 text-white border-blue-700'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-700'
             )}
           >
             {label}
@@ -127,8 +127,8 @@ export default function ReservasPage() {
         </div>
       ) : visibleReservations.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-4">
-            <ClipboardList size={28} className="text-indigo-600" />
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-4">
+            <ClipboardList size={28} className="text-blue-700" />
           </div>
           <p className="text-gray-900 font-semibold mb-2">Sin reservas</p>
           <p className="text-gray-500 text-sm max-w-xs">
@@ -145,7 +145,7 @@ export default function ReservasPage() {
                 className="bg-white border border-gray-200 rounded-2xl p-4 flex items-start gap-4 group hover:border-gray-300 transition-colors shadow-sm"
               >
                 <Avatar className="w-10 h-10 border border-gray-200 flex-shrink-0">
-                  <AvatarFallback className="bg-indigo-100 text-indigo-700 text-xs font-bold">
+                  <AvatarFallback className="bg-blue-100 text-blue-800 text-xs font-bold">
                     {getInitials(r.buyer_name || r.buyer_phone)}
                   </AvatarFallback>
                 </Avatar>
@@ -179,7 +179,7 @@ export default function ReservasPage() {
                     onClick={() =>
                       window.open(`/proyectos/${id}/reservas/${r.id}/print`, '_blank')
                     }
-                    className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                    className="p-2 rounded-lg text-gray-400 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                   >
                     <Printer size={15} />
                   </button>

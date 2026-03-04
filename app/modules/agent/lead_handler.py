@@ -19,8 +19,10 @@ from app.modules.agent.session import (
     get_conversation_history,
     get_lead_qualification,
     get_developer_context,
+    get_developer_projects,
     save_conversation_message,
     update_lead_qualification,
+    update_lead_project,
 )
 from app.modules.handoff.manager import (
     check_active_handoff_by_phone,
@@ -108,6 +110,7 @@ async def handle_lead_message(
 
     qualification = await get_lead_qualification(lead_id)
     developer_context = await get_developer_context(developer_id)
+    developer_projects = await get_developer_projects(developer_id)
     history = await get_conversation_history(lead_id, limit=15)
 
     response_text = await _generate_response(
@@ -152,7 +155,7 @@ async def handle_lead_message(
         )
 
     asyncio.create_task(
-        _update_qualification(lead_id, history, text, clean_text)
+        _update_qualification(lead_id, history, text, clean_text, qualification.get("project_id"), developer_projects)
     )
 
 
@@ -292,8 +295,12 @@ async def _update_qualification(
     history: list[dict],
     user_message: str,
     assistant_response: str,
+    current_project_id: str | None = None,
+    developer_projects: list[dict] | None = None,
 ) -> None:
-    """Extract qualification data from conversation and update the lead record."""
+    """Extract qualification data from conversation and update the lead record.
+    Also detects which project the lead is actually asking about and reassigns if needed.
+    """
     try:
         full_history = list(history)
         full_history.append({"sender_type": "lead", "content": user_message})
@@ -309,5 +316,21 @@ async def _update_qualification(
 
         await update_lead_qualification(lead_id, merged, score)
         logger.info("Lead %s qualification updated: score=%s data=%s", lead_id, score, merged)
+
+        # Auto-reassign lead to the project they're actually asking about
+        if developer_projects and len(developer_projects) > 1 and current_project_id:
+            combined = (user_message + " " + assistant_response).lower()
+            for proj in developer_projects:
+                if str(proj["id"]) == str(current_project_id):
+                    continue
+                name_lower = proj["name"].lower()
+                slug_words = proj["slug"].replace("-", " ")
+                if name_lower in combined or slug_words in combined:
+                    await update_lead_project(lead_id, str(proj["id"]))
+                    logger.info(
+                        "Lead %s reassigned from project %s to %s (%s)",
+                        lead_id, current_project_id, proj["name"], proj["id"],
+                    )
+                    break
     except Exception as e:
         logger.error("Failed to update qualification for lead %s: %s", lead_id, e)

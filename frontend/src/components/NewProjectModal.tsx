@@ -83,8 +83,8 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
       <DialogContent className="max-w-lg bg-white border-gray-200">
         <DialogHeader>
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-2">
-            <FileSpreadsheet size={22} className="text-indigo-600" />
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-2">
+            <FileSpreadsheet size={22} className="text-blue-700" />
           </div>
           <DialogTitle className="text-gray-900 font-display text-xl">Nuevo Proyecto</DialogTitle>
           <DialogDescription className="text-gray-500">
@@ -96,7 +96,7 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
         <a
           href={api.getTemplateUrl()}
           download="proyecto_template.csv"
-          className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700 transition-colors group w-fit"
+          className="flex items-center gap-2 text-sm text-blue-700 hover:text-blue-800 transition-colors group w-fit"
         >
           <Download size={15} className="group-hover:-translate-y-0.5 transition-transform" />
           Descargar template CSV
@@ -111,10 +111,10 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
           className={`
             relative flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 select-none
             ${dragOver
-              ? 'border-indigo-400 bg-indigo-50'
+              ? 'border-blue-500 bg-blue-50'
               : file
                 ? 'border-emerald-400 bg-emerald-50'
-                : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
+                : 'border-gray-300 hover:border-blue-500 hover:bg-gray-50'
             }
           `}
         >
@@ -164,7 +164,7 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
           <Button
             onClick={handleSubmit}
             disabled={!file || uploading}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white border-0"
+            className="flex-1 bg-blue-700 hover:bg-blue-800 text-white border-0"
           >
             {uploading ? (
               <>

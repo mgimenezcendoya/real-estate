@@ -45,13 +45,13 @@ function NavContent({
           collapsed && 'justify-center px-0'
         )}
       >
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-500/30 ring-1 ring-indigo-600/10">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center flex-shrink-0 shadow-sm shadow-blue-600/30 ring-1 ring-blue-700/10">
           <HardHat size={18} className="text-white" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
             <span className="text-gray-900 font-display font-bold text-lg tracking-tight leading-none">REALIA</span>
-            <span className="text-[9px] text-indigo-500 font-semibold uppercase tracking-[0.18em] mt-0.5">Workspace</span>
+            <span className="text-[9px] text-blue-600 font-semibold uppercase tracking-[0.18em] mt-0.5">Workspace</span>
           </div>
         )}
       </div>
@@ -71,29 +71,29 @@ function NavContent({
                 'relative flex items-center gap-3 rounded-xl transition-all duration-150 group',
                 collapsed ? 'justify-center p-3' : 'px-3.5 py-2.5',
                 active
-                  ? 'bg-indigo-50 text-indigo-700'
+                  ? 'bg-blue-50 text-blue-700'
                   : 'text-gray-500 hover:bg-gray-100/80 hover:text-gray-800'
               )}
             >
               {/* Left active indicator bar */}
               {active && !collapsed && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-600 rounded-r-full" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-blue-700 rounded-r-full" />
               )}
               <div className="relative flex-shrink-0">
                 <Icon
                   size={17}
                   className={cn(
                     'transition-colors duration-150',
-                    active ? 'text-indigo-600' : 'group-hover:text-gray-700'
+                    active ? 'text-blue-700' : 'group-hover:text-gray-700'
                   )}
                 />
                 {showBadge && collapsed && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-indigo-600" />
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-700" />
                 )}
               </div>
               {!collapsed && <span className="text-sm font-medium">{label}</span>}
               {!collapsed && showBadge && (
-                <span className="ml-auto min-w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold px-1">
+                <span className="ml-auto min-w-5 h-5 rounded-full bg-blue-700 text-white text-[10px] flex items-center justify-center font-bold px-1">
                   {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
                 </span>
               )}
@@ -148,7 +148,7 @@ function NavContent({
         ) : (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[11px] font-bold">
                   {(user || 'A').charAt(0).toUpperCase()}
                 </span>
@@ -171,7 +171,7 @@ function NavContent({
 }
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const { count: alertCount, refresh: refreshAlerts } = useAlertCount();
