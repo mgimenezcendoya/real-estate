@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     admin_username: str = ""
     admin_password: str = ""
 
+    # Read-only user for the admin panel
+    reader_username: str = ""
+    reader_password: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

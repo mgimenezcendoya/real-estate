@@ -2,19 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, ObraData, ObraEtapa, ObraUpdate, Buyer, Unit } from '@/lib/api';
+import { api, ObraData, ObraEtapa, ObraUpdate, Buyer, Unit, ObraPayment, Supplier } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   HardHat, CheckCircle2, Circle, Clock, Plus, Trash2, Send,
   Users, ChevronDown, ChevronUp, Settings2, Image as ImageIcon,
-  Loader2, X,
+  Loader2, X, CreditCard, ChevronRight, AlertCircle,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,12 +47,14 @@ function EtapaCard({
   onDeleteUpdate,
   onNotify,
   onEditEtapa,
+  readOnly,
 }: {
   etapa: ObraEtapa;
   onAddUpdate: (etapa: ObraEtapa) => void;
   onDeleteUpdate: (updateId: string, etapaId: string) => void;
   onNotify: (updateId: string) => void;
   onEditEtapa: (etapa: ObraEtapa) => void;
+  readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const status = etapaStatus(etapa);
@@ -98,22 +101,26 @@ function EtapaCard({
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => onEditEtapa(etapa)}
-            className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            title="Configurar etapa"
-          >
-            <Settings2 size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => onAddUpdate(etapa)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
-          >
-            <Plus size={12} />
-            Update
-          </button>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={() => onEditEtapa(etapa)}
+                className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                title="Configurar etapa"
+              >
+                <Settings2 size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onAddUpdate(etapa)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
+              >
+                <Plus size={12} />
+                Update
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
@@ -137,6 +144,7 @@ function EtapaCard({
                   update={upd}
                   onDelete={() => onDeleteUpdate(upd.id, etapa.id)}
                   onNotify={() => onNotify(upd.id)}
+                  readOnly={readOnly}
                 />
               ))}
             </div>
@@ -149,10 +157,11 @@ function EtapaCard({
 
 // ─── UpdateItem ───────────────────────────────────────────────────────────────
 
-function UpdateItem({ update, onDelete, onNotify }: {
+function UpdateItem({ update, onDelete, onNotify, readOnly }: {
   update: ObraUpdate;
   onDelete: () => void;
   onNotify: () => void;
+  readOnly?: boolean;
 }) {
   const [notifying, setNotifying] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -209,34 +218,36 @@ function UpdateItem({ update, onDelete, onNotify }: {
           )}
         </div>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-          {!update.enviado && (
+        {!readOnly && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+            {!update.enviado && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setNotifying(true);
+                  await onNotify();
+                  setNotifying(false);
+                }}
+                className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                title="Notificar compradores"
+              >
+                {notifying ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              </button>
+            )}
             <button
               type="button"
               onClick={async () => {
-                setNotifying(true);
-                await onNotify();
-                setNotifying(false);
+                setDeleting(true);
+                await onDelete();
+                setDeleting(false);
               }}
-              className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-              title="Notificar compradores"
+              className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Eliminar update"
             >
-              {notifying ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
             </button>
-          )}
-          <button
-            type="button"
-            onClick={async () => {
-              setDeleting(true);
-              await onDelete();
-              setDeleting(false);
-            }}
-            className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-            title="Eliminar update"
-          >
-            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-          </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -799,15 +810,338 @@ function BuyerModal({
   );
 }
 
+// ─── Payments tab ─────────────────────────────────────────────────────────────
+
+const PAYMENT_ESTADOS = ['pendiente', 'aprobado', 'pagado', 'vencido'] as const;
+type PaymentEstado = typeof PAYMENT_ESTADOS[number];
+
+const NEXT_ESTADO: Record<string, PaymentEstado | null> = {
+  pendiente: 'aprobado',
+  aprobado: 'pagado',
+  pagado: null,
+  vencido: null,
+};
+
+function estadoBadge(estado: string) {
+  const cls: Record<string, string> = {
+    pendiente: 'bg-amber-50 text-amber-700 border-amber-200',
+    aprobado: 'bg-blue-50 text-blue-700 border-blue-200',
+    pagado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    vencido: 'bg-red-50 text-red-600 border-red-200',
+  };
+  return cls[estado] || 'bg-gray-100 text-gray-500 border-gray-200';
+}
+
+function isVencemientoProximo(payment: ObraPayment) {
+  if (!payment.fecha_vencimiento || payment.estado !== 'pendiente') return false;
+  const diff = (new Date(payment.fecha_vencimiento).getTime() - Date.now()) / 86400000;
+  return diff >= 0 && diff <= 5;
+}
+
+const PAYMENT_EMPTY: Omit<ObraPayment, 'id' | 'created_at' | 'supplier_nombre' | 'etapa_nombre'> = {
+  supplier_id: null,
+  etapa_id: null,
+  descripcion: '',
+  monto_usd: null,
+  monto_ars: null,
+  fecha_vencimiento: null,
+  estado: 'pendiente',
+  fecha_pago: null,
+  comprobante_url: null,
+};
+
+function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapas: ObraEtapa[]; readOnly?: boolean }) {
+  const [payments, setPayments] = useState<ObraPayment[]>([]);
+  const [vencimientos, setVencimientos] = useState<ObraPayment[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingP, setLoadingP] = useState(true);
+  const [filterEstado, setFilterEstado] = useState<string>('');
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState<typeof PAYMENT_EMPTY>(PAYMENT_EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [showVenc, setShowVenc] = useState(true);
+
+  const load = async () => {
+    setLoadingP(true);
+    try {
+      const [p, v, s] = await Promise.all([
+        api.getObraPayments(projectId),
+        api.getVencimientos(projectId),
+        api.getSuppliers(),
+      ]);
+      setPayments(p);
+      setVencimientos(v);
+      setSuppliers(s);
+    } catch {
+      toast.error('Error cargando pagos');
+    } finally {
+      setLoadingP(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [projectId]);
+
+  const filtered = filterEstado ? payments.filter((p) => p.estado === filterEstado) : payments;
+
+  const savePayment = async () => {
+    if (!form.descripcion) return toast.error('Descripción requerida');
+    setSaving(true);
+    try {
+      await api.createObraPayment(projectId, form);
+      toast.success('Pago creado');
+      setShowModal(false);
+      setForm(PAYMENT_EMPTY);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const advanceEstado = async (payment: ObraPayment) => {
+    const next = NEXT_ESTADO[payment.estado];
+    if (!next) return;
+    try {
+      await api.patchObraPayment(payment.id, { estado: next });
+      toast.success(`Pago marcado como ${next}`);
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Próximos vencimientos banner */}
+      {vencimientos.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowVenc(!showVenc)}
+            className="w-full flex items-center justify-between px-5 py-3"
+          >
+            <div className="flex items-center gap-2">
+              <AlertCircle size={15} className="text-amber-600" />
+              <span className="text-sm font-semibold text-amber-800">
+                {vencimientos.length} pago{vencimientos.length !== 1 ? 's' : ''} próximos a vencer (15 días)
+              </span>
+            </div>
+            {showVenc ? <ChevronDown size={14} className="text-amber-500" /> : <ChevronRight size={14} className="text-amber-500" />}
+          </button>
+          {showVenc && (
+            <div className="px-5 pb-4 space-y-2">
+              {vencimientos.map((v) => (
+                <div key={v.id} className="flex items-center justify-between text-sm">
+                  <div>
+                    <span className="font-medium text-amber-900">{v.descripcion}</span>
+                    {v.supplier_nombre && <span className="text-amber-600 text-xs ml-2">· {v.supplier_nombre}</span>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {v.monto_usd != null && <span className="text-amber-800 font-medium">USD {v.monto_usd.toLocaleString('es-AR')}</span>}
+                    <span className="text-amber-600 text-xs">{v.fecha_vencimiento}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filters + new button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setFilterEstado('')} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium', !filterEstado ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300')}>Todos</button>
+          {PAYMENT_ESTADOS.map((e) => (
+            <button key={e} onClick={() => setFilterEstado(e)} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium capitalize', filterEstado === e ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300')}>
+              {e}
+            </button>
+          ))}
+        </div>
+        {!readOnly && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+          >
+            <Plus size={14} /> Nuevo pago
+          </button>
+        )}
+      </div>
+
+      {/* Payments list */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        {loadingP ? (
+          <div className="p-5 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full bg-gray-100 rounded-lg" />)}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <CreditCard size={32} className="mx-auto text-gray-200 mb-3" />
+            <p className="text-sm text-gray-400">Sin pagos registrados</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-xs font-medium text-gray-400 px-5 py-3">Vencimiento</th>
+                  <th className="text-left text-xs font-medium text-gray-400 px-3 py-3">Proveedor</th>
+                  <th className="text-left text-xs font-medium text-gray-400 px-3 py-3">Etapa</th>
+                  <th className="text-left text-xs font-medium text-gray-400 px-3 py-3">Descripción</th>
+                  <th className="text-right text-xs font-medium text-gray-400 px-3 py-3">Monto</th>
+                  <th className="text-center text-xs font-medium text-gray-400 px-3 py-3">Estado</th>
+                  <th className="px-5 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => {
+                  const prox = isVencemientoProximo(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      className={cn(
+                        'border-b border-gray-50 transition-colors',
+                        p.estado === 'vencido' ? 'bg-red-50/40' : prox ? 'bg-amber-50/40' : 'hover:bg-gray-50',
+                      )}
+                    >
+                      <td className="px-5 py-3 whitespace-nowrap text-gray-600">
+                        {p.fecha_vencimiento
+                          ? new Date(p.fecha_vencimiento + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-gray-600 whitespace-nowrap">{p.supplier_nombre || '—'}</td>
+                      <td className="px-3 py-3 text-gray-500 text-xs whitespace-nowrap">{p.etapa_nombre || '—'}</td>
+                      <td className="px-3 py-3 text-gray-800 max-w-xs truncate">{p.descripcion}</td>
+                      <td className="px-3 py-3 text-right font-medium whitespace-nowrap">
+                        {p.monto_usd != null ? `USD ${p.monto_usd.toLocaleString('es-AR')}` : '—'}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border capitalize', estadoBadge(p.estado))}>
+                          {p.estado}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {!readOnly && NEXT_ESTADO[p.estado] && (
+                          <button
+                            onClick={() => advanceEstado(p)}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                          >
+                            → {NEXT_ESTADO[p.estado]}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* New payment modal */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo pago de obra</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción *</label>
+              <input
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                value={form.descripcion}
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+                placeholder="Ej: Hormigón estructura piso 3"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Proveedor</label>
+                <select
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none"
+                  value={form.supplier_id || ''}
+                  onChange={(e) => setForm({ ...form, supplier_id: e.target.value || null })}
+                >
+                  <option value="">Sin proveedor</option>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Etapa</label>
+                <select
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none"
+                  value={form.etapa_id || ''}
+                  onChange={(e) => setForm({ ...form, etapa_id: e.target.value || null })}
+                >
+                  <option value="">Sin etapa</option>
+                  {etapas.filter((e) => e.activa).map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Monto USD</label>
+                <input
+                  type="number"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  value={form.monto_usd ?? ''}
+                  onChange={(e) => setForm({ ...form, monto_usd: e.target.value ? parseFloat(e.target.value) : null })}
+                  placeholder="0.00"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Monto ARS</label>
+                <input
+                  type="number"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  value={form.monto_ars ?? ''}
+                  onChange={(e) => setForm({ ...form, monto_ars: e.target.value ? parseFloat(e.target.value) : null })}
+                  placeholder="0.00"
+                  min="0"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha de vencimiento</label>
+              <input
+                type="date"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                value={form.fecha_vencimiento || ''}
+                onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value || null })}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={savePayment}
+                disabled={saving}
+                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? 'Guardando...' : 'Crear pago'}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ObraPage() {
   const { id } = useParams<{ id: string }>();
+  const { isReader } = useAuth();
   const [obra, setObra] = useState<ObraData | null>(null);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [initing, setIniting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'obra' | 'pagos'>('obra');
 
   // Sheets / dialogs
   const [updateSheetOpen, setUpdateSheetOpen] = useState(false);
@@ -957,6 +1291,31 @@ export default function ObraPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
+      {/* Tab toggle */}
+      <div className="flex items-center gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab('obra')}
+          className={cn('flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-all', activeTab === 'obra' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+        >
+          <HardHat size={14} /> Obra
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('pagos')}
+          className={cn('flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-all', activeTab === 'pagos' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
+        >
+          <CreditCard size={14} /> Pagos
+        </button>
+      </div>
+
+      {/* Payments tab */}
+      {activeTab === 'pagos' && id && (
+        <PaymentsTab projectId={id} etapas={obra?.etapas ?? []} readOnly={isReader} />
+      )}
+
+      {activeTab !== 'obra' ? null : <>
+
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -965,7 +1324,7 @@ export default function ObraPage() {
             <h2 className="text-base font-bold text-gray-900">Seguimiento de obra</h2>
           </div>
           <div className="flex items-center gap-3">
-            {obra && obra.etapas.length > 0 && (
+            {obra && obra.etapas.length > 0 && !isReader && (
               <button
                 type="button"
                 onClick={() => setPesosSheetOpen(true)}
@@ -1028,17 +1387,20 @@ export default function ObraPage() {
                 onDeleteUpdate={handleDeleteUpdate}
                 onNotify={handleNotify}
                 onEditEtapa={setEditingEtapa}
+                readOnly={isReader}
               />
             ))}
-            <button
-              type="button"
-              onClick={handleAddEtapa}
-              disabled={addingEtapa}
-              className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 text-sm font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              {addingEtapa ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Agregar etapa personalizada
-            </button>
+            {!isReader && (
+              <button
+                type="button"
+                onClick={handleAddEtapa}
+                disabled={addingEtapa}
+                className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {addingEtapa ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                Agregar etapa personalizada
+              </button>
+            )}
           </div>
 
           {/* Buyers panel */}
@@ -1052,14 +1414,16 @@ export default function ObraPage() {
                     {buyers.length}
                   </Badge>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setBuyerModalOpen(true)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
-                >
-                  <Plus size={11} />
-                  Registrar
-                </button>
+                {!isReader && (
+                  <button
+                    type="button"
+                    onClick={() => setBuyerModalOpen(true)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
+                  >
+                    <Plus size={11} />
+                    Registrar
+                  </button>
+                )}
               </div>
 
               {buyers.length === 0 ? (
@@ -1123,6 +1487,8 @@ export default function ObraPage() {
         soldUnits={soldUnits}
         onSave={handleRegisterBuyer}
       />
+
+      </>}
     </div>
   );
 }

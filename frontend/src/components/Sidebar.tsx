@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu } from 'lucide-react';
+import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import AlertsPanel, { useAlertCount } from '@/components/AlertsPanel';
 
 const navItems = [
   { href: '/proyectos', label: 'Proyectos', icon: Building2 },
@@ -17,9 +18,13 @@ const navItems = [
 function NavContent({
   collapsed,
   onNavigate,
+  onAlertsClick,
+  alertCount,
 }: {
   collapsed?: boolean;
   onNavigate?: () => void;
+  onAlertsClick?: () => void;
+  alertCount?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,23 +41,23 @@ function NavContent({
       {/* Logo */}
       <div
         className={cn(
-          'flex items-center gap-3 px-5 py-6 border-b border-gray-100',
+          'flex items-center gap-3 px-5 py-5 border-b border-gray-100/80',
           collapsed && 'justify-center px-0'
         )}
       >
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center flex-shrink-0 shadow-md shadow-indigo-500/20">
-          <HardHat size={20} className="text-white" />
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center flex-shrink-0 shadow-sm shadow-indigo-500/30 ring-1 ring-indigo-600/10">
+          <HardHat size={18} className="text-white" />
         </div>
         {!collapsed && (
           <div className="flex flex-col">
-            <span className="text-gray-900 font-display font-semibold text-xl tracking-wide">REALIA</span>
-            <span className="text-[10px] text-indigo-600 font-medium uppercase tracking-widest">Workspace</span>
+            <span className="text-gray-900 font-display font-bold text-lg tracking-tight leading-none">REALIA</span>
+            <span className="text-[9px] text-indigo-500 font-semibold uppercase tracking-[0.18em] mt-0.5">Workspace</span>
           </div>
         )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-6 space-y-1">
+      <nav className="flex-1 px-3 py-5 space-y-0.5">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href);
           const isInbox = href === '/inbox';
@@ -63,18 +68,22 @@ function NavContent({
               href={href}
               onClick={onNavigate}
               className={cn(
-                'flex items-center gap-3 rounded-xl transition-all duration-150 relative group',
-                collapsed ? 'justify-center p-3' : 'px-4 py-2.5',
+                'relative flex items-center gap-3 rounded-xl transition-all duration-150 group',
+                collapsed ? 'justify-center p-3' : 'px-3.5 py-2.5',
                 active
-                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 border border-transparent'
+                  ? 'bg-indigo-50 text-indigo-700'
+                  : 'text-gray-500 hover:bg-gray-100/80 hover:text-gray-800'
               )}
             >
+              {/* Left active indicator bar */}
+              {active && !collapsed && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-600 rounded-r-full" />
+              )}
               <div className="relative flex-shrink-0">
                 <Icon
-                  size={18}
+                  size={17}
                   className={cn(
-                    'transition-transform duration-150',
+                    'transition-colors duration-150',
                     active ? 'text-indigo-600' : 'group-hover:text-gray-700'
                   )}
                 />
@@ -88,48 +97,71 @@ function NavContent({
                   {inboxUnreadCount > 99 ? '99+' : inboxUnreadCount}
                 </span>
               )}
-              {active && !collapsed && !showBadge && (
-                <div className="absolute right-3 w-1.5 h-1.5 rounded-full bg-indigo-600" />
-              )}
             </Link>
           );
         })}
       </nav>
 
+      {/* Alerts button */}
+      {onAlertsClick && (
+        <div className={cn('px-3 pb-3', collapsed && 'px-0 flex justify-center')}>
+          <button
+            type="button"
+            onClick={onAlertsClick}
+            className={cn(
+              'relative flex items-center gap-3 rounded-xl transition-all duration-150 text-gray-500 hover:bg-gray-100/80 hover:text-gray-800 w-full',
+              collapsed ? 'justify-center p-3' : 'px-3.5 py-2.5',
+            )}
+          >
+            <div className="relative flex-shrink-0">
+              <Bell size={17} />
+              {(alertCount ?? 0) > 0 && collapsed && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500" />
+              )}
+            </div>
+            {!collapsed && <span className="text-sm font-medium">Alertas</span>}
+            {!collapsed && (alertCount ?? 0) > 0 && (
+              <span className="ml-auto min-w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-bold px-1">
+                {(alertCount ?? 0) > 99 ? '99+' : alertCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Footer */}
       <div
         className={cn(
-          'mt-auto border-t border-gray-100 bg-gray-50',
-          collapsed ? 'px-0 py-4 flex justify-center' : 'px-5 py-4'
+          'mt-auto border-t border-gray-100',
+          collapsed ? 'px-0 py-4 flex justify-center' : 'px-4 py-3.5'
         )}
       >
         {collapsed ? (
           <button
             type="button"
             onClick={handleLogout}
-            className="p-2 rounded-xl text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+            className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
             title="Cerrar sesión"
           >
-            <LogOut size={18} />
+            <LogOut size={17} />
           </button>
         ) : (
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-indigo-700 text-xs font-bold">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-[11px] font-bold">
                   {(user || 'A').charAt(0).toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm text-gray-800 font-medium truncate">{user || 'Admin'}</p>
+              <p className="text-sm text-gray-700 font-medium truncate">{user || 'Admin'}</p>
             </div>
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium text-gray-400 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+              className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
               title="Cerrar sesión"
             >
-              <LogOut size={13} />
-              Salir
+              <LogOut size={14} />
             </button>
           </div>
         )}
@@ -141,6 +173,8 @@ function NavContent({
 export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const { count: alertCount, refresh: refreshAlerts } = useAlertCount();
   const pathname = usePathname();
 
   // Close mobile sidebar on route change
@@ -169,7 +203,11 @@ export default function Sidebar() {
           <SheetHeader className="sr-only">
             <SheetTitle>Menú de navegación</SheetTitle>
           </SheetHeader>
-          <NavContent onNavigate={() => setMobileOpen(false)} />
+          <NavContent
+            onNavigate={() => setMobileOpen(false)}
+            onAlertsClick={() => { setMobileOpen(false); setAlertsOpen(true); }}
+            alertCount={alertCount}
+          />
         </SheetContent>
       </Sheet>
 
@@ -180,7 +218,11 @@ export default function Sidebar() {
           collapsed ? 'w-20' : 'w-64'
         )}
       >
-        <NavContent collapsed={collapsed} />
+        <NavContent
+          collapsed={collapsed}
+          onAlertsClick={() => setAlertsOpen(true)}
+          alertCount={alertCount}
+        />
 
         {/* Collapse toggle button */}
         <button
@@ -192,6 +234,13 @@ export default function Sidebar() {
           {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
       </aside>
+
+      {/* Alerts panel */}
+      <AlertsPanel
+        open={alertsOpen}
+        onOpenChange={setAlertsOpen}
+        onRead={refreshAlerts}
+      />
     </>
   );
 }

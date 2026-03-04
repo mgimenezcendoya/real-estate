@@ -12,16 +12,22 @@ logger = logging.getLogger(__name__)
 
 
 async def check_active_handoff(phone: str, project_id: str) -> dict | None:
-    """Check if a lead has an active handoff."""
+    """Check if a lead has an active handoff (legacy, prefer check_active_handoff_by_phone)."""
+    return await check_active_handoff_by_phone(phone)
+
+
+async def check_active_handoff_by_phone(phone: str) -> dict | None:
+    """Check if a lead has an active handoff, searching by phone across all projects."""
     pool = await get_pool()
     row = await pool.fetchrow(
         """
         SELECT h.* FROM handoffs h
         JOIN leads l ON h.lead_id = l.id
-        WHERE l.phone = $1 AND h.project_id = $2 AND h.status = 'active'
+        WHERE l.phone = $1 AND h.status = 'active'
+        ORDER BY h.started_at DESC
+        LIMIT 1
         """,
         phone,
-        project_id,
     )
     return dict(row) if row else None
 

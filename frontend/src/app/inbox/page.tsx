@@ -9,6 +9,7 @@ import { UserSearch, FileText, Send, UserCircle2, MessageSquare, Sparkles, Loade
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 type LeadGroup = { phone: string; mainLead: Lead; allLeadIds: string[] };
 
@@ -64,6 +65,7 @@ const SCORE_BADGE: Record<string, string> = {
 
 export default function InboxPage() {
   const { markInboxAsRead } = useNotifications();
+  const { isReader } = useAuth();
 
   useEffect(() => {
     markInboxAsRead();
@@ -526,7 +528,7 @@ export default function InboxPage() {
           </div>
 
           {/* Input area */}
-          {selectedLead && (
+          {selectedLead && !isReader && (
             <div className="p-3 md:p-4 border-t border-gray-200 flex-shrink-0 bg-white">
               <div className="max-w-3xl mx-auto">
                 <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-400/30 focus-within:border-indigo-400 transition-all flex flex-col shadow-sm">

@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STATUS_CONFIG = {
   active: { label: 'Activa', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -50,6 +51,7 @@ const FILTERS = [
 
 export default function ReservasPage() {
   const { id } = useParams<{ id: string }>();
+  const { isReader } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string | undefined>(undefined);
@@ -181,7 +183,7 @@ export default function ReservasPage() {
                   >
                     <Printer size={15} />
                   </button>
-                  {r.status === 'active' && (
+                  {r.status === 'active' && !isReader && (
                     <>
                       <button
                         title="Convertir en venta"

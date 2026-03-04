@@ -42,25 +42,37 @@ class LoginBody(BaseModel):
 
 @router.post("/auth/login")
 async def auth_login(body: LoginBody):
-    """Validate credentials and return a token. Credentials from env ADMIN_USERNAME, ADMIN_PASSWORD."""
+    """Validate credentials and return a token. Supports admin and reader roles."""
     settings = get_settings()
     if not settings.admin_username or not settings.admin_password:
         raise HTTPException(status_code=503, detail="Login not configured")
-    if body.username != settings.admin_username or body.password != settings.admin_password:
+
+    if body.username == settings.admin_username and body.password == settings.admin_password:
+        role = "admin"
+    elif (
+        settings.reader_username
+        and settings.reader_password
+        and body.username == settings.reader_username
+        and body.password == settings.reader_password
+    ):
+        role = "reader"
+    else:
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
-    token = create_token(body.username)
-    return {"token": token, "user": body.username}
+
+    token = create_token(body.username, role)
+    return {"token": token, "user": body.username, "role": role}
 
 
 @router.get("/auth/me")
 async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-    """Return current user if token is valid."""
+    """Return current user and role if token is valid."""
     if not credentials or credentials.scheme != "Bearer":
-        return {"user": None}
-    username = verify_token(credentials.credentials)
-    if not username:
-        return {"user": None}
-    return {"user": username}
+        return {"user": None, "role": None}
+    result = verify_token(credentials.credentials)
+    if not result:
+        return {"user": None, "role": None}
+    username, role = result
+    return {"user": username, "role": role}
 
 
 # --- Document upload ---
@@ -230,6 +242,54 @@ async def update_unit_status(unit_id: str, request: Request):
 
     logger.info("Unit %s (%s) status changed to %s", row["identifier"], unit_id, new_status)
     return dict(row)
+
+
+@router.patch("/units/{unit_id}")
+async def update_unit(unit_id: str, request: Request):
+    """Update editable fields of a unit (price, area, bedrooms, floor). Records changelog."""
+    pool = await get_pool()
+    body = await request.json()
+
+    allowed = {"price_usd", "area_m2", "bedrooms", "floor"}
+    updates = {k: v for k, v in body.items() if k in allowed and v is not None}
+    if not updates:
+        return {"error": "No valid fields to update"}
+
+    # Fetch current values before updating
+    current = await pool.fetchrow(
+        "SELECT floor, bedrooms, area_m2, price_usd FROM units WHERE id = $1", unit_id
+    )
+    if not current:
+        return {"error": f"Unit {unit_id} not found"}
+
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    row = await pool.fetchrow(
+        f"UPDATE units SET {set_clause} WHERE id = $1 RETURNING id, identifier, floor, bedrooms, area_m2, price_usd, status",
+        unit_id, *values,
+    )
+
+    # Insert changelog entries for changed fields
+    for field, new_val in updates.items():
+        old_val = current[field]
+        if old_val != new_val:
+            await pool.execute(
+                "INSERT INTO unit_field_history (unit_id, field, old_value, new_value) VALUES ($1, $2, $3, $4)",
+                unit_id, field, float(old_val) if old_val is not None else None, float(new_val),
+            )
+
+    return dict(row)
+
+
+@router.get("/units/{unit_id}/history")
+async def get_unit_history(unit_id: str):
+    """Return the field change history for a unit."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, field, old_value, new_value, changed_at FROM unit_field_history WHERE unit_id = $1 ORDER BY changed_at DESC LIMIT 50",
+        unit_id,
+    )
+    return [dict(r) for r in rows]
 
 
 @router.patch("/units/bulk-status")
@@ -1200,3 +1260,669 @@ async def load_project_from_csv(
         "slug": result["slug"],
         "units_created": result["units_created"],
     }
+
+
+# ---------- Módulo 1: Dashboard Financiero ----------
+
+class BudgetBody(BaseModel):
+    categoria: str
+    descripcion: Optional[str] = None
+    monto_usd: Optional[float] = None
+    monto_ars: Optional[float] = None
+
+
+class ExpenseBody(BaseModel):
+    proveedor: Optional[str] = None
+    descripcion: str
+    monto_usd: Optional[float] = None
+    monto_ars: Optional[float] = None
+    fecha: str   # YYYY-MM-DD
+    comprobante_url: Optional[str] = None
+    budget_id: Optional[str] = None
+
+
+class FinancialsConfigBody(BaseModel):
+    tipo_cambio_usd_ars: float
+
+
+@router.get("/financials/{project_id}/summary")
+async def get_financials_summary(project_id: str):
+    pool = await get_pool()
+
+    config_row = await pool.fetchrow(
+        "SELECT tipo_cambio_usd_ars FROM project_financials_config WHERE project_id = $1",
+        project_id,
+    )
+    tipo_cambio = float(config_row["tipo_cambio_usd_ars"]) if config_row else 1000.0
+
+    budget_rows = await pool.fetch(
+        "SELECT id, categoria, monto_usd FROM project_budget WHERE project_id = $1",
+        project_id,
+    )
+    presupuesto_total = sum(float(r["monto_usd"] or 0) for r in budget_rows)
+
+    expenses_rows = await pool.fetch(
+        """SELECT e.monto_usd, b.categoria
+           FROM project_expenses e
+           LEFT JOIN project_budget b ON b.id = e.budget_id
+           WHERE e.project_id = $1""",
+        project_id,
+    )
+    ejecutado_total = sum(float(r["monto_usd"] or 0) for r in expenses_rows)
+
+    revenue_row = await pool.fetchrow(
+        "SELECT COALESCE(SUM(price_usd), 0) as revenue FROM units WHERE project_id = $1",
+        project_id,
+    )
+    revenue = float(revenue_row["revenue"]) if revenue_row else 0.0
+
+    desvio = ejecutado_total - presupuesto_total
+    desvio_pct = (desvio / presupuesto_total * 100) if presupuesto_total else 0.0
+    margen_pct = ((revenue - presupuesto_total) / revenue * 100) if revenue else 0.0
+
+    # By category
+    cat_exec: dict = {}
+    for r in expenses_rows:
+        cat = r["categoria"] or "Sin categoría"
+        cat_exec[cat] = cat_exec.get(cat, 0.0) + float(r["monto_usd"] or 0)
+
+    por_categoria = []
+    for b in budget_rows:
+        cat = b["categoria"]
+        bud = float(b["monto_usd"] or 0)
+        exe = cat_exec.get(cat, 0.0)
+        dev_pct = ((exe - bud) / bud * 100) if bud else 0.0
+        por_categoria.append({
+            "categoria": cat,
+            "presupuesto_usd": bud,
+            "ejecutado_usd": exe,
+            "desvio_pct": round(dev_pct, 1),
+        })
+
+    return {
+        "presupuesto_total_usd": presupuesto_total,
+        "ejecutado_usd": ejecutado_total,
+        "desvio_usd": desvio,
+        "desvio_pct": round(desvio_pct, 1),
+        "revenue_esperado_usd": revenue,
+        "margen_esperado_pct": round(margen_pct, 1),
+        "tipo_cambio": tipo_cambio,
+        "por_categoria": por_categoria,
+    }
+
+
+@router.get("/financials/{project_id}/expenses")
+async def list_expenses(
+    project_id: str,
+    categoria: Optional[str] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+):
+    pool = await get_pool()
+    conditions = ["e.project_id = $1"]
+    params: list = [project_id]
+
+    if categoria:
+        params.append(categoria)
+        conditions.append(f"b.categoria = ${len(params)}")
+    if fecha_desde:
+        params.append(datetime.strptime(fecha_desde, "%Y-%m-%d").date())
+        conditions.append(f"e.fecha >= ${len(params)}")
+    if fecha_hasta:
+        params.append(datetime.strptime(fecha_hasta, "%Y-%m-%d").date())
+        conditions.append(f"e.fecha <= ${len(params)}")
+
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""SELECT e.id, e.budget_id, e.proveedor, e.descripcion,
+                   e.monto_usd, e.monto_ars, e.fecha, e.comprobante_url, e.created_at,
+                   b.categoria
+            FROM project_expenses e
+            LEFT JOIN project_budget b ON b.id = e.budget_id
+            WHERE {where}
+            ORDER BY e.fecha DESC, e.created_at DESC""",
+        *params,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("monto_usd") is not None:
+            d["monto_usd"] = float(d["monto_usd"])
+        if d.get("monto_ars") is not None:
+            d["monto_ars"] = float(d["monto_ars"])
+        result.append(d)
+    return result
+
+
+@router.post("/financials/{project_id}/expenses")
+async def create_expense(project_id: str, body: ExpenseBody):
+    pool = await get_pool()
+    fecha = datetime.strptime(body.fecha, "%Y-%m-%d").date()
+    row = await pool.fetchrow(
+        """INSERT INTO project_expenses
+               (project_id, budget_id, proveedor, descripcion, monto_usd, monto_ars, fecha, comprobante_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id, budget_id, proveedor, descripcion, monto_usd, monto_ars, fecha, comprobante_url, created_at""",
+        project_id, body.budget_id or None, body.proveedor, body.descripcion,
+        body.monto_usd, body.monto_ars, fecha, body.comprobante_url,
+    )
+    d = dict(row)
+    if d.get("monto_usd") is not None:
+        d["monto_usd"] = float(d["monto_usd"])
+    if d.get("monto_ars") is not None:
+        d["monto_ars"] = float(d["monto_ars"])
+    return d
+
+
+@router.patch("/financials/{project_id}/expenses/{expense_id}")
+async def patch_expense(project_id: str, expense_id: str, request: Request):
+    pool = await get_pool()
+    body = await request.json()
+    ALLOWED = {"proveedor", "descripcion", "monto_usd", "monto_ars", "fecha", "comprobante_url", "budget_id"}
+    fields = {k: v for k, v in body.items() if k in ALLOWED}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No valid fields")
+    if "fecha" in fields:
+        fields["fecha"] = datetime.strptime(fields["fecha"], "%Y-%m-%d").date()
+
+    set_clauses = []
+    params: list = [expense_id, project_id]
+    for i, (k, v) in enumerate(fields.items(), start=3):
+        set_clauses.append(f"{k} = ${i}")
+        params.append(v)
+
+    row = await pool.fetchrow(
+        f"UPDATE project_expenses SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 RETURNING id",
+        *params,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return {"updated": True, "id": str(row["id"])}
+
+
+@router.delete("/financials/{project_id}/expenses/{expense_id}")
+async def delete_expense(project_id: str, expense_id: str):
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM project_expenses WHERE id = $1 AND project_id = $2",
+        expense_id, project_id,
+    )
+    return {"deleted": result.split()[-1] != "0"}
+
+
+@router.get("/financials/{project_id}/budget")
+async def get_budget(project_id: str):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, categoria, descripcion, monto_usd, monto_ars, created_at FROM project_budget WHERE project_id = $1 ORDER BY categoria",
+        project_id,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("monto_usd") is not None:
+            d["monto_usd"] = float(d["monto_usd"])
+        if d.get("monto_ars") is not None:
+            d["monto_ars"] = float(d["monto_ars"])
+        result.append(d)
+    return result
+
+
+@router.post("/financials/{project_id}/budget")
+async def upsert_budget(project_id: str, body: BudgetBody):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """INSERT INTO project_budget (project_id, categoria, descripcion, monto_usd, monto_ars)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT DO NOTHING
+           RETURNING id, categoria, monto_usd""",
+        project_id, body.categoria, body.descripcion, body.monto_usd, body.monto_ars,
+    )
+    if not row:
+        row = await pool.fetchrow(
+            """UPDATE project_budget SET descripcion = $3, monto_usd = $4, monto_ars = $5
+               WHERE project_id = $1 AND categoria = $2
+               RETURNING id, categoria, monto_usd""",
+            project_id, body.categoria, body.descripcion, body.monto_usd, body.monto_ars,
+        )
+    d = dict(row)
+    if d.get("monto_usd") is not None:
+        d["monto_usd"] = float(d["monto_usd"])
+    return d
+
+
+@router.patch("/financials/{project_id}/config")
+async def patch_financials_config(project_id: str, body: FinancialsConfigBody):
+    pool = await get_pool()
+    await pool.execute(
+        """INSERT INTO project_financials_config (project_id, tipo_cambio_usd_ars, updated_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (project_id) DO UPDATE SET tipo_cambio_usd_ars = $2, updated_at = NOW()""",
+        project_id, body.tipo_cambio_usd_ars,
+    )
+    return {"tipo_cambio": body.tipo_cambio_usd_ars}
+
+
+# ---------- Módulo 2: Portal de Inversores ----------
+
+class InvestorBody(BaseModel):
+    nombre: str
+    email: Optional[str] = None
+    telefono: Optional[str] = None
+    monto_aportado_usd: Optional[float] = None
+    fecha_aporte: Optional[str] = None
+    porcentaje_participacion: Optional[float] = None
+
+
+@router.get("/investors/{project_id}")
+async def list_investors(project_id: str):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion, created_at FROM investors WHERE project_id = $1 ORDER BY nombre",
+        project_id,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("monto_aportado_usd") is not None:
+            d["monto_aportado_usd"] = float(d["monto_aportado_usd"])
+        if d.get("porcentaje_participacion") is not None:
+            d["porcentaje_participacion"] = float(d["porcentaje_participacion"])
+        result.append(d)
+    return result
+
+
+@router.post("/investors/{project_id}")
+async def create_investor(project_id: str, body: InvestorBody):
+    pool = await get_pool()
+    fecha = datetime.strptime(body.fecha_aporte, "%Y-%m-%d").date() if body.fecha_aporte else None
+    row = await pool.fetchrow(
+        """INSERT INTO investors (project_id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion, created_at""",
+        project_id, body.nombre, body.email, body.telefono,
+        body.monto_aportado_usd, fecha, body.porcentaje_participacion,
+    )
+    d = dict(row)
+    if d.get("monto_aportado_usd") is not None:
+        d["monto_aportado_usd"] = float(d["monto_aportado_usd"])
+    if d.get("porcentaje_participacion") is not None:
+        d["porcentaje_participacion"] = float(d["porcentaje_participacion"])
+    return d
+
+
+@router.patch("/investors/{project_id}/{investor_id}")
+async def patch_investor(project_id: str, investor_id: str, request: Request):
+    pool = await get_pool()
+    body = await request.json()
+    ALLOWED = {"nombre", "email", "telefono", "monto_aportado_usd", "fecha_aporte", "porcentaje_participacion"}
+    fields = {k: v for k, v in body.items() if k in ALLOWED}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No valid fields")
+    if "fecha_aporte" in fields and fields["fecha_aporte"]:
+        fields["fecha_aporte"] = datetime.strptime(fields["fecha_aporte"], "%Y-%m-%d").date()
+
+    set_clauses = []
+    params: list = [investor_id, project_id]
+    for i, (k, v) in enumerate(fields.items(), start=3):
+        set_clauses.append(f"{k} = ${i}")
+        params.append(v)
+
+    row = await pool.fetchrow(
+        f"UPDATE investors SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 RETURNING id, nombre",
+        *params,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Inversor no encontrado")
+    return {"updated": True, "id": str(row["id"])}
+
+
+@router.delete("/investors/{project_id}/{investor_id}")
+async def delete_investor(project_id: str, investor_id: str):
+    pool = await get_pool()
+    result = await pool.execute(
+        "DELETE FROM investors WHERE id = $1 AND project_id = $2", investor_id, project_id
+    )
+    return {"deleted": result.split()[-1] != "0"}
+
+
+@router.get("/investors/{project_id}/report/preview")
+async def preview_investor_report(project_id: str):
+    pool = await get_pool()
+
+    etapas, units_stats, fotos = await asyncio.gather(
+        pool.fetch(
+            "SELECT nombre, peso_pct, porcentaje_completado FROM obra_etapas WHERE project_id = $1 AND activa = TRUE",
+            project_id,
+        ),
+        pool.fetchrow(
+            """SELECT
+                COUNT(*) FILTER (WHERE status='available') as disponibles,
+                COUNT(*) FILTER (WHERE status='reserved') as reservadas,
+                COUNT(*) FILTER (WHERE status='sold') as vendidas,
+                COALESCE(SUM(price_usd) FILTER (WHERE status='sold'), 0) as revenue_usd
+               FROM units WHERE project_id = $1""",
+            project_id,
+        ),
+        pool.fetch(
+            """SELECT f.file_url, f.caption FROM obra_fotos f
+               JOIN obra_updates u ON u.id = f.update_id
+               WHERE u.project_id = $1 ORDER BY f.uploaded_at DESC LIMIT 3""",
+            project_id,
+        ),
+    )
+
+    total_weight = sum(float(e["peso_pct"]) for e in etapas)
+    progress = 0
+    if total_weight:
+        progress = round(sum(float(e["peso_pct"]) * e["porcentaje_completado"] / 100 for e in etapas) / total_weight * 100)
+
+    project = await pool.fetchrow("SELECT name, address FROM projects WHERE id = $1", project_id)
+
+    html = f"""<div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+<h2 style="color:#4f46e5">Reporte de Avance — {project['name'] if project else ''}</h2>
+<p style="color:#6b7280">{project['address'] if project else ''}</p>
+<hr style="border-color:#e5e7eb"/>
+<h3>Avance de Obra</h3>
+<p><strong>{progress}%</strong> completado</p>
+<div style="background:#f3f4f6;border-radius:8px;height:12px;overflow:hidden">
+  <div style="background:#4f46e5;width:{progress}%;height:100%"></div>
+</div>
+<h3 style="margin-top:20px">Estado de Unidades</h3>
+<table style="width:100%;border-collapse:collapse">
+<tr><td style="padding:8px;border-bottom:1px solid #e5e7eb">Disponibles</td><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>{units_stats['disponibles']}</strong></td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #e5e7eb">Reservadas</td><td style="padding:8px;border-bottom:1px solid #e5e7eb"><strong>{units_stats['reservadas']}</strong></td></tr>
+<tr><td style="padding:8px">Vendidas</td><td style="padding:8px"><strong>{units_stats['vendidas']}</strong></td></tr>
+</table>
+<p>Revenue vendido: <strong>USD {float(units_stats['revenue_usd']):,.0f}</strong></p>
+</div>"""
+
+    return {
+        "html": html,
+        "progress": progress,
+        "units": dict(units_stats),
+        "fotos": [{"file_url": f["file_url"], "caption": f["caption"]} for f in fotos],
+    }
+
+
+@router.post("/investors/{project_id}/report/send")
+async def send_investor_report(project_id: str, request: Request):
+    pool = await get_pool()
+    body = await request.json()
+
+    preview = await preview_investor_report(project_id)
+    html = preview["html"]
+    titulo = body.get("titulo", f"Reporte de Avance — {datetime.now(timezone.utc).strftime('%B %Y')}")
+    periodo_desde = body.get("periodo_desde")
+    periodo_hasta = body.get("periodo_hasta")
+
+    pd_val = datetime.strptime(periodo_desde, "%Y-%m-%d").date() if periodo_desde else None
+    ph_val = datetime.strptime(periodo_hasta, "%Y-%m-%d").date() if periodo_hasta else None
+
+    report_row = await pool.fetchrow(
+        """INSERT INTO investor_reports (project_id, titulo, contenido_html, periodo_desde, periodo_hasta, enviado_at)
+           VALUES ($1, $2, $3, $4, $5, NOW())
+           RETURNING id, titulo, enviado_at""",
+        project_id, titulo, html, pd_val, ph_val,
+    )
+
+    investors = await pool.fetch(
+        "SELECT nombre, telefono FROM investors WHERE project_id = $1 AND telefono IS NOT NULL",
+        project_id,
+    )
+
+    sent = 0
+    msg = f"📊 {titulo}\n\nAvance de obra: {preview['progress']}%\nUnidades vendidas: {preview['units'].get('vendidas', 0)}\n\nContactanos para más detalles."
+    for inv in investors:
+        try:
+            await send_text_message(to=inv["telefono"], text=msg)
+            sent += 1
+        except Exception as e:
+            logger.error("Error sending report to investor %s: %s", inv["nombre"], e)
+
+    return {"report_id": str(report_row["id"]), "enviado_a": sent}
+
+
+@router.get("/investors/{project_id}/report/history")
+async def list_investor_reports(project_id: str):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, titulo, periodo_desde, periodo_hasta, enviado_at, created_at FROM investor_reports WHERE project_id = $1 ORDER BY created_at DESC",
+        project_id,
+    )
+    return [dict(r) for r in rows]
+
+
+# ---------- Módulo 3: Alertas Proactivas ----------
+
+@router.get("/alerts")
+async def list_alerts(project_id: Optional[str] = None):
+    pool = await get_pool()
+    if project_id:
+        rows = await pool.fetch(
+            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts WHERE project_id = $1 ORDER BY created_at DESC",
+            project_id,
+        )
+    else:
+        rows = await pool.fetch(
+            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts ORDER BY created_at DESC LIMIT 100",
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/alerts/{alert_id}/read")
+async def mark_alert_read(alert_id: str):
+    pool = await get_pool()
+    await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE id = $1", alert_id)
+    return {"ok": True}
+
+
+@router.post("/alerts/read-all")
+async def mark_all_alerts_read(project_id: Optional[str] = None):
+    pool = await get_pool()
+    if project_id:
+        await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE project_id = $1 AND leida = FALSE", project_id)
+    else:
+        await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE leida = FALSE")
+    return {"ok": True}
+
+
+@router.post("/jobs/alerts")
+async def run_alerts_job():
+    from app.services.alerts_service import evaluate_alerts
+    created = await evaluate_alerts()
+    return {"alerts_created": created}
+
+
+# ---------- Módulo 4: Proveedores y Pagos de Obra ----------
+
+class SupplierBody(BaseModel):
+    nombre: str
+    cuit: Optional[str] = None
+    rubro: Optional[str] = None
+    telefono: Optional[str] = None
+    email: Optional[str] = None
+    notas: Optional[str] = None
+
+
+class ObraPaymentBody(BaseModel):
+    supplier_id: Optional[str] = None
+    etapa_id: Optional[str] = None
+    descripcion: str
+    monto_usd: Optional[float] = None
+    monto_ars: Optional[float] = None
+    fecha_vencimiento: Optional[str] = None
+    estado: str = "pendiente"
+    fecha_pago: Optional[str] = None
+    comprobante_url: Optional[str] = None
+
+
+@router.get("/suppliers")
+async def list_suppliers():
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, nombre, cuit, rubro, telefono, email, notas, created_at FROM suppliers ORDER BY nombre"
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/suppliers")
+async def create_supplier(body: SupplierBody):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """INSERT INTO suppliers (nombre, cuit, rubro, telefono, email, notas)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING id, nombre, cuit, rubro, telefono, email, notas, created_at""",
+        body.nombre, body.cuit, body.rubro, body.telefono, body.email, body.notas,
+    )
+    return dict(row)
+
+
+@router.patch("/suppliers/{supplier_id}")
+async def patch_supplier(supplier_id: str, request: Request):
+    pool = await get_pool()
+    body = await request.json()
+    ALLOWED = {"nombre", "cuit", "rubro", "telefono", "email", "notas"}
+    fields = {k: v for k, v in body.items() if k in ALLOWED}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No valid fields")
+
+    set_clauses = []
+    params: list = [supplier_id]
+    for i, (k, v) in enumerate(fields.items(), start=2):
+        set_clauses.append(f"{k} = ${i}")
+        params.append(v)
+
+    row = await pool.fetchrow(
+        f"UPDATE suppliers SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, nombre",
+        *params,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+    return {"updated": True, "id": str(row["id"])}
+
+
+@router.delete("/suppliers/{supplier_id}")
+async def delete_supplier(supplier_id: str):
+    pool = await get_pool()
+    result = await pool.execute("DELETE FROM suppliers WHERE id = $1", supplier_id)
+    return {"deleted": result.split()[-1] != "0"}
+
+
+@router.get("/obra-payments/{project_id}")
+async def list_obra_payments(project_id: str, estado: Optional[str] = None):
+    pool = await get_pool()
+    conditions = ["p.project_id = $1"]
+    params: list = [project_id]
+
+    if estado:
+        params.append(estado)
+        conditions.append(f"p.estado = ${len(params)}")
+
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""SELECT p.id, p.supplier_id, p.etapa_id, p.descripcion,
+                   p.monto_usd, p.monto_ars, p.fecha_vencimiento, p.estado,
+                   p.fecha_pago, p.comprobante_url, p.created_at,
+                   s.nombre as supplier_nombre,
+                   e.nombre as etapa_nombre
+            FROM obra_payments p
+            LEFT JOIN suppliers s ON s.id = p.supplier_id
+            LEFT JOIN obra_etapas e ON e.id = p.etapa_id
+            WHERE {where}
+            ORDER BY p.fecha_vencimiento ASC NULLS LAST, p.created_at DESC""",
+        *params,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("monto_usd") is not None:
+            d["monto_usd"] = float(d["monto_usd"])
+        if d.get("monto_ars") is not None:
+            d["monto_ars"] = float(d["monto_ars"])
+        result.append(d)
+    return result
+
+
+@router.post("/obra-payments/{project_id}")
+async def create_obra_payment(project_id: str, body: ObraPaymentBody):
+    pool = await get_pool()
+    fv = datetime.strptime(body.fecha_vencimiento, "%Y-%m-%d").date() if body.fecha_vencimiento else None
+    fp = datetime.strptime(body.fecha_pago, "%Y-%m-%d").date() if body.fecha_pago else None
+    row = await pool.fetchrow(
+        """INSERT INTO obra_payments
+               (project_id, supplier_id, etapa_id, descripcion, monto_usd, monto_ars,
+                fecha_vencimiento, estado, fecha_pago, comprobante_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING id, descripcion, estado, fecha_vencimiento, created_at""",
+        project_id, body.supplier_id or None, body.etapa_id or None, body.descripcion,
+        body.monto_usd, body.monto_ars, fv, body.estado, fp, body.comprobante_url,
+    )
+    return dict(row)
+
+
+@router.patch("/obra-payments/{payment_id}")
+async def patch_obra_payment(payment_id: str, request: Request):
+    pool = await get_pool()
+    body = await request.json()
+    ALLOWED = {"supplier_id", "etapa_id", "descripcion", "monto_usd", "monto_ars",
+               "fecha_vencimiento", "estado", "fecha_pago", "comprobante_url"}
+    fields = {k: v for k, v in body.items() if k in ALLOWED}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No valid fields")
+
+    for date_field in ("fecha_vencimiento", "fecha_pago"):
+        if date_field in fields and fields[date_field]:
+            fields[date_field] = datetime.strptime(fields[date_field], "%Y-%m-%d").date()
+
+    VALID_ESTADOS = {"pendiente", "aprobado", "pagado", "vencido"}
+    if "estado" in fields and fields["estado"] not in VALID_ESTADOS:
+        raise HTTPException(status_code=400, detail=f"Estado inválido. Usar: {', '.join(VALID_ESTADOS)}")
+
+    set_clauses = []
+    params: list = [payment_id]
+    for i, (k, v) in enumerate(fields.items(), start=2):
+        set_clauses.append(f"{k} = ${i}")
+        params.append(v)
+
+    row = await pool.fetchrow(
+        f"UPDATE obra_payments SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, estado",
+        *params,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    return {"updated": True, "id": str(row["id"]), "estado": row["estado"]}
+
+
+@router.get("/obra-payments/{project_id}/vencimientos")
+async def get_vencimientos(project_id: str):
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT p.id, p.descripcion, p.monto_usd, p.estado, p.fecha_vencimiento,
+                  s.nombre as supplier_nombre, e.nombre as etapa_nombre
+           FROM obra_payments p
+           LEFT JOIN suppliers s ON s.id = p.supplier_id
+           LEFT JOIN obra_etapas e ON e.id = p.etapa_id
+           WHERE p.project_id = $1
+             AND p.fecha_vencimiento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '15 days'
+             AND p.estado IN ('pendiente', 'aprobado')
+           ORDER BY p.fecha_vencimiento ASC""",
+        project_id,
+    )
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("monto_usd") is not None:
+            d["monto_usd"] = float(d["monto_usd"])
+        result.append(d)
+    return result
+
+
+@router.post("/jobs/update-payment-states")
+async def update_payment_states():
+    pool = await get_pool()
+    result = await pool.execute(
+        "UPDATE obra_payments SET estado = 'vencido' WHERE fecha_vencimiento < CURRENT_DATE AND estado = 'pendiente'"
+    )
+    updated = int(result.split()[-1])
+    return {"updated": updated}

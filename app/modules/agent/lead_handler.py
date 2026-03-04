@@ -23,7 +23,7 @@ from app.modules.agent.session import (
     update_lead_qualification,
 )
 from app.modules.handoff.manager import (
-    check_active_handoff,
+    check_active_handoff_by_phone,
     close_handoff,
     handle_lead_message_during_handoff,
     initiate_handoff,
@@ -57,7 +57,7 @@ async def handle_lead_message(
     developer_id = developer["developer_id"]
     default_project_id = developer["default_project_id"]
 
-    active_handoff = await check_active_handoff(sender_phone, default_project_id)
+    active_handoff = await check_active_handoff_by_phone(sender_phone)
     if active_handoff:
         if message.text:
             # If lead didn't reply in 30 min, return control to agent

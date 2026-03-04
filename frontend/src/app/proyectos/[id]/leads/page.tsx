@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import ReservationSheet from '@/components/ReservationSheet';
+import { useAuth } from '@/contexts/AuthContext';
 
 const COLUMNS = [
   { key: 'hot', label: '🔥 Hot', color: 'text-red-600', border: 'border-red-200', bg: 'bg-red-50' },
@@ -129,6 +130,7 @@ function LeadCard({ lead, onClick, isSelected }: { lead: Lead; onClick: () => vo
 
 export default function LeadsPage() {
   const { id } = useParams<{ id: string }>();
+  const { isReader } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Lead | null>(null);
@@ -346,45 +348,49 @@ export default function LeadsPage() {
                 </SheetTitle>
                 <p className="text-gray-500 text-xs">{selected?.phone}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setEditMode((v) => !v)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
-                  editMode
-                    ? 'bg-gray-100 border-gray-300 text-gray-700'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
-                )}
-              >
-                <Pencil size={12} />
-                {editMode ? 'Cancelar' : 'Editar'}
-              </button>
+              {!isReader && (
+                <button
+                  type="button"
+                  onClick={() => setEditMode((v) => !v)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                    editMode
+                      ? 'bg-gray-100 border-gray-300 text-gray-700'
+                      : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+                  )}
+                >
+                  <Pencil size={12} />
+                  {editMode ? 'Cancelar' : 'Editar'}
+                </button>
+              )}
             </div>
           </SheetHeader>
 
           {selected && (
             <div className="flex-1 overflow-auto px-6 py-4 space-y-5">
               {/* Score change */}
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Score</p>
-                <div className="flex gap-2">
-                  {SCORE_BUTTONS.map(({ key, label, activeClass, hoverClass }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleScoreChange(key)}
-                      className={cn(
-                        'flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-                        selected.score === key
-                          ? activeClass
-                          : cn('border-gray-200 text-gray-500', hoverClass)
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
+              {!isReader && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Score</p>
+                  <div className="flex gap-2">
+                    {SCORE_BUTTONS.map(({ key, label, activeClass, hoverClass }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleScoreChange(key)}
+                        className={cn(
+                          'flex-1 py-1.5 rounded-lg border text-xs font-semibold transition-all',
+                          selected.score === key
+                            ? activeClass
+                            : cn('border-gray-200 text-gray-500', hoverClass)
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <Separator className="bg-gray-100" />
 
@@ -463,14 +469,16 @@ export default function LeadsPage() {
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={() => { setReservationLead(selected); setSelected(null); }}
-                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
-              >
-                <ClipboardList size={15} />
-                Reservar unidad
-              </button>
+              {!isReader && (
+                <button
+                  type="button"
+                  onClick={() => { setReservationLead(selected); setSelected(null); }}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors"
+                >
+                  <ClipboardList size={15} />
+                  Reservar unidad
+                </button>
+              )}
 
               <a
                 href={`https://wa.me/${selected.phone.replace(/\D/g, '')}`}
@@ -497,29 +505,31 @@ export default function LeadsPage() {
                 </div>
 
                 {/* Add note */}
-                <div className="flex gap-2 mb-4">
-                  <textarea
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Agregar una nota..."
-                    rows={2}
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 resize-none"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        handleAddNote();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddNote}
-                    disabled={!newNote.trim() || addingNote}
-                    className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-40 self-end"
-                  >
-                    {addingNote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-                  </button>
-                </div>
+                {!isReader && (
+                  <div className="flex gap-2 mb-4">
+                    <textarea
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Agregar una nota..."
+                      rows={2}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 resize-none"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                          e.preventDefault();
+                          handleAddNote();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNote}
+                      disabled={!newNote.trim() || addingNote}
+                      className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-40 self-end"
+                    >
+                      {addingNote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    </button>
+                  </div>
+                )}
 
                 {/* Notes list */}
                 {loadingNotes ? (
@@ -543,13 +553,15 @@ export default function LeadsPage() {
                             {new Date(note.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="absolute top-2 right-2 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <X size={12} />
-                        </button>
+                        {!isReader && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="absolute top-2 right-2 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

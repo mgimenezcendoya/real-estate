@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import NewProjectModal from '@/components/NewProjectModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STATUS_CONFIG = {
   active: { label: 'Activo', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -46,6 +47,7 @@ function ProjectCardSkeleton() {
 }
 
 export default function ProyectosPage() {
+  const { isReader } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [metricsByProject, setMetricsByProject] = useState<Record<string, Metrics>>({});
   const [loading, setLoading] = useState(true);
@@ -100,12 +102,12 @@ export default function ProyectosPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold uppercase tracking-wider mb-4">
-            <Building2 size={12} />
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-600 text-[10px] font-bold uppercase tracking-widest mb-3">
+            <Building2 size={10} />
             Portafolio
           </div>
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-gray-900 tracking-tight mb-2">Proyectos</h1>
-          <p className="text-gray-500 text-sm md:text-base max-w-xl">
+          <h1 className="text-3xl md:text-4xl font-display font-extrabold text-gray-900 tracking-tight mb-2 leading-none">Proyectos</h1>
+          <p className="text-gray-400 text-sm max-w-xl font-medium">
             Gestioná y monitoreá el progreso de todos tus desarrollos inmobiliarios.
           </p>
         </div>
@@ -203,13 +205,15 @@ export default function ProyectosPage() {
             </div>
           )}
 
-          <Button
-            onClick={() => setShowNewModal(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 gap-2 transition-colors"
-          >
-            <Plus size={17} />
-            Nuevo Proyecto
-          </Button>
+          {!isReader && (
+            <Button
+              onClick={() => setShowNewModal(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 gap-2 transition-colors"
+            >
+              <Plus size={17} />
+              Nuevo Proyecto
+            </Button>
+          )}
         </div>
       </div>
 
@@ -236,58 +240,62 @@ export default function ProyectosPage() {
               <Link
                 key={project.id}
                 href={`/proyectos/${project.id}`}
-                className="group block relative rounded-2xl overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-                style={{ animationDelay: `${idx * 40}ms` }}
+                className="group block animate-fade-in-up"
+                style={{ animationDelay: `${idx * 45}ms`, animationFillMode: 'both' }}
               >
-                <div className="relative h-full bg-white border border-gray-200 rounded-2xl p-6 group-hover:border-indigo-200 transition-colors duration-200 flex flex-col">
-                  {/* Top row */}
-                  <div className="flex items-start justify-between mb-6">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                      <Building2 size={22} className="text-indigo-600" />
-                    </div>
-                    <Badge className={cn('text-[11px] font-semibold border', statusConf.className)}>
-                      {statusConf.label}
-                    </Badge>
-                  </div>
-
-                  {/* Info */}
-                  <div className="mb-5 flex-1">
-                    <h3 className="text-lg font-display font-semibold text-gray-900 mb-1.5 group-hover:text-indigo-700 transition-colors line-clamp-1">
-                      {project.name}
-                    </h3>
-                    <div className="flex items-center gap-1.5 text-gray-500 text-sm">
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
-                      <span className="truncate">
-                        {project.neighborhood ? `${project.neighborhood}, ` : ''}{project.city || 'CABA'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Stats grid */}
-                  <div className="grid grid-cols-3 gap-2 mb-5">
-                    {[
-                      { value: project.total_units ?? '—', label: 'Unidades' },
-                      { value: project.total_floors ?? '—', label: 'Pisos' },
-                      { value: metricsByProject[project.id]?.total_leads ?? '—', label: 'Leads' },
-                    ].map(({ value, label }) => (
-                      <div key={label} className="bg-gray-50 border border-gray-100 p-3 rounded-xl">
-                        <p className="text-xl font-display font-semibold text-gray-900">{value}</p>
-                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wide">{label}</p>
+                {/* Card — top accent stripe animates in on hover */}
+                <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-indigo-200 group-hover:shadow-lg group-hover:shadow-indigo-500/[0.06] transition-all duration-200 flex flex-col overflow-hidden">
+                  <div className="p-5 flex flex-col flex-1">
+                    {/* Top row */}
+                    <div className="flex items-start justify-between mb-5">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/70 flex items-center justify-center shadow-sm">
+                        <Building2 size={20} className="text-indigo-600" />
                       </div>
-                    ))}
-                  </div>
+                      <Badge className={cn('text-[10px] font-semibold border', statusConf.className)}>
+                        {statusConf.label}
+                      </Badge>
+                    </div>
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-auto">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-0.5">Avance</p>
-                      <span className="text-sm font-semibold text-emerald-600 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    {/* Info */}
+                    <div className="mb-5 flex-1">
+                      <h3 className="text-base font-display font-bold text-gray-900 mb-1 group-hover:text-indigo-700 transition-colors duration-150 line-clamp-1 tracking-tight">
+                        {project.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                        <div className="w-1 h-1 rounded-full bg-indigo-400/60 flex-shrink-0" />
+                        <span className="truncate font-medium">
+                          {project.neighborhood ? `${project.neighborhood}, ` : ''}{project.city || 'CABA'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Stats grid */}
+                    <div className="grid grid-cols-3 gap-1.5 mb-5">
+                      {[
+                        { value: project.total_units ?? '—', label: 'Unidades' },
+                        { value: project.total_floors ?? '—', label: 'Pisos' },
+                        { value: metricsByProject[project.id]?.total_leads ?? '—', label: 'Leads' },
+                      ].map(({ value, label }) => (
+                        <div key={label} className="bg-gray-50/80 border border-gray-100 p-2.5 rounded-xl text-center">
+                          <p className="text-lg font-display font-bold text-gray-900 tabular leading-tight">{value}</p>
+                          <p className="text-[9px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between pt-3.5 border-t border-gray-100 mt-auto">
+                      <span className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                        <span className={cn(
+                          'w-1.5 h-1.5 rounded-full',
+                          project.delivery_status === 'terminado' ? 'bg-emerald-500' :
+                          project.delivery_status === 'en_construccion' ? 'bg-indigo-500' : 'bg-amber-500'
+                        )} />
                         {DELIVERY_LABELS[project.delivery_status] ?? project.delivery_status ?? 'En planificación'}
                       </span>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
-                      <ChevronRight size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                      <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
+                        <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                      </div>
                     </div>
                   </div>
                 </div>

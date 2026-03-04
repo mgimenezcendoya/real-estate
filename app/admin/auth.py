@@ -36,22 +36,22 @@ def _payload_loads(data: bytes) -> Optional[dict]:
         return None
 
 
-def create_token(username: str) -> str:
-    """Create a signed token for the given username with expiry."""
+def create_token(username: str, role: str = "admin") -> str:
+    """Create a signed token for the given username and role with expiry."""
     exp = int(time.time()) + (TOKEN_EXPIRY_HOURS * 3600)
-    payload = {"sub": username, "exp": exp}
+    payload = {"sub": username, "role": role, "exp": exp}
     payload_b64 = base64.urlsafe_b64encode(_payload_dumps(payload)).rstrip(b"=").decode("ascii")
     sig = hmac.new(_get_secret(), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
     return f"{payload_b64}.{sig}"
 
 
-def verify_token(token: str) -> Optional[str]:
-    """Verify token and return username if valid, else None."""
+def verify_token(token: str) -> Optional[tuple[str, str]]:
+    """Verify token and return (username, role) if valid, else None.
+    Tokens without a role field default to 'admin' for backwards compatibility."""
     if not token or "." not in token:
         return None
     parts = token.split(".", 1)
     payload_b64, sig = parts[0], parts[1]
-    # restore padding for b64
     payload_b64_padded = payload_b64 + "=" * (4 - len(payload_b64) % 4)
     try:
         payload_bytes = base64.urlsafe_b64decode(payload_b64_padded)
@@ -65,4 +65,5 @@ def verify_token(token: str) -> Optional[str]:
     expected_sig = hmac.new(_get_secret(), payload_b64.encode("utf-8"), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected_sig, sig):
         return None
-    return str(payload["sub"])
+    role = str(payload.get("role", "admin"))
+    return (str(payload["sub"]), role)

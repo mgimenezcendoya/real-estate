@@ -64,6 +64,14 @@ export interface Unit {
   status: 'available' | 'reserved' | 'sold';
 }
 
+export interface UnitFieldHistory {
+  id: string;
+  field: string;
+  old_value: number | null;
+  new_value: number;
+  changed_at: string;
+}
+
 export interface Lead {
   id: string;
   project_id: string;
@@ -222,6 +230,115 @@ export interface Reservation {
   project_address?: string;
 }
 
+// --- Financial types ---
+export interface BudgetItem {
+  id: string;
+  categoria: string;
+  descripcion?: string | null;
+  monto_usd: number | null;
+  monto_ars: number | null;
+  created_at?: string;
+}
+
+export interface Expense {
+  id: string;
+  budget_id: string | null;
+  proveedor: string | null;
+  descripcion: string;
+  monto_usd: number | null;
+  monto_ars: number | null;
+  fecha: string;
+  comprobante_url: string | null;
+  created_at: string;
+  categoria?: string | null;
+}
+
+export interface FinancialSummary {
+  presupuesto_total_usd: number;
+  ejecutado_usd: number;
+  desvio_usd: number;
+  desvio_pct: number;
+  revenue_esperado_usd: number;
+  margen_esperado_pct: number;
+  tipo_cambio: number;
+  por_categoria: Array<{
+    categoria: string;
+    presupuesto_usd: number;
+    ejecutado_usd: number;
+    desvio_pct: number;
+  }>;
+}
+
+// --- Investor types ---
+export interface Investor {
+  id: string;
+  project_id?: string;
+  nombre: string;
+  email: string | null;
+  telefono: string | null;
+  monto_aportado_usd: number | null;
+  fecha_aporte: string | null;
+  porcentaje_participacion: number | null;
+  created_at: string;
+}
+
+export interface InvestorReport {
+  id: string;
+  titulo: string;
+  periodo_desde: string | null;
+  periodo_hasta: string | null;
+  enviado_at: string | null;
+  created_at: string;
+}
+
+export interface InvestorReportPreview {
+  html: string;
+  progress: number;
+  units: { disponibles: number; reservadas: number; vendidas: number; revenue_usd: number };
+  fotos: Array<{ file_url: string; caption: string | null }>;
+}
+
+// --- Alert types ---
+export interface Alert {
+  id: string;
+  project_id: string;
+  tipo: string;
+  titulo: string;
+  descripcion: string | null;
+  severidad: 'info' | 'warning' | 'critical';
+  leida: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// --- Supplier & Payment types ---
+export interface Supplier {
+  id: string;
+  nombre: string;
+  cuit: string | null;
+  rubro: string | null;
+  telefono: string | null;
+  email: string | null;
+  notas: string | null;
+  created_at: string;
+}
+
+export interface ObraPayment {
+  id: string;
+  supplier_id: string | null;
+  etapa_id: string | null;
+  descripcion: string;
+  monto_usd: number | null;
+  monto_ars: number | null;
+  fecha_vencimiento: string | null;
+  estado: 'pendiente' | 'aprobado' | 'pagado' | 'vencido';
+  fecha_pago: string | null;
+  comprobante_url: string | null;
+  created_at: string;
+  supplier_nombre?: string | null;
+  etapa_nombre?: string | null;
+}
+
 // --- API calls ---
 export const api = {
   getProjects: () => fetcher<Project[]>('/admin/projects'),
@@ -232,6 +349,10 @@ export const api = {
   getUnits: (projectId: string) => fetcher<Unit[]>(`/admin/units/${projectId}`),
   updateUnitStatus: (unitId: string, status: string) =>
     fetcher(`/admin/units/${unitId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  updateUnit: (unitId: string, data: { price_usd?: number; area_m2?: number; bedrooms?: number; floor?: number }) =>
+    fetcher<Unit>(`/admin/units/${unitId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getUnitHistory: (unitId: string) =>
+    fetcher<UnitFieldHistory[]>(`/admin/units/${unitId}/history`),
 
   getLeads: (projectId?: string, score?: string) => {
     const params = new URLSearchParams();
@@ -334,6 +455,79 @@ export const api = {
   patchReservation: (reservationId: string, status: 'cancelled' | 'converted') =>
     fetcher<{ reservation_id: string; status: string }>(`/admin/reservations/${reservationId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
+  // --- Financials ---
+  getFinancialSummary: (projectId: string) =>
+    fetcher<FinancialSummary>(`/admin/financials/${projectId}/summary`),
+  getExpenses: (projectId: string, params?: { categoria?: string; fecha_desde?: string; fecha_hasta?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.categoria) qs.append('categoria', params.categoria);
+    if (params?.fecha_desde) qs.append('fecha_desde', params.fecha_desde);
+    if (params?.fecha_hasta) qs.append('fecha_hasta', params.fecha_hasta);
+    const q = qs.toString() ? `?${qs}` : '';
+    return fetcher<Expense[]>(`/admin/financials/${projectId}/expenses${q}`);
+  },
+  createExpense: (projectId: string, data: Omit<Expense, 'id' | 'created_at' | 'categoria'>) =>
+    fetcher<Expense>(`/admin/financials/${projectId}/expenses`, { method: 'POST', body: JSON.stringify(data) }),
+  patchExpense: (projectId: string, expenseId: string, data: Partial<Expense>) =>
+    fetcher<{ updated: boolean }>(`/admin/financials/${projectId}/expenses/${expenseId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteExpense: (projectId: string, expenseId: string) =>
+    fetcher<{ deleted: boolean }>(`/admin/financials/${projectId}/expenses/${expenseId}`, { method: 'DELETE' }),
+  getBudget: (projectId: string) =>
+    fetcher<BudgetItem[]>(`/admin/financials/${projectId}/budget`),
+  upsertBudget: (projectId: string, data: Omit<BudgetItem, 'id' | 'created_at'>) =>
+    fetcher<BudgetItem>(`/admin/financials/${projectId}/budget`, { method: 'POST', body: JSON.stringify(data) }),
+  patchFinancialsConfig: (projectId: string, tipo_cambio_usd_ars: number) =>
+    fetcher<{ tipo_cambio: number }>(`/admin/financials/${projectId}/config`, { method: 'PATCH', body: JSON.stringify({ tipo_cambio_usd_ars }) }),
+
+  // --- Investors ---
+  getInvestors: (projectId: string) =>
+    fetcher<Investor[]>(`/admin/investors/${projectId}`),
+  createInvestor: (projectId: string, data: Omit<Investor, 'id' | 'created_at'>) =>
+    fetcher<Investor>(`/admin/investors/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
+  patchInvestor: (projectId: string, investorId: string, data: Partial<Investor>) =>
+    fetcher<{ updated: boolean }>(`/admin/investors/${projectId}/${investorId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteInvestor: (projectId: string, investorId: string) =>
+    fetcher<{ deleted: boolean }>(`/admin/investors/${projectId}/${investorId}`, { method: 'DELETE' }),
+  previewInvestorReport: (projectId: string) =>
+    fetcher<InvestorReportPreview>(`/admin/investors/${projectId}/report/preview`),
+  sendInvestorReport: (projectId: string, data: { titulo?: string; periodo_desde?: string; periodo_hasta?: string }) =>
+    fetcher<{ report_id: string; enviado_a: number }>(`/admin/investors/${projectId}/report/send`, { method: 'POST', body: JSON.stringify(data) }),
+  getInvestorReportHistory: (projectId: string) =>
+    fetcher<InvestorReport[]>(`/admin/investors/${projectId}/report/history`),
+
+  // --- Alerts ---
+  getAlerts: (projectId?: string) => {
+    const q = projectId ? `?project_id=${projectId}` : '';
+    return fetcher<Alert[]>(`/admin/alerts${q}`);
+  },
+  markAlertRead: (alertId: string) =>
+    fetcher<{ ok: boolean }>(`/admin/alerts/${alertId}/read`, { method: 'POST' }),
+  markAllAlertsRead: (projectId?: string) => {
+    const q = projectId ? `?project_id=${projectId}` : '';
+    return fetcher<{ ok: boolean }>(`/admin/alerts/read-all${q}`, { method: 'POST' });
+  },
+
+  // --- Suppliers ---
+  getSuppliers: () => fetcher<Supplier[]>('/admin/suppliers'),
+  createSupplier: (data: Omit<Supplier, 'id' | 'created_at'>) =>
+    fetcher<Supplier>('/admin/suppliers', { method: 'POST', body: JSON.stringify(data) }),
+  patchSupplier: (supplierId: string, data: Partial<Supplier>) =>
+    fetcher<{ updated: boolean }>(`/admin/suppliers/${supplierId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSupplier: (supplierId: string) =>
+    fetcher<{ deleted: boolean }>(`/admin/suppliers/${supplierId}`, { method: 'DELETE' }),
+
+  // --- Obra Payments ---
+  getObraPayments: (projectId: string, estado?: string) => {
+    const q = estado ? `?estado=${estado}` : '';
+    return fetcher<ObraPayment[]>(`/admin/obra-payments/${projectId}${q}`);
+  },
+  createObraPayment: (projectId: string, data: Omit<ObraPayment, 'id' | 'created_at' | 'supplier_nombre' | 'etapa_nombre'>) =>
+    fetcher<ObraPayment>(`/admin/obra-payments/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
+  patchObraPayment: (paymentId: string, data: Partial<ObraPayment>) =>
+    fetcher<{ updated: boolean; estado: string }>(`/admin/obra-payments/${paymentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  getVencimientos: (projectId: string) =>
+    fetcher<ObraPayment[]>(`/admin/obra-payments/${projectId}/vencimientos`),
+
   login: (username: string, password: string) =>
     fetch(`${BASE_URL}/admin/auth/login`, {
       method: 'POST',
@@ -345,8 +539,8 @@ export const api = {
         const msg = data.detail || data.error || 'Error al iniciar sesión';
         throw new Error(typeof msg === 'string' ? msg : msg.message || 'Error al iniciar sesión');
       }
-      return data as { token: string; user: string };
+      return data as { token: string; user: string; role: string };
     }),
 
-  authMe: () => fetcher<{ user: string | null }>('/admin/auth/me'),
+  authMe: () => fetcher<{ user: string | null; role?: string }>('/admin/auth/me'),
 };

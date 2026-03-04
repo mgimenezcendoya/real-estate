@@ -8,6 +8,7 @@ import logging
 
 from app.database import get_pool
 from app.modules.agent.session import get_test_mode, set_test_mode
+from app.modules.handoff.manager import check_active_handoff_by_phone
 from app.modules.whatsapp.providers.base import IncomingMessage
 
 logger = logging.getLogger(__name__)
@@ -135,6 +136,13 @@ async def route_message(
 
         if in_test_mode:
             is_dev = False
+        else:
+            # If the admin's phone also has an active lead handoff (e.g. testing by
+            # receiving a panel message on their own phone), treat as lead so their
+            # reply is saved to the conversation and forwarded to the handoff.
+            handoff = await check_active_handoff_by_phone(sender_phone)
+            if handoff:
+                is_dev = False
 
     if is_dev and auth:
         if auth["status"] == "pending":
