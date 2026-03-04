@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const STATUS_CONFIG = {
   active: { label: 'Activo', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   paused: { label: 'Pausado', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  completed: { label: 'Terminado', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  completed: { label: 'Terminado', className: 'bg-blue-50 text-blue-800 border-blue-200' },
 };
 
 const DELIVERY_LABELS: Record<string, string> = {
@@ -102,7 +102,7 @@ export default function ProyectosPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-600 text-[10px] font-bold uppercase tracking-widest mb-3">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[10px] font-bold uppercase tracking-widest mb-3">
             <Building2 size={10} />
             Portafolio
           </div>
@@ -120,14 +120,14 @@ export default function ProyectosPage() {
             onClick={() => setFilterOpen(!filterOpen)}
             className={cn(
               'bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 gap-2',
-              filterOpen && 'bg-gray-50 ring-1 ring-indigo-400',
-              hasFilters && 'border-indigo-300 text-indigo-700'
+              filterOpen && 'bg-gray-50 ring-1 ring-blue-500',
+              hasFilters && 'border-blue-300 text-blue-800'
             )}
           >
             <SlidersHorizontal size={15} />
             Filtrar
             {hasFilters && (
-              <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold">
+              <span className="w-5 h-5 rounded-full bg-blue-700 text-white text-[10px] flex items-center justify-center font-bold">
                 {[searchQuery, statusFilter, deliveryFilter].filter(Boolean).length}
               </span>
             )}
@@ -150,7 +150,7 @@ export default function ProyectosPage() {
                   placeholder="Buscar por nombre..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-indigo-400 h-9"
+                  className="pl-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500 h-9"
                 />
               </div>
 
@@ -164,7 +164,7 @@ export default function ProyectosPage() {
                       className={cn(
                         'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
                         statusFilter === s
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                          ? 'bg-blue-50 text-blue-800 border-blue-300'
                           : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
                       )}
                     >
@@ -184,7 +184,7 @@ export default function ProyectosPage() {
                       className={cn(
                         'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
                         deliveryFilter === d
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
+                          ? 'bg-blue-50 text-blue-800 border-blue-300'
                           : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
                       )}
                     >
@@ -208,7 +208,7 @@ export default function ProyectosPage() {
           {!isReader && (
             <Button
               onClick={() => setShowNewModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white border-0 gap-2 transition-colors"
+              className="bg-blue-700 hover:bg-blue-800 text-white border-0 gap-2 transition-colors"
             >
               <Plus size={17} />
               Nuevo Proyecto
@@ -244,12 +244,12 @@ export default function ProyectosPage() {
                 style={{ animationDelay: `${idx * 45}ms`, animationFillMode: 'both' }}
               >
                 {/* Card — top accent stripe animates in on hover */}
-                <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-indigo-200 group-hover:shadow-lg group-hover:shadow-indigo-500/[0.06] transition-all duration-200 flex flex-col overflow-hidden">
+                <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-blue-200 group-hover:shadow-lg group-hover:shadow-blue-500/[0.06] transition-all duration-200 flex flex-col overflow-hidden">
                   <div className="p-5 flex flex-col flex-1">
                     {/* Top row */}
                     <div className="flex items-start justify-between mb-5">
-                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/70 flex items-center justify-center shadow-sm">
-                        <Building2 size={20} className="text-indigo-600" />
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/70 flex items-center justify-center shadow-sm">
+                        <Building2 size={20} className="text-blue-700" />
                       </div>
                       <Badge className={cn('text-[10px] font-semibold border', statusConf.className)}>
                         {statusConf.label}
@@ -258,11 +258,11 @@ export default function ProyectosPage() {
 
                     {/* Info */}
                     <div className="mb-5 flex-1">
-                      <h3 className="text-base font-display font-bold text-gray-900 mb-1 group-hover:text-indigo-700 transition-colors duration-150 line-clamp-1 tracking-tight">
+                      <h3 className="text-base font-display font-bold text-gray-900 mb-1 group-hover:text-blue-800 transition-colors duration-150 line-clamp-1 tracking-tight">
                         {project.name}
                       </h3>
                       <div className="flex items-center gap-1.5 text-gray-400 text-xs">
-                        <div className="w-1 h-1 rounded-full bg-indigo-400/60 flex-shrink-0" />
+                        <div className="w-1 h-1 rounded-full bg-blue-500/60 flex-shrink-0" />
                         <span className="truncate font-medium">
                           {project.neighborhood ? `${project.neighborhood}, ` : ''}{project.city || 'CABA'}
                         </span>
@@ -289,11 +289,11 @@ export default function ProyectosPage() {
                         <span className={cn(
                           'w-1.5 h-1.5 rounded-full',
                           project.delivery_status === 'terminado' ? 'bg-emerald-500' :
-                          project.delivery_status === 'en_construccion' ? 'bg-indigo-500' : 'bg-amber-500'
+                          project.delivery_status === 'en_construccion' ? 'bg-blue-500' : 'bg-amber-500'
                         )} />
                         {DELIVERY_LABELS[project.delivery_status] ?? project.delivery_status ?? 'En planificación'}
                       </span>
-                      <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all duration-200">
+                      <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-blue-700 group-hover:text-white group-hover:border-blue-700 transition-all duration-200">
                         <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
                       </div>
                     </div>
@@ -308,8 +308,8 @@ export default function ProyectosPage() {
       {/* Empty state */}
       {!loading && filteredProjects.length === 0 && (
         <div className="flex flex-col items-center justify-center py-28 text-center bg-white border border-gray-200 rounded-2xl shadow-sm max-w-2xl mx-auto">
-          <div className="w-20 h-20 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center mb-6">
-            <Building2 size={36} className="text-indigo-600" />
+          <div className="w-20 h-20 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center mb-6">
+            <Building2 size={36} className="text-blue-700" />
           </div>
           <h3 className="text-2xl font-display font-semibold text-gray-900 mb-3">
             {projects.length === 0 ? 'Tu portafolio está vacío' : 'Sin resultados'}
@@ -330,7 +330,7 @@ export default function ProyectosPage() {
           ) : (
             <Button
               onClick={() => setShowNewModal(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white border-0"
+              className="bg-blue-700 hover:bg-blue-800 text-white border-0"
             >
               <Plus size={16} className="mr-2" />
               Nuevo Proyecto

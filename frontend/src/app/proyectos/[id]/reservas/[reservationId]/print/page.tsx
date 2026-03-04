@@ -90,7 +90,7 @@ export default function PrintPage() {
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
-            <h1 className="text-2xl font-black text-indigo-600 tracking-tight">REALIA</h1>
+            <h1 className="text-2xl font-black text-blue-700 tracking-tight">REALIA</h1>
             <p className="text-xs text-gray-400 mt-0.5">Sistema de gestión inmobiliaria</p>
           </div>
           <div className="text-right">

@@ -99,7 +99,7 @@ async def get_lead_qualification(lead_id: str) -> dict:
     """Load current qualification data for a lead."""
     pool = await get_pool()
     row = await pool.fetchrow(
-        "SELECT name, intent, financing, timeline, score, budget_usd, bedrooms, location_pref FROM leads WHERE id = $1",
+        "SELECT name, intent, financing, timeline, score, budget_usd, bedrooms, location_pref, project_id FROM leads WHERE id = $1",
         lead_id,
     )
     if not row:
@@ -133,6 +133,26 @@ async def update_lead_qualification(lead_id: str, qualification: dict, score: st
         qualification.get("bedrooms"),
         qualification.get("location_pref"),
         score,
+    )
+
+
+async def get_developer_projects(developer_id: str) -> list[dict]:
+    """Return basic project info (id, name, slug) for a developer."""
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, name, slug FROM projects WHERE developer_id = $1 ORDER BY name",
+        developer_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def update_lead_project(lead_id: str, project_id: str) -> None:
+    """Reassign a lead to a different project."""
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE leads SET project_id = $1 WHERE id = $2",
+        project_id,
+        lead_id,
     )
 
 

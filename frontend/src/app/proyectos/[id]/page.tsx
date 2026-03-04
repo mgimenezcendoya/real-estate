@@ -51,7 +51,7 @@ function StatCard({
 
 const DELIVERY_CONFIG: Record<string, { label: string; pct: number; indicatorClass: string }> = {
   en_pozo: { label: 'En pozo', pct: 15, indicatorClass: 'bg-amber-500' },
-  en_construccion: { label: 'En construcción', pct: 55, indicatorClass: 'bg-indigo-500' },
+  en_construccion: { label: 'En construcción', pct: 55, indicatorClass: 'bg-blue-500' },
   terminado: { label: 'Terminado', pct: 100, indicatorClass: 'bg-emerald-500' },
 };
 
@@ -101,7 +101,7 @@ export default function ProjectDashboard() {
       <section>
         <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Resumen de leads</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total leads" value={metrics?.total_leads ?? '—'} icon={Users} colorClass="bg-indigo-50 text-indigo-600" loading={loading} />
+          <StatCard label="Total leads" value={metrics?.total_leads ?? '—'} icon={Users} colorClass="bg-blue-50 text-blue-700" loading={loading} />
           <StatCard label="Hot 🔥" value={metrics?.hot ?? '—'} icon={Flame} colorClass="bg-red-50 text-red-600" loading={loading} />
           <StatCard label="Warm 🌡" value={metrics?.warm ?? '—'} icon={TrendingUp} colorClass="bg-amber-50 text-amber-600" loading={loading} />
           <StatCard label="Cold 🧊" value={metrics?.cold ?? '—'} icon={Users} colorClass="bg-sky-50 text-sky-600" loading={loading} />
@@ -115,7 +115,7 @@ export default function ProjectDashboard() {
           <StatCard label="Disponibles" value={availableUnits} icon={Building2} colorClass="bg-emerald-50 text-emerald-600" loading={loading} />
           <StatCard label="Reservadas" value={reservedUnits} icon={Home} colorClass="bg-amber-50 text-amber-600" loading={loading} />
           <StatCard label="Vendidas" value={soldUnits} icon={DollarSign} colorClass="bg-red-50 text-red-600" loading={loading} />
-          <StatCard label="Total" value={units.length} icon={Building2} colorClass="bg-indigo-50 text-indigo-600" loading={loading} />
+          <StatCard label="Total" value={units.length} icon={Building2} colorClass="bg-blue-50 text-blue-700" loading={loading} />
         </div>
       </section>
 
@@ -142,11 +142,11 @@ export default function ProjectDashboard() {
                     label: 'Leads totales',
                     value: analytics.funnel.leads_total,
                     pctLabel: null,
-                    bg: 'bg-indigo-50',
-                    border: 'border-indigo-200/60',
-                    text: 'text-indigo-700',
-                    numText: 'text-indigo-900',
-                    badge: 'bg-indigo-100 text-indigo-600',
+                    bg: 'bg-blue-50',
+                    border: 'border-blue-200/60',
+                    text: 'text-blue-800',
+                    numText: 'text-blue-950',
+                    badge: 'bg-blue-100 text-blue-700',
                   },
                   {
                     label: 'Hot 🔥',
@@ -266,12 +266,17 @@ export default function ProjectDashboard() {
             <div className="flex items-end gap-1.5 h-40">
               {weeklyLeads.map((w) => {
                 const total = w.hot + w.warm + w.cold;
-                const heightPct = (total / maxWeekTotal) * 100;
+                const barPx = Math.round(Math.max(total / maxWeekTotal, 0.04) * 120);
                 return (
-                  <div key={w.week} className="flex-1 flex flex-col items-center gap-1.5 group">
+                  <div key={w.week} className="flex-1 flex flex-col items-center gap-1 group">
+                    {total > 0 && (
+                      <span className="text-[10px] font-bold text-gray-500 tabular leading-none">
+                        {total}
+                      </span>
+                    )}
                     <div
                       className="w-full flex flex-col-reverse rounded-t-lg overflow-hidden cursor-default"
-                      style={{ height: `${Math.max(heightPct, 4)}%` }}
+                      style={{ height: `${barPx}px` }}
                       title={`Hot: ${w.hot} | Warm: ${w.warm} | Cold: ${w.cold}`}
                     >
                       {w.cold > 0 && (
@@ -310,10 +315,10 @@ export default function ProjectDashboard() {
                 const total = analytics.funnel.leads_total;
                 const p = pct(count, total);
                 return (
-                  <div key={source} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition-colors group">
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-indigo-700 capitalize transition-colors">{source}</span>
-                    <span className="text-xs font-bold text-gray-900 group-hover:text-indigo-800 tabular transition-colors">{count}</span>
-                    {p > 0 && <span className="text-[10px] text-gray-400 group-hover:text-indigo-400 transition-colors font-medium">{p}%</span>}
+                  <div key={source} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:border-blue-200 hover:bg-blue-50 transition-colors group">
+                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-800 capitalize transition-colors">{source}</span>
+                    <span className="text-xs font-bold text-gray-900 group-hover:text-blue-900 tabular transition-colors">{count}</span>
+                    {p > 0 && <span className="text-[10px] text-gray-400 group-hover:text-blue-500 transition-colors font-medium">{p}%</span>}
                   </div>
                 );
               })}
@@ -340,7 +345,7 @@ export default function ProjectDashboard() {
           <div className="bg-white border border-gray-200 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-gray-800 font-semibold text-sm">{deliveryConf?.label}</span>
-              <span className="text-sm font-bold tabular" style={{ color: deliveryConf?.indicatorClass?.includes('emerald') ? '#059669' : deliveryConf?.indicatorClass?.includes('indigo') ? '#4f46e5' : '#d97706' }}>{deliveryConf?.pct}%</span>
+              <span className="text-sm font-bold tabular" style={{ color: deliveryConf?.indicatorClass?.includes('emerald') ? '#059669' : deliveryConf?.indicatorClass?.includes('blue') ? '#1d4ed8' : '#d97706' }}>{deliveryConf?.pct}%</span>
             </div>
             <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
               <div
@@ -384,7 +389,7 @@ export default function ProjectDashboard() {
             {project.amenities.map((a) => (
               <Badge
                 key={a}
-                className="bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-medium"
+                className="bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100 text-xs font-medium"
               >
                 {a}
               </Badge>

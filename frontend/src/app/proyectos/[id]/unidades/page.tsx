@@ -210,7 +210,7 @@ export default function UnidadesPage() {
                             'px-3 py-2 rounded-lg border text-xs font-semibold transition-all duration-150 min-w-[52px]',
                             conf.bg,
                             conf.text,
-                            selected?.id === unit.id && 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-white',
+                            selected?.id === unit.id && 'ring-2 ring-blue-500 ring-offset-1 ring-offset-white',
                             updatingId === unit.id && 'opacity-50 cursor-wait'
                           )}
                         >
@@ -234,7 +234,7 @@ export default function UnidadesPage() {
         <DialogContent className="sm:max-w-[400px] bg-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-gray-900">
-              <UserPlus size={18} className="text-indigo-600" />
+              <UserPlus size={18} className="text-blue-700" />
               Registrar comprador — Unidad {buyerUnit?.identifier}
             </DialogTitle>
           </DialogHeader>
@@ -248,7 +248,7 @@ export default function UnidadesPage() {
                 value={buyerName}
                 onChange={(e) => setBuyerName(e.target.value)}
                 placeholder="Ej: Martín García"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -260,7 +260,7 @@ export default function UnidadesPage() {
                 value={buyerPhone}
                 onChange={(e) => setBuyerPhone(e.target.value)}
                 placeholder="Ej: +54911XXXXXXXX"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             <div>
@@ -271,7 +271,7 @@ export default function UnidadesPage() {
                 type="date"
                 value={buyerSignedAt}
                 onChange={(e) => setBuyerSignedAt(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function UnidadesPage() {
             <button
               onClick={handleRegisterBuyer}
               disabled={savingBuyer || !buyerPhone.trim()}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {savingBuyer ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
               Registrar
@@ -347,7 +347,7 @@ export default function UnidadesPage() {
                               if (e.key === 'Escape') setEditingField(null);
                             }}
                             autoFocus
-                            className="w-28 text-right border border-indigo-300 rounded-lg px-2 py-1 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400/30"
+                            className="w-28 text-right border border-blue-300 rounded-lg px-2 py-1 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                           />
                           {suffix && <span className="text-xs text-gray-400">{suffix.trim()}</span>}
                           <button
@@ -370,7 +370,7 @@ export default function UnidadesPage() {
                           {!isReader && (
                             <button
                               onClick={() => { setEditingField(field); setEditValue(String(raw ?? '')); }}
-                              className="opacity-0 group-hover/field:opacity-100 p-1 rounded-md text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                              className="opacity-0 group-hover/field:opacity-100 p-1 rounded-md text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
                             >
                               <Pencil size={11} />
                             </button>

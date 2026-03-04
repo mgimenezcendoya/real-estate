@@ -62,13 +62,13 @@ function EtapaCard({
   const statusIcon = status === 'done'
     ? <CheckCircle2 size={18} className="text-emerald-500 flex-shrink-0" />
     : status === 'active'
-    ? <Clock size={18} className="text-indigo-500 flex-shrink-0" />
+    ? <Clock size={18} className="text-blue-500 flex-shrink-0" />
     : <Circle size={18} className="text-gray-300 flex-shrink-0" />;
 
   const borderClass = status === 'done'
     ? 'border-emerald-200'
     : status === 'active'
-    ? 'border-indigo-200'
+    ? 'border-blue-200'
     : 'border-gray-200';
 
   return (
@@ -88,13 +88,13 @@ function EtapaCard({
             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className={cn('h-full rounded-full transition-all duration-500',
-                  status === 'done' ? 'bg-emerald-500' : status === 'active' ? 'bg-indigo-500' : 'bg-gray-200'
+                  status === 'done' ? 'bg-emerald-500' : status === 'active' ? 'bg-blue-500' : 'bg-gray-200'
                 )}
                 style={{ width: `${etapa.porcentaje_completado}%` }}
               />
             </div>
             <span className={cn('text-xs font-bold tabular-nums',
-              status === 'done' ? 'text-emerald-600' : status === 'active' ? 'text-indigo-600' : 'text-gray-400'
+              status === 'done' ? 'text-emerald-600' : status === 'active' ? 'text-blue-700' : 'text-gray-400'
             )}>
               {etapa.porcentaje_completado}%
             </span>
@@ -114,7 +114,7 @@ function EtapaCard({
               <button
                 type="button"
                 onClick={() => onAddUpdate(etapa)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors border border-blue-200"
               >
                 <Plus size={12} />
                 Update
@@ -228,7 +228,7 @@ function UpdateItem({ update, onDelete, onNotify, readOnly }: {
                   await onNotify();
                   setNotifying(false);
                 }}
-                className="p-1.5 rounded-lg text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                className="p-1.5 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors"
                 title="Notificar compradores"
               >
                 {notifying ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
@@ -336,7 +336,7 @@ function AddUpdateSheet({
             <select
               value={etapaId}
               onChange={(e) => setEtapaId(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 bg-white"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 bg-white"
             >
               {activeEtapas.map((e) => (
                 <option key={e.id} value={e.id}>{e.nombre}</option>
@@ -348,7 +348,7 @@ function AddUpdateSheet({
           <div>
             <div className="flex justify-between mb-1.5">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">% completado de esta etapa</label>
-              <span className="text-sm font-bold text-indigo-600 tabular-nums">{pct}%</span>
+              <span className="text-sm font-bold text-blue-700 tabular-nums">{pct}%</span>
             </div>
             <input
               type="range"
@@ -357,7 +357,7 @@ function AddUpdateSheet({
               step={5}
               value={pct}
               onChange={(e) => setPct(Number(e.target.value))}
-              className="w-full accent-indigo-600 cursor-pointer"
+              className="w-full accent-blue-700 cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
               <span>0%</span><span>50%</span><span>100%</span>
@@ -377,7 +377,7 @@ function AddUpdateSheet({
                   onClick={() => setScope(s)}
                   className={cn(
                     'flex-1 py-1.5 rounded-lg border text-xs font-medium transition-all',
-                    scope === s ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                    scope === s ? 'bg-blue-50 border-blue-300 text-blue-800' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                   )}
                 >
                   {s === 'general' ? 'General' : s === 'unit' ? 'Unidad' : 'Piso'}
@@ -390,7 +390,7 @@ function AddUpdateSheet({
                 placeholder="Ej: 4B"
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
               />
             )}
             {scope === 'floor' && (
@@ -399,7 +399,7 @@ function AddUpdateSheet({
                 placeholder="Número de piso"
                 value={floorNum}
                 onChange={(e) => setFloorNum(e.target.value)}
-                className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
               />
             )}
           </div>
@@ -412,7 +412,7 @@ function AddUpdateSheet({
               onChange={(e) => setNotaPublica(e.target.value)}
               placeholder="Ej: Se completó la losa del piso 5..."
               rows={3}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 resize-none"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none"
             />
           </div>
 
@@ -423,7 +423,7 @@ function AddUpdateSheet({
               onChange={(e) => setNotaInterna(e.target.value)}
               placeholder="Observaciones internas del equipo..."
               rows={2}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 resize-none"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none"
             />
           </div>
 
@@ -433,7 +433,7 @@ function AddUpdateSheet({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 text-sm text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-colors flex flex-col items-center gap-2"
+              className="w-full border-2 border-dashed border-gray-200 rounded-xl py-4 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors flex flex-col items-center gap-2"
             >
               <ImageIcon size={20} />
               {files.length > 0 ? `${files.length} foto${files.length > 1 ? 's' : ''} seleccionada${files.length > 1 ? 's' : ''}` : 'Subir fotos de obra'}
@@ -474,7 +474,7 @@ function AddUpdateSheet({
             type="button"
             onClick={handleSubmit}
             disabled={!etapaId || saving}
-            className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : null}
             Guardar update
@@ -538,7 +538,7 @@ function EditEtapaDialog({
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
             />
           </div>
           <div className="flex items-center justify-between">
@@ -546,7 +546,7 @@ function EditEtapaDialog({
             <button
               type="button"
               onClick={() => setActiva((v) => !v)}
-              className={cn('relative w-10 h-5 rounded-full transition-colors', activa ? 'bg-indigo-600' : 'bg-gray-200')}
+              className={cn('relative w-10 h-5 rounded-full transition-colors', activa ? 'bg-blue-700' : 'bg-gray-200')}
             >
               <span className={cn('absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform', activa ? 'translate-x-5' : 'translate-x-0.5')} />
             </button>
@@ -556,7 +556,7 @@ function EditEtapaDialog({
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}
               Guardar
@@ -635,7 +635,7 @@ function PesosSheet({
                       max={100}
                       value={val}
                       onChange={(e) => set(etapa.id, Number(e.target.value) || 0)}
-                      className="w-14 text-right border border-gray-200 rounded-lg px-2 py-1 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                      className="w-14 text-right border border-gray-200 rounded-lg px-2 py-1 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
                     />
                     <span className="text-sm text-gray-400">%</span>
                   </div>
@@ -647,7 +647,7 @@ function PesosSheet({
                   step={1}
                   value={val}
                   onChange={(e) => set(etapa.id, Number(e.target.value))}
-                  className="w-full accent-indigo-600 cursor-pointer"
+                  className="w-full accent-blue-700 cursor-pointer"
                 />
               </div>
             );
@@ -674,7 +674,7 @@ function PesosSheet({
               type="button"
               onClick={handleSave}
               disabled={saving || !totalOk}
-              className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+              className="flex-1 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}
               Guardar pesos
@@ -747,7 +747,7 @@ function BuyerModal({
               <select
                 value={unitId}
                 onChange={(e) => setUnitId(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
               >
                 {soldUnits.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -764,7 +764,7 @@ function BuyerModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Juan García"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
             />
           </div>
           <div>
@@ -774,7 +774,7 @@ function BuyerModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+54 11 1234-5678"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
             />
           </div>
           <div>
@@ -783,7 +783,7 @@ function BuyerModal({
               type="date"
               value={signedAt}
               onChange={(e) => setSignedAt(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
             />
           </div>
           <div className="flex gap-2 pt-2">
@@ -791,7 +791,7 @@ function BuyerModal({
               type="button"
               onClick={handleSave}
               disabled={saving || !unitId || !name.trim() || !phone.trim()}
-              className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
             >
               {saving && <Loader2 size={14} className="animate-spin" />}
               Registrar
@@ -951,9 +951,9 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
       {/* Filters + new button */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <button onClick={() => setFilterEstado('')} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium', !filterEstado ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300')}>Todos</button>
+          <button onClick={() => setFilterEstado('')} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium', !filterEstado ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300')}>Todos</button>
           {PAYMENT_ESTADOS.map((e) => (
-            <button key={e} onClick={() => setFilterEstado(e)} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium capitalize', filterEstado === e ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300')}>
+            <button key={e} onClick={() => setFilterEstado(e)} className={cn('text-xs px-3 py-1.5 rounded-full border font-medium capitalize', filterEstado === e ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300')}>
               {e}
             </button>
           ))}
@@ -961,7 +961,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
         {!readOnly && (
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-blue-700 text-white font-medium hover:bg-blue-800"
           >
             <Plus size={14} /> Nuevo pago
           </button>
@@ -1024,7 +1024,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
                         {!readOnly && NEXT_ESTADO[p.estado] && (
                           <button
                             onClick={() => advanceEstado(p)}
-                            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                            className="text-xs text-blue-700 hover:text-blue-900 font-medium"
                           >
                             → {NEXT_ESTADO[p.estado]}
                           </button>
@@ -1049,7 +1049,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción *</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 placeholder="Ej: Hormigón estructura piso 3"
@@ -1084,7 +1084,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Monto USD</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.monto_usd ?? ''}
                   onChange={(e) => setForm({ ...form, monto_usd: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -1095,7 +1095,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Monto ARS</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.monto_ars ?? ''}
                   onChange={(e) => setForm({ ...form, monto_ars: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -1107,7 +1107,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha de vencimiento</label>
               <input
                 type="date"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={form.fecha_vencimiento || ''}
                 onChange={(e) => setForm({ ...form, fecha_vencimiento: e.target.value || null })}
               />
@@ -1119,7 +1119,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
               <button
                 onClick={savePayment}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : 'Crear pago'}
               </button>
@@ -1320,7 +1320,7 @@ export default function ObraPage() {
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <HardHat size={18} className="text-indigo-600" />
+            <HardHat size={18} className="text-blue-700" />
             <h2 className="text-base font-bold text-gray-900">Seguimiento de obra</h2>
           </div>
           <div className="flex items-center gap-3">
@@ -1339,7 +1339,7 @@ export default function ObraPage() {
         </div>
         <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-700"
+            className="h-full bg-gradient-to-r from-blue-500 to-blue-700 rounded-full transition-all duration-700"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -1347,7 +1347,7 @@ export default function ObraPage() {
           <span className="text-xs text-gray-400">Avance general del proyecto</span>
           <div className="flex items-center gap-3 text-xs text-gray-400">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />Completado</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-indigo-500 inline-block" />En progreso</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />En progreso</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />Pendiente</span>
           </div>
         </div>
@@ -1356,8 +1356,8 @@ export default function ObraPage() {
       {/* Empty state */}
       {(!obra || obra.etapas.length === 0) && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-4">
-            <HardHat size={28} className="text-indigo-600" />
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-4">
+            <HardHat size={28} className="text-blue-700" />
           </div>
           <p className="text-gray-900 font-semibold mb-2">Obra sin etapas</p>
           <p className="text-gray-500 text-sm max-w-xs mb-6">
@@ -1367,7 +1367,7 @@ export default function ObraPage() {
             type="button"
             onClick={handleInit}
             disabled={initing}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold transition-colors disabled:opacity-50"
           >
             {initing ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
             Iniciar etapas de obra
@@ -1395,7 +1395,7 @@ export default function ObraPage() {
                 type="button"
                 onClick={handleAddEtapa}
                 disabled={addingEtapa}
-                className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-500 text-sm font-medium transition-colors flex items-center justify-center gap-2"
               >
                 {addingEtapa ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 Agregar etapa personalizada
@@ -1410,7 +1410,7 @@ export default function ObraPage() {
                 <div className="flex items-center gap-2">
                   <Users size={15} className="text-gray-500" />
                   <h3 className="text-sm font-semibold text-gray-900">Compradores</h3>
-                  <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] font-bold">
+                  <Badge className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] font-bold">
                     {buyers.length}
                   </Badge>
                 </div>
@@ -1418,7 +1418,7 @@ export default function ObraPage() {
                   <button
                     type="button"
                     onClick={() => setBuyerModalOpen(true)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-semibold transition-colors border border-indigo-200"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors border border-blue-200"
                   >
                     <Plus size={11} />
                     Registrar
@@ -1434,8 +1434,8 @@ export default function ObraPage() {
                 <div className="space-y-3">
                   {buyers.map((b) => (
                     <div key={b.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center flex-shrink-0">
-                        <span className="text-indigo-700 text-xs font-bold">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                        <span className="text-blue-800 text-xs font-bold">
                           {(b.name || 'C').charAt(0).toUpperCase()}
                         </span>
                       </div>

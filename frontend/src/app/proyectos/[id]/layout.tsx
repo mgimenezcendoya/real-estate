@@ -40,15 +40,15 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       <div className="bg-white border-b border-gray-200 px-4 md:px-8 pt-4 pb-0">
         <Link
           href="/proyectos"
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-indigo-600 mb-3 transition-colors group"
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-blue-700 mb-3 transition-colors group"
         >
           <ChevronLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
           Proyectos
         </Link>
 
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/80 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Building2 size={17} className="text-indigo-600" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/80 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Building2 size={17} className="text-blue-700" />
           </div>
           <div className="min-w-0">
             {loadingProject ? (
@@ -83,11 +83,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
                 className={cn(
                   'flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium border-b-[2.5px] whitespace-nowrap transition-all flex-shrink-0',
                   active
-                    ? 'border-indigo-600 text-indigo-600'
+                    ? 'border-blue-700 text-blue-700'
                     : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-200'
                 )}
               >
-                <Icon size={13} className={active ? 'text-indigo-500' : 'text-gray-400'} />
+                <Icon size={13} className={active ? 'text-blue-500' : 'text-gray-400'} />
                 {label}
               </Link>
             );

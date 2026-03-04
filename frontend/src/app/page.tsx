@@ -66,7 +66,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[360px] animate-fade-in-up">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-md shadow-indigo-500/20 mb-4">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-md shadow-blue-600/20 mb-4">
               <HardHat size={28} className="text-white" />
             </div>
             <h1 className="text-2xl font-display font-bold text-gray-900 tracking-tight mb-1">
@@ -91,7 +91,7 @@ export default function LoginPage() {
               </label>
               <div className={cn(
                 'flex rounded-xl border bg-white overflow-hidden transition-all',
-                'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-400'
+                'border-gray-200 focus-within:ring-2 focus-within:ring-blue-600/30 focus-within:border-blue-500'
               )}>
                 <div className="w-11 flex-shrink-0 flex items-center justify-center text-gray-400 border-r border-gray-200">
                   <User size={16} />
@@ -116,7 +116,7 @@ export default function LoginPage() {
               </label>
               <div className={cn(
                 'flex rounded-xl border bg-white overflow-hidden transition-all',
-                'border-gray-200 focus-within:ring-2 focus-within:ring-indigo-500/30 focus-within:border-indigo-400'
+                'border-gray-200 focus-within:ring-2 focus-within:ring-blue-600/30 focus-within:border-blue-500'
               )}>
                 <div className="w-11 flex-shrink-0 flex items-center justify-center text-gray-400 border-r border-gray-200">
                   <Lock size={16} />
@@ -146,7 +146,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full py-5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white border-0 transition-colors rounded-xl mt-2"
+              className="w-full py-5 text-sm font-semibold bg-blue-700 hover:bg-blue-800 text-white border-0 transition-colors rounded-xl mt-2"
             >
               {loading ? (
                 <>

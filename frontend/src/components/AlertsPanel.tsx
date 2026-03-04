@@ -127,10 +127,10 @@ export default function AlertsPanel({
         <SheetHeader className="px-5 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-gray-900">
-              <Bell size={16} className="text-indigo-600" />
+              <Bell size={16} className="text-blue-700" />
               Alertas
               {unreadCount > 0 && (
-                <span className="ml-1 min-w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] flex items-center justify-center font-bold px-1">
+                <span className="ml-1 min-w-5 h-5 rounded-full bg-blue-700 text-white text-[10px] flex items-center justify-center font-bold px-1">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -139,7 +139,7 @@ export default function AlertsPanel({
               <button
                 onClick={markAllRead}
                 disabled={marking}
-                className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
+                className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 font-medium disabled:opacity-50"
               >
                 <CheckCheck size={13} /> Marcar todas
               </button>
@@ -201,7 +201,7 @@ export default function AlertsPanel({
                                     <Link
                                       href={link}
                                       onClick={() => onOpenChange(false)}
-                                      className="flex items-center gap-0.5 text-[10px] text-indigo-600 hover:text-indigo-800 font-medium"
+                                      className="flex items-center gap-0.5 text-[10px] text-blue-700 hover:text-blue-900 font-medium"
                                     >
                                       Ver <ChevronRight size={10} />
                                     </Link>
@@ -219,7 +219,7 @@ export default function AlertsPanel({
                               )}
                             </div>
                             {!alert.leida && (
-                              <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                              <span className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-blue-700" />
                             )}
                           </div>
                         );

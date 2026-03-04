@@ -24,7 +24,7 @@ interface Props {
 }
 
 const inputClass =
-  'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400';
+  'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500';
 
 const labelClass = 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block';
 
@@ -116,7 +116,7 @@ export default function ReservationSheet({
       >
         <SheetHeader className="px-6 pt-6 pb-4 border-b border-gray-100">
           <SheetTitle className="flex items-center gap-2 text-gray-900 text-base font-bold">
-            <ClipboardList size={18} className="text-indigo-600" />
+            <ClipboardList size={18} className="text-blue-700" />
             Nueva reserva
           </SheetTitle>
         </SheetHeader>
@@ -131,7 +131,7 @@ export default function ReservationSheet({
                 <p className="text-gray-500 text-xs">
                   Piso {unitForDisplay.floor} · {unitForDisplay.bedrooms} amb. · {unitForDisplay.area_m2} m²
                 </p>
-                <p className="text-indigo-600 font-semibold text-xs">
+                <p className="text-blue-700 font-semibold text-xs">
                   USD {Number(unitForDisplay.price_usd).toLocaleString('es-AR')}
                 </p>
               </div>
@@ -274,7 +274,7 @@ export default function ReservationSheet({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <Loader2 size={15} className="animate-spin" />

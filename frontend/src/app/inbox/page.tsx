@@ -1,11 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { UserSearch, FileText, Send, UserCircle2, MessageSquare, Sparkles, Loader2, ArrowLeft } from 'lucide-react';
+import { Search, FileText, Send, UserCircle2, MessageSquare, Sparkles, Loader2, ArrowLeft } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +55,58 @@ function getInitials(name: string): string {
     .map((w) => w[0])
     .join('')
     .toUpperCase() || '?';
+}
+
+// Markdown renderer — handles **bold**, - lists, and paragraphs
+function parseLine(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>
+      : part
+  );
+}
+
+function renderMarkdown(content: string): React.ReactNode {
+  const lines = content.split('\n');
+  const result: React.ReactNode[] = [];
+  let listItems: string[] = [];
+  let key = 0;
+
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    result.push(
+      <ul key={key++} className="my-1.5 space-y-1">
+        {listItems.map((item, i) => (
+          <li key={i} className="flex gap-2 items-start text-sm leading-relaxed text-gray-700">
+            <span className="text-gray-300 flex-shrink-0 select-none mt-px">—</span>
+            <span>{parseLine(item)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+    listItems = [];
+  };
+
+  lines.forEach((line) => {
+    if (line.startsWith('- ') || line.startsWith('• ')) {
+      listItems.push(line.slice(2));
+    } else {
+      flushList();
+      if (line.trim() === '') {
+        result.push(<div key={key++} className="h-2" />);
+      } else {
+        result.push(
+          <p key={key++} className="text-sm leading-relaxed text-gray-700">
+            {parseLine(line)}
+          </p>
+        );
+      }
+    }
+  });
+  flushList();
+
+  return <div className="space-y-0">{result}</div>;
 }
 
 const SCORE_BADGE: Record<string, string> = {
@@ -253,7 +305,7 @@ export default function InboxPage() {
     <div className="flex flex-col h-full w-full overflow-hidden p-4 md:p-8 max-w-[1920px] mx-auto">
       {/* Header */}
       <div className="flex flex-col mb-5 flex-shrink-0">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold uppercase tracking-wider mb-2 w-fit">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold uppercase tracking-wider mb-2 w-fit">
           <MessageSquare size={12} />
           Conversaciones
         </div>
@@ -274,20 +326,21 @@ export default function InboxPage() {
         >
           <div className="p-4 border-b border-gray-100 flex items-center justify-between sticky top-0 z-10 bg-white">
             <h2 className="text-base font-display font-semibold text-gray-900">Conversaciones</h2>
-            <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] uppercase font-bold">
+            <Badge className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] uppercase font-bold">
               {filteredGroups.length}
             </Badge>
           </div>
 
           <div className="p-3">
             <div className="relative">
-              <UserSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               <input
                 type="text"
+                autoComplete="off"
                 placeholder="Buscar..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 text-sm text-gray-900 rounded-xl pl-9 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-400/30 focus:border-indigo-400 placeholder:text-gray-400 transition-all"
+                className="w-full bg-gray-50 border border-gray-200 text-sm text-gray-900 rounded-xl pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder:text-gray-400 transition-all"
               />
             </div>
           </div>
@@ -322,12 +375,12 @@ export default function InboxPage() {
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl transition-all text-left group w-full',
                         isActive
-                          ? 'bg-indigo-50 border border-indigo-200'
+                          ? 'bg-blue-50 border border-blue-200'
                           : 'hover:bg-gray-50 border border-transparent'
                       )}
                     >
-                      <Avatar className={cn('w-10 h-10 rounded-xl flex-shrink-0 border', isActive ? 'border-indigo-200' : 'border-gray-200')}>
-                        <AvatarFallback className={cn('rounded-xl text-sm font-semibold', isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600')}>
+                      <Avatar className={cn('w-10 h-10 rounded-xl flex-shrink-0 border', isActive ? 'border-blue-200' : 'border-gray-200')}>
+                        <AvatarFallback className={cn('rounded-xl text-sm font-semibold', isActive ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600')}>
                           {getInitials(mainLead.name || mainLead.phone)}
                         </AvatarFallback>
                       </Avatar>
@@ -348,7 +401,7 @@ export default function InboxPage() {
                             </Badge>
                           )}
                           {mainLead.project_name && (
-                            <Badge className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 font-semibold truncate max-w-[110px]">
+                            <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 font-semibold truncate max-w-[110px]">
                               {mainLead.project_name}
                             </Badge>
                           )}
@@ -382,7 +435,7 @@ export default function InboxPage() {
                   <ArrowLeft size={18} />
                 </button>
                 <Avatar className="w-9 h-9 rounded-xl border border-gray-200 hidden md:flex">
-                  <AvatarFallback className="rounded-xl bg-indigo-100 text-indigo-700 text-sm font-bold">
+                  <AvatarFallback className="rounded-xl bg-blue-100 text-blue-800 text-sm font-bold">
                     {getInitials(selectedLead.name || selectedLead.phone)}
                   </AvatarFallback>
                 </Avatar>
@@ -392,7 +445,7 @@ export default function InboxPage() {
                       {selectedLead.name || 'Usuario desconocido'}
                     </h2>
                     {selectedLead.project_name && (
-                      <Badge className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 uppercase tracking-wider font-bold">
+                      <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 uppercase tracking-wider font-bold">
                         {selectedLead.project_name}
                       </Badge>
                     )}
@@ -416,8 +469,8 @@ export default function InboxPage() {
           <div className="flex-1 overflow-y-auto w-full scroll-smooth">
             {!selectedLead ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-8">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center mb-4">
-                  <MessageSquare size={28} className="text-indigo-600" />
+                <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mb-4">
+                  <MessageSquare size={28} className="text-blue-700" />
                 </div>
                 <h3 className="text-gray-900 font-semibold mb-2">Seleccioná una conversación</h3>
                 <p className="text-gray-500 text-sm max-w-xs">
@@ -427,7 +480,7 @@ export default function InboxPage() {
             ) : loadingChat ? (
               <div className="flex items-center justify-center h-full">
                 <div className="flex flex-col items-center gap-3">
-                  <Loader2 size={24} className="animate-spin text-indigo-600" />
+                  <Loader2 size={24} className="animate-spin text-blue-700" />
                   <span className="text-sm text-gray-500">Cargando conversación...</span>
                 </div>
               </div>
@@ -439,77 +492,97 @@ export default function InboxPage() {
                 <p className="text-gray-400 text-sm">No hay mensajes en esta conversación.</p>
               </div>
             ) : (
-              <div className="flex flex-col w-full pb-8">
+              <div className="flex flex-col w-full pb-8 pt-2">
                 {activeConversation.map((msg, idx) => {
                   const isUser = msg.role === 'user';
                   const isAI = msg.role === 'assistant' && (msg.sender_type === 'ai' || msg.sender_type === 'agent');
                   const isHuman = msg.role === 'assistant' && msg.sender_type === 'human';
                   const isTelegram = msg.role === 'assistant' && msg.sender_type === 'telegram';
+                  const prevMsg = activeConversation[idx - 1];
+                  const sameAsPrev = prevMsg && prevMsg.role === msg.role && prevMsg.sender_type === msg.sender_type;
 
                   return (
                     <div
                       key={idx}
                       className={cn(
-                        'w-full border-t border-gray-100 first:border-t-0',
-                        isUser && 'bg-white',
-                        isAI && 'bg-indigo-50/40',
-                        isHuman && 'bg-sky-50/40',
-                        isTelegram && 'bg-emerald-50/40'
+                        'w-full',
+                        sameAsPrev ? 'pt-1' : 'pt-4',
+                        idx === 0 && 'pt-4'
                       )}
                     >
-                      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex gap-4">
-                        {/* Avatar */}
-                        <div className="flex-shrink-0">
-                          {isUser && (
-                            <div className="w-9 h-9 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-700 font-bold text-sm">
-                              {getInitials(selectedLead?.name || 'U')}
-                            </div>
-                          )}
-                          {isAI && (
-                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-sm">
-                              <Sparkles size={16} className="text-white" />
-                            </div>
-                          )}
-                          {isHuman && (
-                            <div className="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center shadow-sm">
-                              <UserCircle2 size={18} className="text-white" />
-                            </div>
-                          )}
-                          {isTelegram && (
-                            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-                              <UserCircle2 size={18} className="text-white" />
-                            </div>
-                          )}
-                          {!isUser && !isAI && !isHuman && (
-                            <div className="w-9 h-9 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs">?</div>
-                          )}
+                      <div className="max-w-3xl mx-auto px-4 sm:px-6 flex gap-3">
+                        {/* Avatar — only show on first message of a group */}
+                        <div className="flex-shrink-0 w-8">
+                          {!sameAsPrev ? (
+                            <>
+                              {isUser && (
+                                <div className="w-8 h-8 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center text-gray-600 font-semibold text-xs">
+                                  {getInitials(selectedLead?.name || 'U')}
+                                </div>
+                              )}
+                              {isAI && (
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-sm">
+                                  <Sparkles size={14} className="text-white" />
+                                </div>
+                              )}
+                              {isHuman && (
+                                <div className="w-8 h-8 rounded-full bg-sky-600 flex items-center justify-center shadow-sm">
+                                  <UserCircle2 size={15} className="text-white" />
+                                </div>
+                              )}
+                              {isTelegram && (
+                                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center shadow-sm">
+                                  <UserCircle2 size={15} className="text-white" />
+                                </div>
+                              )}
+                              {!isUser && !isAI && !isHuman && !isTelegram && (
+                                <div className="w-8 h-8 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 text-xs">?</div>
+                              )}
+                            </>
+                          ) : null}
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <span className={cn(
-                              'font-semibold text-sm',
-                              isUser && 'text-gray-900',
-                              isAI && 'text-indigo-700',
-                              isHuman && 'text-sky-700',
-                              isTelegram && 'text-emerald-700',
-                              !isUser && !isAI && !isHuman && !isTelegram && 'text-gray-500'
-                            )}>
-                              {isUser ? (selectedLead?.name || 'Usuario') : isAI ? 'Realia AI' : isHuman ? 'Soporte (Panel)' : isTelegram ? 'Soporte (Telegram)' : 'Sistema'}
-                            </span>
-                            {isAI && (
-                              <Badge className="text-[10px] bg-indigo-100 text-indigo-700 border-indigo-200 uppercase tracking-wider font-bold">Bot</Badge>
-                            )}
-                            <span className="text-xs text-gray-400 ml-auto">{formatTime(msg.created_at)}</span>
+                        <div className="flex-1 min-w-0 pb-1">
+                          {/* Header — only on first of group */}
+                          {!sameAsPrev && (
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className={cn(
+                                'font-semibold text-sm',
+                                isUser && 'text-gray-900',
+                                isAI && 'text-blue-800',
+                                isHuman && 'text-sky-700',
+                                isTelegram && 'text-emerald-700',
+                                !isUser && !isAI && !isHuman && !isTelegram && 'text-gray-500'
+                              )}>
+                                {isUser ? (selectedLead?.name || 'Usuario') : isAI ? 'Realia AI' : isHuman ? 'Soporte (Panel)' : isTelegram ? 'Soporte (Telegram)' : 'Sistema'}
+                              </span>
+                              {isAI && (
+                                <span className="text-[10px] bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-1.5 py-0.5 font-bold uppercase tracking-wide">AI</span>
+                              )}
+                              <span className="text-xs text-gray-400">{formatTime(msg.created_at)}</span>
+                            </div>
+                          )}
+
+                          {/* Message bubble */}
+                          <div className={cn(
+                            'rounded-2xl px-3.5 py-2.5 text-sm w-fit max-w-full',
+                            isUser && 'bg-white border border-gray-200 shadow-sm text-gray-800',
+                            isAI && 'bg-white border border-blue-100 shadow-sm text-gray-700',
+                            isHuman && 'bg-white border border-sky-200 shadow-sm text-gray-800',
+                            isTelegram && 'bg-white border border-emerald-200 shadow-sm text-gray-800',
+                            !isUser && !isAI && !isHuman && !isTelegram && 'bg-gray-50 text-gray-500'
+                          )}>
+                            {isAI || isHuman || isTelegram
+                              ? renderMarkdown(msg.content)
+                              : <p className="text-sm leading-relaxed">{msg.content}</p>
+                            }
                           </div>
-                          <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                            {msg.content}
-                          </p>
+
                           {msg.media_type && (
-                            <div className="mt-3 flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white w-fit">
-                              <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center">
-                                <FileText size={18} className="text-gray-500" />
+                            <div className="mt-2 flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white w-fit">
+                              <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                <FileText size={16} className="text-gray-500" />
                               </div>
                               <div>
                                 <div className="text-sm font-medium text-gray-900">Documento Adjunto</div>
@@ -531,7 +604,7 @@ export default function InboxPage() {
           {selectedLead && !isReader && (
             <div className="p-3 md:p-4 border-t border-gray-200 flex-shrink-0 bg-white">
               <div className="max-w-3xl mx-auto">
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-indigo-400/30 focus-within:border-indigo-400 transition-all flex flex-col shadow-sm">
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:border-blue-500 transition-all flex flex-col shadow-sm">
                   <textarea
                     placeholder="Escribí un mensaje... (Enter para enviar)"
                     className="w-full bg-transparent text-gray-900 text-sm placeholder:text-gray-400 focus:outline-none p-4 resize-none min-h-[60px] max-h-[160px]"
@@ -572,7 +645,7 @@ export default function InboxPage() {
                     <button
                       onClick={handleSendMessage}
                       disabled={sending || !messageInput.trim()}
-                      className="p-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                     </button>

@@ -44,7 +44,7 @@ function KpiCard({
     );
   }
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all">
+    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:border-blue-200 hover:shadow-md transition-all">
       <div className="flex items-start justify-between mb-4">
         <p className="text-gray-500 text-sm font-medium">{label}</p>
         <div className={cn('w-9 h-9 rounded-lg flex items-center justify-center', iconClass)}>
@@ -230,7 +230,7 @@ export default function FinancieroPage() {
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-500">USD/ARS</label>
             <input
-              className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-indigo-400"
+              className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500"
               value={tipoCambio}
               onChange={(e) => setTipoCambio(e.target.value)}
               type="number"
@@ -239,7 +239,7 @@ export default function FinancieroPage() {
             <button
               onClick={saveTipoCambio}
               disabled={savingTC}
-              className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
             >
               {savingTC ? 'Guardando...' : 'Guardar'}
             </button>
@@ -249,7 +249,7 @@ export default function FinancieroPage() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Presupuesto total" value={summary ? formatUSD(summary.presupuesto_total_usd) : '-'} icon={DollarSign} iconClass="bg-indigo-50 text-indigo-600" loading={loading} />
+        <KpiCard label="Presupuesto total" value={summary ? formatUSD(summary.presupuesto_total_usd) : '-'} icon={DollarSign} iconClass="bg-blue-50 text-blue-700" loading={loading} />
         <KpiCard label="Ejecutado" value={summary ? formatUSD(summary.ejecutado_usd) : '-'} icon={BarChart2} iconClass="bg-blue-50 text-blue-600" loading={loading} />
         <KpiCard
           label="Desvío"
@@ -269,7 +269,7 @@ export default function FinancieroPage() {
           {!isReader && (
             <button
               onClick={() => setShowBudgetModal(true)}
-              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-medium"
             >
               <Plus size={13} /> Nueva categoría
             </button>
@@ -302,7 +302,7 @@ export default function FinancieroPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-gray-400 w-20">Ejecutado</span>
                       <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={cn('h-full rounded-full', cat.ejecutado_usd > cat.presupuesto_usd ? 'bg-red-400' : 'bg-indigo-500')} style={{ width: `${exePct}%` }} />
+                        <div className={cn('h-full rounded-full', cat.ejecutado_usd > cat.presupuesto_usd ? 'bg-red-400' : 'bg-blue-500')} style={{ width: `${exePct}%` }} />
                       </div>
                       <span className="text-[10px] text-gray-500 w-20 text-right">{formatUSD(cat.ejecutado_usd)}</span>
                     </div>
@@ -345,7 +345,7 @@ export default function FinancieroPage() {
             {!isReader && (
               <button
                 onClick={openNew}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800"
               >
                 <Plus size={13} /> Nuevo gasto
               </button>
@@ -379,7 +379,7 @@ export default function FinancieroPage() {
                     <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">{exp.proveedor || '—'}</td>
                     <td className="py-3 pr-4 text-gray-800 max-w-xs truncate">{exp.descripcion}</td>
                     <td className="py-3 pr-4">
-                      {exp.categoria ? <Badge className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200">{exp.categoria}</Badge> : <span className="text-gray-300">—</span>}
+                      {exp.categoria ? <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200">{exp.categoria}</Badge> : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium text-gray-800 whitespace-nowrap">
                       {exp.monto_usd != null ? formatUSD(exp.monto_usd) : '—'}
@@ -387,7 +387,7 @@ export default function FinancieroPage() {
                     {!isReader && (
                       <td className="py-3 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(exp)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors">
+                          <button onClick={() => openEdit(exp)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
                             <Pencil size={13} />
                           </button>
                           <button onClick={() => deleteExpense(exp)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
@@ -414,7 +414,7 @@ export default function FinancieroPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción *</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 placeholder="Descripción del gasto"
@@ -424,7 +424,7 @@ export default function FinancieroPage() {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Proveedor</label>
                 <input
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.proveedor || ''}
                   onChange={(e) => setForm({ ...form, proveedor: e.target.value || null })}
                   placeholder="Nombre proveedor"
@@ -447,7 +447,7 @@ export default function FinancieroPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Monto USD</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.monto_usd ?? ''}
                   onChange={(e) => setForm({ ...form, monto_usd: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -459,7 +459,7 @@ export default function FinancieroPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Monto ARS</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.monto_ars ?? ''}
                   onChange={(e) => setForm({ ...form, monto_ars: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -473,7 +473,7 @@ export default function FinancieroPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha *</label>
                 <input
                   type="date"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.fecha}
                   onChange={(e) => setForm({ ...form, fecha: e.target.value })}
                 />
@@ -481,7 +481,7 @@ export default function FinancieroPage() {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Comprobante URL</label>
                 <input
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.comprobante_url || ''}
                   onChange={(e) => setForm({ ...form, comprobante_url: e.target.value || null })}
                   placeholder="https://..."
@@ -495,7 +495,7 @@ export default function FinancieroPage() {
               <button
                 onClick={saveExpense}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : editingExpense ? 'Actualizar' : 'Crear gasto'}
               </button>
@@ -514,7 +514,7 @@ export default function FinancieroPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Categoría *</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={budgetForm.categoria}
                 onChange={(e) => setBudgetForm({ ...budgetForm, categoria: e.target.value })}
                 placeholder="ej: Estructura, Terminaciones..."
@@ -523,7 +523,7 @@ export default function FinancieroPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={budgetForm.descripcion}
                 onChange={(e) => setBudgetForm({ ...budgetForm, descripcion: e.target.value })}
                 placeholder="Descripción opcional"
@@ -533,7 +533,7 @@ export default function FinancieroPage() {
               <label className="text-xs font-medium text-gray-600 mb-1 block">Monto presupuestado (USD)</label>
               <input
                 type="number"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={budgetForm.monto_usd}
                 onChange={(e) => setBudgetForm({ ...budgetForm, monto_usd: e.target.value })}
                 placeholder="0.00"
@@ -548,7 +548,7 @@ export default function FinancieroPage() {
               <button
                 onClick={saveBudget}
                 disabled={savingBudget}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
               >
                 {savingBudget ? 'Guardando...' : 'Guardar'}
               </button>

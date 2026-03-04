@@ -169,7 +169,7 @@ export default function InversoresPage() {
         {!isReader && (
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+            className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-blue-700 text-white font-medium hover:bg-blue-800"
           >
             <Plus size={15} /> Inversor
           </button>
@@ -194,14 +194,14 @@ export default function InversoresPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {investors.map((inv) => (
-            <div key={inv.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:border-indigo-200 transition-all">
+            <div key={inv.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:border-blue-200 transition-all">
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 border border-indigo-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-indigo-700 text-sm font-bold">{inv.nombre.charAt(0).toUpperCase()}</span>
+                <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center flex-shrink-0">
+                  <span className="text-blue-800 text-sm font-bold">{inv.nombre.charAt(0).toUpperCase()}</span>
                 </div>
                 {!isReader && (
                   <div className="flex gap-1">
-                    <button onClick={() => openEdit(inv)} className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors">
+                    <button onClick={() => openEdit(inv)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
                       <Pencil size={13} />
                     </button>
                     <button onClick={() => deleteInvestor(inv)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
@@ -215,7 +215,7 @@ export default function InversoresPage() {
               {inv.telefono && <p className="text-xs text-gray-500">{inv.telefono}</p>}
               <div className="flex items-center gap-2 mt-3 flex-wrap">
                 {inv.porcentaje_participacion != null && (
-                  <Badge className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200">
+                  <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200">
                     {inv.porcentaje_participacion}%
                   </Badge>
                 )}
@@ -244,7 +244,7 @@ export default function InversoresPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Título del reporte</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={repTitle}
                 onChange={(e) => setRepTitle(e.target.value)}
                 placeholder="Reporte Trimestral Q1 2026"
@@ -252,11 +252,11 @@ export default function InversoresPage() {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Período desde</label>
-              <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400" value={repDesde} onChange={(e) => setRepDesde(e.target.value)} />
+              <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={repDesde} onChange={(e) => setRepDesde(e.target.value)} />
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Período hasta</label>
-              <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400" value={repHasta} onChange={(e) => setRepHasta(e.target.value)} />
+              <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={repHasta} onChange={(e) => setRepHasta(e.target.value)} />
             </div>
           </div>
 
@@ -271,7 +271,7 @@ export default function InversoresPage() {
             <button
               onClick={sendReport}
               disabled={sending || investors.length === 0}
-              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-xl bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
             >
               <Send size={15} /> {sending ? 'Enviando...' : 'Enviar a todos'}
             </button>
@@ -331,7 +331,7 @@ export default function InversoresPage() {
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">Nombre *</label>
               <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 placeholder="Nombre completo"
@@ -342,7 +342,7 @@ export default function InversoresPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Email</label>
                 <input
                   type="email"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.email || ''}
                   onChange={(e) => setForm({ ...form, email: e.target.value || null })}
                   placeholder="email@ejemplo.com"
@@ -351,7 +351,7 @@ export default function InversoresPage() {
               <div>
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Teléfono</label>
                 <input
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.telefono || ''}
                   onChange={(e) => setForm({ ...form, telefono: e.target.value || null })}
                   placeholder="+549..."
@@ -363,7 +363,7 @@ export default function InversoresPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Monto aportado (USD)</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.monto_aportado_usd ?? ''}
                   onChange={(e) => setForm({ ...form, monto_aportado_usd: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -374,7 +374,7 @@ export default function InversoresPage() {
                 <label className="text-xs font-medium text-gray-600 mb-1 block">Participación (%)</label>
                 <input
                   type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                   value={form.porcentaje_participacion ?? ''}
                   onChange={(e) => setForm({ ...form, porcentaje_participacion: e.target.value ? parseFloat(e.target.value) : null })}
                   placeholder="0.00"
@@ -388,7 +388,7 @@ export default function InversoresPage() {
               <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha de aporte</label>
               <input
                 type="date"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-indigo-400"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
                 value={form.fecha_aporte || ''}
                 onChange={(e) => setForm({ ...form, fecha_aporte: e.target.value || null })}
               />
@@ -400,7 +400,7 @@ export default function InversoresPage() {
               <button
                 onClick={saveInvestor}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
               >
                 {saving ? 'Guardando...' : editingInvestor ? 'Actualizar' : 'Agregar'}
               </button>
