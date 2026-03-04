@@ -311,6 +311,21 @@ export interface Alert {
   created_at: string;
 }
 
+// --- Exchange Rate types ---
+export interface ExchangeRate {
+  tipo: string;
+  nombre: string;
+  compra: number;
+  venta: number;
+  fecha: string;
+}
+
+export interface ExchangeRateHistory {
+  fecha: string;
+  compra: number;
+  venta: number;
+}
+
 // --- Supplier & Payment types ---
 export interface Supplier {
   id: string;
@@ -527,6 +542,11 @@ export const api = {
     fetcher<{ updated: boolean; estado: string }>(`/admin/obra-payments/${paymentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   getVencimientos: (projectId: string) =>
     fetcher<ObraPayment[]>(`/admin/obra-payments/${projectId}/vencimientos`),
+
+  // --- Exchange Rates ---
+  getExchangeRates: () => fetcher<ExchangeRate[]>('/admin/tools/exchange-rates'),
+  getExchangeRateHistory: (tipo: string, days?: number) =>
+    fetcher<ExchangeRateHistory[]>(`/admin/tools/exchange-rates/history/${tipo}${days ? `?days=${days}` : ''}`),
 
   login: (username: string, password: string) =>
     fetch(`${BASE_URL}/admin/auth/login`, {

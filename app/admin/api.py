@@ -1918,6 +1918,32 @@ async def get_vencimientos(project_id: str):
     return result
 
 
+# ---------- Tools: Exchange Rates ----------
+
+@router.get("/tools/exchange-rates")
+async def get_exchange_rates():
+    """Return current compra/venta for oficial, blue, and mep. Cached 15 min."""
+    from app.modules.tools.exchange_rates import get_current_rates
+    try:
+        rates = await get_current_rates()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error fetching exchange rates: {e}")
+    return rates
+
+
+@router.get("/tools/exchange-rates/history/{tipo}")
+async def get_exchange_rate_history(tipo: str, days: int = 30):
+    """Return last N days of history for a given tipo (oficial, blue, mep)."""
+    from app.modules.tools.exchange_rates import get_rate_history
+    try:
+        history = await get_rate_history(tipo, days)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error fetching history: {e}")
+    return history
+
+
 @router.post("/jobs/update-payment-states")
 async def update_payment_states():
     pool = await get_pool()

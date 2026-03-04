@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell } from 'lucide-react';
+import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import AlertsPanel, { useAlertCount } from '@/components/AlertsPanel';
 const navItems = [
   { href: '/proyectos', label: 'Proyectos', icon: Building2 },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
+  { href: '/tools', label: 'Tools', icon: Wrench },
 ];
 
 function NavContent({
