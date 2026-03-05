@@ -93,7 +93,7 @@ export default function ProyectosPage() {
           );
           setMetricsByProject(metrics);
         })
-        .catch(() => toast.error('No se pudo conectar con el backend')),
+        .catch(() => { toast.error('No se pudo conectar con el backend'); }),
     ];
     if (isSuperAdmin) {
       fetches.push(
