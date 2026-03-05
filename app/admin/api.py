@@ -335,15 +335,16 @@ async def upload_document(
     """
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT id, name FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow("SELECT id, name, organization_id FROM projects WHERE id = $1", project_id)
     if not project:
         return {"error": f"Project {project_id} not found"}
 
     content = await file.read()
     filename = file.filename or "document.pdf"
     project_slug = project["name"].lower().replace(" ", "-")
+    org_id = str(project["organization_id"]) if project["organization_id"] else None
 
-    file_url = await upload_file(content, project_slug, doc_type, filename)
+    file_url = await upload_file(content, project_slug, doc_type, filename, org_id=org_id)
 
     if unit_identifier:
         await pool.execute(
@@ -1094,7 +1095,7 @@ async def create_obra_update(
     """Create an obra update: saves record, uploads photos, updates etapa progress."""
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT slug FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow("SELECT slug, organization_id FROM projects WHERE id = $1", project_id)
     if not project:
         return {"error": "Project not found"}
 
@@ -1121,7 +1122,8 @@ async def create_obra_update(
         if not content:
             continue
         identifier = unit_identifier or (str(floor_num) if floor_num else None)
-        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier)
+        org_id = str(project["organization_id"]) if project["organization_id"] else None
+        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier, org_id=org_id)
         foto_row = await pool.fetchrow(
             """INSERT INTO obra_fotos (project_id, update_id, file_url, filename, scope, unit_identifier, floor)
                VALUES ($1, $2, $3, $4, $5, $6, $7)

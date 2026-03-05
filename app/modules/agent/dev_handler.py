@@ -164,7 +164,7 @@ async def _handle_incoming_document(phone: str, developer_id: str, dev_name: str
 
     pool = await get_pool()
     projects = await pool.fetch(
-        "SELECT name, slug FROM projects WHERE developer_id = $1 AND status = 'active' ORDER BY name",
+        "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name",
         developer_id,
     )
 
@@ -198,7 +198,7 @@ async def _handle_upload_classification(
 
     if pending["step"] == "ask_project":
         projects = await pool.fetch(
-            "SELECT name, slug FROM projects WHERE developer_id = $1 AND status = 'active' ORDER BY name",
+            "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name",
             developer_id,
         )
         matched = None
@@ -244,7 +244,7 @@ async def _handle_upload_classification(
             pending["step"] = "ask_unit"
             units = await pool.fetch(
                 """SELECT u.identifier FROM units u JOIN projects p ON p.id = u.project_id
-                   WHERE p.slug = $1 AND p.developer_id = $2 ORDER BY u.floor, u.identifier""",
+                   WHERE p.slug = $1 AND p.organization_id = $2 ORDER BY u.floor, u.identifier""",
                 pending["project_slug"], developer_id,
             )
             unit_list = ", ".join(u["identifier"] for u in units)
@@ -273,7 +273,7 @@ async def _finalize_upload(
     pool = await get_pool()
 
     project = await pool.fetchrow(
-        "SELECT id, name FROM projects WHERE slug = $1 AND developer_id = $2",
+        "SELECT id, name, organization_id FROM projects WHERE slug = $1 AND organization_id = $2",
         pending["project_slug"], developer_id,
     )
     if not project:
@@ -285,9 +285,10 @@ async def _finalize_upload(
     unit_identifier = pending.get("unit_identifier")
     filename = pending["filename"]
     file_bytes = pending["file_bytes"]
+    org_id = str(project["organization_id"]) if project["organization_id"] else None
 
     try:
-        file_url = await upload_file(file_bytes, pending["project_slug"], doc_type, filename)
+        file_url = await upload_file(file_bytes, pending["project_slug"], doc_type, filename, org_id=org_id)
 
         if unit_identifier:
             await pool.execute(
@@ -498,7 +499,7 @@ async def _build_developer_context(developer_id: str) -> str:
 
     projects = await pool.fetch(
         """SELECT id, name, slug, address, neighborhood, status, delivery_status, estimated_delivery
-           FROM projects WHERE developer_id = $1 ORDER BY name""",
+           FROM projects WHERE organization_id = $1 ORDER BY name""",
         developer_id,
     )
 
@@ -700,7 +701,7 @@ async def _action_update_unit(pool, params: dict, developer_id: str) -> dict:
     row = await pool.fetchrow(
         """UPDATE units u SET status = $1
            FROM projects p
-           WHERE u.project_id = p.id AND p.developer_id = $2
+           WHERE u.project_id = p.id AND p.organization_id = $2
              AND UPPER(u.identifier) = $3 AND p.slug = $4
            RETURNING u.identifier, p.name as project_name, u.status""",
         new_status, developer_id, identifier, project_slug,
@@ -723,7 +724,7 @@ async def _action_update_price(pool, params: dict, developer_id: str) -> dict:
     row = await pool.fetchrow(
         """UPDATE units u SET price_usd = $1
            FROM projects p
-           WHERE u.project_id = p.id AND p.developer_id = $2
+           WHERE u.project_id = p.id AND p.organization_id = $2
              AND UPPER(u.identifier) = $3 AND p.slug = $4
            RETURNING u.identifier, p.name as project_name, u.price_usd""",
         new_price, developer_id, identifier, project_slug,
@@ -745,7 +746,7 @@ async def _action_add_note(pool, params: dict, developer_id: str, author_name: s
     unit = await pool.fetchrow(
         """SELECT u.id, u.identifier, p.name as project_name
            FROM units u JOIN projects p ON p.id = u.project_id
-           WHERE p.developer_id = $1 AND UPPER(u.identifier) = $2 AND p.slug = $3""",
+           WHERE p.organization_id = $1 AND UPPER(u.identifier) = $2 AND p.slug = $3""",
         developer_id, identifier, project_slug,
     )
     if not unit:
@@ -764,7 +765,7 @@ async def _action_get_lead_detail(pool, params: dict, developer_id: str) -> dict
     row = await pool.fetchrow(
         """SELECT l.*, p.name as project_name FROM leads l
            JOIN projects p ON p.id = l.project_id
-           WHERE p.developer_id = $1 AND l.phone LIKE '%' || $2
+           WHERE p.organization_id = $1 AND l.phone LIKE '%' || $2
            ORDER BY l.last_contact DESC NULLS LAST LIMIT 1""",
         developer_id, phone_suffix,
     )

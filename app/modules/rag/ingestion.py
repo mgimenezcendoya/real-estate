@@ -18,11 +18,12 @@ async def ingest_document(
     floor: int | None = None,
     source: str = "whatsapp",
     uploaded_by: str | None = None,
+    org_id: str | None = None,
 ) -> dict:
     """Upload document to S3 and register in DB with version control."""
     pool = await get_pool()
 
-    file_url = await upload_file(content, project_slug, doc_type, filename)
+    file_url = await upload_file(content, project_slug, doc_type, filename, org_id=org_id)
 
     # Deactivate previous version and invalidate its cache
     if unit_identifier:
@@ -72,7 +73,7 @@ async def find_document_for_sharing(
     base = """
         SELECT d.* FROM documents d
         JOIN projects p ON p.id = d.project_id
-        WHERE p.developer_id = $1 AND d.doc_type = $2 AND d.is_active = TRUE
+        WHERE p.organization_id = $1 AND d.doc_type = $2 AND d.is_active = TRUE
     """
     params: list = [developer_id, doc_type]
 

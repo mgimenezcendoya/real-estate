@@ -36,6 +36,7 @@ async def upload_file(
     project_slug: str,
     doc_type: str,
     filename: str,
+    org_id: str | None = None,
 ) -> str:
     """Upload a file to S3 and return the public URL."""
     if filename.lower().endswith(".pdf") and not file_bytes[:5] == b"%PDF-":
@@ -45,7 +46,7 @@ async def upload_file(
         )
 
     settings = get_settings()
-    key = _build_key(project_slug, doc_type, filename)
+    key = _build_key(project_slug, doc_type, filename, org_id=org_id)
 
     content_type = "application/pdf" if filename.lower().endswith(".pdf") else "application/octet-stream"
 
@@ -91,9 +92,15 @@ async def download_file(file_url: str) -> bytes:
         return response.content
 
 
-def _build_key(project_slug: str, doc_type: str, filename: str) -> str:
-    """Build a structured S3 key: projects/{slug}/{filename}"""
+def _build_key(project_slug: str, doc_type: str, filename: str, org_id: str | None = None) -> str:
+    """Build a structured S3 key.
+
+    With org_id:    orgs/{org_id}/projects/{slug}/{filename}
+    Without org_id: projects/{slug}/{filename}  (legacy fallback)
+    """
     safe_filename = filename.replace(" ", "_").lower()
+    if org_id:
+        return f"orgs/{org_id}/projects/{project_slug}/{safe_filename}"
     return f"projects/{project_slug}/{safe_filename}"
 
 
@@ -103,23 +110,26 @@ async def upload_obra_foto(
     filename: str,
     scope: str = "general",
     identifier: str | None = None,
+    org_id: str | None = None,
 ) -> str:
     """Upload an obra photo with structured path based on scope.
 
-    Paths:
-      general → projects/{slug}/obra/general/{filename}
-      unit    → projects/{slug}/obra/unidades/{identifier}/{filename}
-      floor   → projects/{slug}/obra/pisos/p{identifier}/{filename}
+    With org_id:
+      general → orgs/{org_id}/projects/{slug}/obra/general/{filename}
+      unit    → orgs/{org_id}/projects/{slug}/obra/unidades/{identifier}/{filename}
+      floor   → orgs/{org_id}/projects/{slug}/obra/pisos/p{identifier}/{filename}
+    Without org_id (legacy fallback): projects/{slug}/obra/...
     """
     settings = get_settings()
     safe_filename = filename.replace(" ", "_").lower()
+    prefix = f"orgs/{org_id}/projects/{project_slug}" if org_id else f"projects/{project_slug}"
 
     if scope == "unit" and identifier:
-        key = f"projects/{project_slug}/obra/unidades/{identifier}/{safe_filename}"
+        key = f"{prefix}/obra/unidades/{identifier}/{safe_filename}"
     elif scope == "floor" and identifier:
-        key = f"projects/{project_slug}/obra/pisos/p{identifier}/{safe_filename}"
+        key = f"{prefix}/obra/pisos/p{identifier}/{safe_filename}"
     else:
-        key = f"projects/{project_slug}/obra/general/{safe_filename}"
+        key = f"{prefix}/obra/general/{safe_filename}"
 
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     content_type = {
