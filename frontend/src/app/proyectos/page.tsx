@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { api, Project, Metrics } from '@/lib/api';
-import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search } from 'lucide-react';
+import { api, Project, Metrics, Organization } from '@/lib/api';
+import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -47,8 +47,10 @@ function ProjectCardSkeleton() {
 }
 
 export default function ProyectosPage() {
-  const { isReader } = useAuth();
+  const { isReader, role, organizationId, organizationName } = useAuth();
+  const isSuperAdmin = role === 'superadmin';
   const [projects, setProjects] = useState<Project[]>([]);
+  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [metricsByProject, setMetricsByProject] = useState<Record<string, Metrics>>({});
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -56,6 +58,7 @@ export default function ProyectosPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [deliveryFilter, setDeliveryFilter] = useState<string>('');
+  const [orgFilter, setOrgFilter] = useState<string>('');
   const filterRef = useRef<HTMLDivElement>(null);
 
   const filteredProjects = useMemo(() => {
@@ -63,9 +66,10 @@ export default function ProyectosPage() {
       const matchName = !searchQuery.trim() || p.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
       const matchStatus = !statusFilter || p.status === statusFilter;
       const matchDelivery = !deliveryFilter || (p.delivery_status || '') === deliveryFilter;
-      return matchName && matchStatus && matchDelivery;
+      const matchOrg = !orgFilter || p.organization_id === orgFilter;
+      return matchName && matchStatus && matchDelivery && matchOrg;
     });
-  }, [projects, searchQuery, statusFilter, deliveryFilter]);
+  }, [projects, searchQuery, statusFilter, deliveryFilter, orgFilter]);
 
   useEffect(() => {
     const onOutside = (e: MouseEvent) => {
@@ -77,35 +81,57 @@ export default function ProyectosPage() {
 
   const loadProjects = useCallback(() => {
     setLoading(true);
-    api.getProjects()
-      .then(async (list) => {
-        setProjects(list);
-        const metrics: Record<string, Metrics> = {};
-        await Promise.all(
-          list.map((p) =>
-            api.getMetrics(p.id).then((m) => { metrics[p.id] = m; }).catch(() => {})
-          )
-        );
-        setMetricsByProject(metrics);
-      })
-      .catch(() => toast.error('No se pudo conectar con el backend'))
-      .finally(() => setLoading(false));
-  }, []);
+    const fetches: Promise<void>[] = [
+      api.getProjects()
+        .then(async (list) => {
+          setProjects(list);
+          const metrics: Record<string, Metrics> = {};
+          await Promise.all(
+            list.map((p) =>
+              api.getMetrics(p.id).then((m) => { metrics[p.id] = m; }).catch(() => {})
+            )
+          );
+          setMetricsByProject(metrics);
+        })
+        .catch(() => toast.error('No se pudo conectar con el backend')),
+    ];
+    if (isSuperAdmin) {
+      fetches.push(
+        api.getOrganizations().then(setOrgs).catch(() => {})
+      );
+    }
+    Promise.all(fetches).finally(() => setLoading(false));
+  }, [isSuperAdmin]);
 
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
-  const developerId = projects[0]?.developer_id ?? '';
-  const hasFilters = !!(searchQuery || statusFilter || deliveryFilter);
+  // For superadmin: no org restriction; for others: scoped to their org
+  // When superadmin has an org filter active, use that org for new projects
+  const developerId = isSuperAdmin ? (orgFilter || '') : (organizationId ?? '');
+  const hasFilters = !!(searchQuery || statusFilter || deliveryFilter || orgFilter);
+  const activeOrgName = isSuperAdmin && orgFilter ? orgs.find(o => o.id === orgFilter)?.name : null;
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto min-h-full animate-fade-in-up">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[10px] font-bold uppercase tracking-widest mb-3">
-            <Building2 size={10} />
-            Portafolio
-          </div>
+          {isSuperAdmin ? (
+            <div className={cn(
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-widest mb-3',
+              activeOrgName
+                ? 'bg-blue-50 border-blue-200/80 text-blue-700'
+                : 'bg-violet-50 border-violet-200/80 text-violet-700'
+            )}>
+              {activeOrgName ? <Building2 size={10} /> : <ShieldCheck size={10} />}
+              {activeOrgName ?? 'Superadmin · Todas las organizaciones'}
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-[10px] font-bold uppercase tracking-widest mb-3">
+              <Building2 size={10} />
+              {organizationName ?? 'Portafolio'}
+            </div>
+          )}
           <h1 className="text-3xl md:text-4xl font-display font-extrabold text-gray-900 tracking-tight mb-2 leading-none">Proyectos</h1>
           <p className="text-gray-400 text-sm max-w-xl font-medium">
             Gestioná y monitoreá el progreso de todos tus desarrollos inmobiliarios.
@@ -128,7 +154,7 @@ export default function ProyectosPage() {
             Filtrar
             {hasFilters && (
               <span className="w-5 h-5 rounded-full bg-blue-700 text-white text-[10px] flex items-center justify-center font-bold">
-                {[searchQuery, statusFilter, deliveryFilter].filter(Boolean).length}
+                {[searchQuery, statusFilter, deliveryFilter, orgFilter].filter(Boolean).length}
               </span>
             )}
           </Button>
@@ -153,6 +179,41 @@ export default function ProyectosPage() {
                   className="pl-9 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:ring-blue-500 h-9"
                 />
               </div>
+
+              {/* Org filter — superadmin only */}
+              {isSuperAdmin && orgs.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Organización</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      key="all-orgs"
+                      onClick={() => setOrgFilter('')}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
+                        orgFilter === ''
+                          ? 'bg-violet-50 text-violet-800 border-violet-300'
+                          : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
+                      )}
+                    >
+                      Todas
+                    </button>
+                    {orgs.map(o => (
+                      <button
+                        key={o.id}
+                        onClick={() => setOrgFilter(o.id)}
+                        className={cn(
+                          'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
+                          orgFilter === o.id
+                            ? 'bg-blue-50 text-blue-800 border-blue-300'
+                            : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
+                        )}
+                      >
+                        {o.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5 mb-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Estado</p>
@@ -196,7 +257,7 @@ export default function ProyectosPage() {
 
               {hasFilters && (
                 <button
-                  onClick={() => { setSearchQuery(''); setStatusFilter(''); setDeliveryFilter(''); }}
+                  onClick={() => { setSearchQuery(''); setStatusFilter(''); setDeliveryFilter(''); setOrgFilter(''); }}
                   className="mt-3 w-full text-xs text-gray-500 hover:text-gray-900 transition-colors py-1.5 rounded-lg hover:bg-gray-100"
                 >
                   Limpiar filtros
@@ -322,7 +383,7 @@ export default function ProyectosPage() {
           {hasFilters ? (
             <Button
               variant="outline"
-              onClick={() => { setSearchQuery(''); setStatusFilter(''); setDeliveryFilter(''); }}
+              onClick={() => { setSearchQuery(''); setStatusFilter(''); setDeliveryFilter(''); setOrgFilter(''); }}
               className="bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
             >
               Limpiar filtros
@@ -342,6 +403,7 @@ export default function ProyectosPage() {
       <NewProjectModal
         open={showNewModal}
         developerId={developerId}
+        orgs={isSuperAdmin ? orgs : []}
         onClose={() => setShowNewModal(false)}
         onCreated={loadProjects}
       />

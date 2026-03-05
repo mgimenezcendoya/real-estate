@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, Organization } from '@/lib/api';
 import { Upload, FileSpreadsheet, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -12,23 +12,31 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Props {
   open: boolean;
   developerId: string;
+  orgs?: Organization[];
   onClose: () => void;
   onCreated: () => void;
 }
 
-export default function NewProjectModal({ open, developerId, onClose, onCreated }: Props) {
+export default function NewProjectModal({ open, developerId, orgs = [], onClose, onCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const isSuperAdmin = orgs.length > 0;
+  const effectiveDeveloperId = isSuperAdmin ? selectedOrgId : developerId;
 
   const reset = useCallback(() => {
     setFile(null);
     setUploading(false);
+    setSelectedOrgId('');
   }, []);
 
   const handleClose = useCallback(() => {
@@ -58,9 +66,13 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
 
   const handleSubmit = useCallback(async () => {
     if (!file) return;
+    if (isSuperAdmin && !selectedOrgId) {
+      toast.error('Seleccioná una organización');
+      return;
+    }
     setUploading(true);
     try {
-      const res = await api.loadProject(file, developerId);
+      const res = await api.loadProject(file, effectiveDeveloperId);
       if (res.ok) {
         toast.success(`Proyecto "${res.project_name}" creado con ${res.units_created} unidades`);
         onCreated();
@@ -77,7 +89,7 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
     } finally {
       setUploading(false);
     }
-  }, [file, developerId, onCreated, handleClose]);
+  }, [file, effectiveDeveloperId, isSuperAdmin, selectedOrgId, onCreated, handleClose]);
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -91,6 +103,25 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
             Subí el CSV con los datos del proyecto y sus unidades.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Org selector (superadmin only) */}
+        {isSuperAdmin && (
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Organización <span className="text-red-500">*</span>
+            </Label>
+            <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+              <SelectTrigger className="bg-white border-gray-200">
+                <SelectValue placeholder="Seleccioná una organización..." />
+              </SelectTrigger>
+              <SelectContent>
+                {orgs.filter(o => o.activa).map(o => (
+                  <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Download template */}
         <a
@@ -163,7 +194,7 @@ export default function NewProjectModal({ open, developerId, onClose, onCreated 
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={!file || uploading}
+            disabled={!file || uploading || (isSuperAdmin && !selectedOrgId)}
             className="flex-1 bg-blue-700 hover:bg-blue-800 text-white border-0"
           >
             {uploading ? (

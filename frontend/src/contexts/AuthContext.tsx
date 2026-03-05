@@ -11,6 +11,7 @@ type AuthContextValue = {
   nombre: string | null;
   userId: string | null;
   organizationId: string | null;
+  organizationName: string | null;
   loading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [nombre, setNombre] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setNombre(me.nombre || null);
       setUserId(me.user_id || null);
       setOrganizationId(me.organization_id || null);
+      setOrganizationName(me.organization_name || null);
       setMustChangePassword(me.debe_cambiar_password ?? false);
       if (!me.user) setAuthToken(null);
     } catch {
@@ -65,13 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setNombre(data.nombre || null);
     setUserId(data.user_id || null);
     setOrganizationId(data.organization_id || null);
+    setOrganizationName(data.organization_name || null);
     setMustChangePassword(data.debe_cambiar_password ?? false);
   }, []);
 
   const logout = useCallback(() => {
     setAuthToken(null);
     setUser(null); setRole(null); setNombre(null);
-    setUserId(null); setOrganizationId(null);
+    setUserId(null); setOrganizationId(null); setOrganizationName(null);
     setMustChangePassword(false);
   }, []);
 
@@ -80,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, role, nombre, userId, organizationId,
+      user, role, nombre, userId, organizationId, organizationName,
       loading, isAuthenticated: !!user, isAdmin, isReader,
       mustChangePassword, setMustChangePassword,
       login, logout,

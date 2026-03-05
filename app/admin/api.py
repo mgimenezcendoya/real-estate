@@ -58,6 +58,10 @@ async def auth_login(body: LoginBody):
     db_user = await authenticate_user_db(pool, body.username, body.password)
     if db_user:
         await update_ultimo_acceso(pool, str(db_user["id"]))
+        org_row = await pool.fetchrow(
+            "SELECT name FROM organizations WHERE id = $1", db_user["organization_id"]
+        )
+        organization_name = org_row["name"] if org_row else None
         token = create_token(
             sub=db_user["email"],
             role=db_user["role"],
@@ -72,6 +76,7 @@ async def auth_login(body: LoginBody):
             "nombre": f"{db_user['nombre']} {db_user['apellido']}".strip(),
             "user_id": str(db_user["id"]),
             "organization_id": str(db_user["organization_id"]),
+            "organization_name": organization_name,
             "debe_cambiar_password": db_user["debe_cambiar_password"],
         }
 
@@ -104,16 +109,20 @@ async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         "user_id": payload.get("user_id"),
         "organization_id": payload.get("organization_id"),
     }
-    # Append debe_cambiar_password from DB if user_id present
     user_id = payload.get("user_id")
     if user_id:
         try:
             pool = await get_pool()
             row = await pool.fetchrow(
-                "SELECT debe_cambiar_password FROM users WHERE id = $1", user_id
+                """SELECT u.debe_cambiar_password, o.name AS organization_name
+                   FROM users u
+                   LEFT JOIN organizations o ON o.id = u.organization_id
+                   WHERE u.id = $1""",
+                user_id,
             )
             if row:
                 result["debe_cambiar_password"] = row["debe_cambiar_password"]
+                result["organization_name"] = row["organization_name"]
         except Exception:
             pass
     return result
@@ -319,7 +328,76 @@ async def list_organizations(credentials: Optional[HTTPAuthorizationCredentials]
     return [dict(r) for r in rows]
 
 
-# --- Document upload ---
+class OrganizationBody(BaseModel):
+    name: str
+    tipo: str = "ambas"
+    cuit: Optional[str] = None
+
+
+@router.post("/organizations")
+async def create_organization(
+    body: OrganizationBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Create a new organization. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede crear organizaciones")
+    pool = await get_pool()
+    existing = await pool.fetchrow("SELECT id FROM organizations WHERE name = $1", body.name)
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Ya existe una organización con el nombre '{body.name}'")
+    row = await pool.fetchrow(
+        """INSERT INTO organizations (name, tipo, cuit)
+           VALUES ($1, $2, $3)
+           RETURNING id, name, tipo, cuit, activa, created_at""",
+        body.name, body.tipo, body.cuit,
+    )
+    logger.info("Organization created: %s (%s)", body.name, row["id"])
+    return dict(row)
+
+
+@router.patch("/organizations/{org_id}")
+async def update_organization(
+    org_id: str,
+    body: OrganizationBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Update an organization. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede editar organizaciones")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE organizations SET name = $1, tipo = $2, cuit = $3
+           WHERE id = $4
+           RETURNING id, name, tipo, cuit, activa, created_at""",
+        body.name, body.tipo, body.cuit, org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Organización no encontrada")
+    logger.info("Organization updated: %s (%s)", body.name, org_id)
+    return dict(row)
+
+
+@router.patch("/organizations/{org_id}/toggle-active")
+async def toggle_organization_active(
+    org_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Toggle organization active/inactive. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede desactivar organizaciones")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "UPDATE organizations SET activa = NOT activa WHERE id = $1 RETURNING id, name, activa",
+        org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Organización no encontrada")
+    logger.info("Organization %s toggled active=%s", org_id, row["activa"])
+    return dict(row)
 
 @router.post("/upload-document")
 async def upload_document(
@@ -439,15 +517,25 @@ VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
 
 
 @router.get("/projects")
-async def list_projects(developer_id: str | None = None):
-    """List projects, optionally filtered by developer."""
+async def list_projects(
+    developer_id: str | None = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List projects. Automatically scoped to the caller's organization unless superadmin."""
     pool = await get_pool()
     columns = """id, organization_id, name, slug, address, neighborhood, city,
                  total_floors, total_units, delivery_status, status, created_at"""
-    if developer_id:
+
+    effective_org_id = developer_id
+    if not effective_org_id and credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
         rows = await pool.fetch(
             f"SELECT {columns} FROM projects WHERE organization_id = $1 ORDER BY name",
-            developer_id,
+            effective_org_id,
         )
     else:
         rows = await pool.fetch(f"SELECT {columns} FROM projects ORDER BY name")
@@ -594,24 +682,35 @@ async def run_obra_notifications():
 # --- Analytics / Pipeline ---
 
 @router.get("/leads")
-async def list_leads(project_id: str | None = None, score: str | None = None):
-    """List leads for a project, optionally filtered by score. If no project_id is provided, lists all leads."""
+async def list_leads(
+    project_id: str | None = None,
+    score: str | None = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List leads. Automatically scoped to the caller's organization unless superadmin."""
     pool = await get_pool()
     conditions = []
     params = []
-    
+
     if project_id:
         conditions.append(f"l.project_id = ${len(params) + 1}")
         params.append(project_id)
-        
+    elif credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            org_id = payload.get("organization_id")
+            if org_id:
+                conditions.append(f"p.organization_id = ${len(params) + 1}")
+                params.append(org_id)
+
     if score:
         conditions.append(f"l.score = ${len(params) + 1}")
         params.append(score)
-        
+
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    
+
     query = f"""
-        SELECT 
+        SELECT
             l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
             l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
             l.created_at, l.last_contact,
@@ -621,7 +720,7 @@ async def list_leads(project_id: str | None = None, score: str | None = None):
         {where_clause}
         ORDER BY l.last_contact DESC NULLS LAST, l.created_at DESC
     """
-    
+
     rows = await pool.fetch(query, *params)
     return [dict(r) for r in rows]
 
@@ -756,20 +855,35 @@ async def get_analytics(project_id: str):
 
 
 @router.get("/leads/{lead_id}")
-async def get_lead(lead_id: str):
+async def get_lead(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Get full lead detail including conversation history."""
     pool = await get_pool()
     lead = await pool.fetchrow(
         """
-        SELECT id, project_id, phone, name, intent, financing, timeline,
-               budget_usd, bedrooms, location_pref, score, source,
-               created_at, last_contact
-        FROM leads WHERE id = $1
+        SELECT l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
+               l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
+               l.created_at, l.last_contact,
+               p.organization_id
+        FROM leads l
+        LEFT JOIN projects p ON l.project_id = p.id
+        WHERE l.id = $1
         """,
         lead_id,
     )
     if not lead:
         return {"error": f"Lead {lead_id} not found"}
+
+    # Verify the caller's org matches the lead's org (unless superadmin)
+    if credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            caller_org = payload.get("organization_id")
+            lead_org = str(lead["organization_id"]) if lead["organization_id"] else None
+            if caller_org and lead_org and caller_org != lead_org:
+                raise HTTPException(status_code=403, detail="No tenés acceso a este lead")
 
     conversations = await pool.fetch(
         """
@@ -781,8 +895,10 @@ async def get_lead(lead_id: str):
         lead_id,
     )
 
+    lead_dict = dict(lead)
+    lead_dict.pop("organization_id", None)
     return {
-        **dict(lead),
+        **lead_dict,
         "conversations": [dict(c) for c in conversations],
     }
 
