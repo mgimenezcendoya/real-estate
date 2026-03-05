@@ -687,7 +687,7 @@ export const api = {
     const q = qs.toString();
     return fetcher<Factura[]>(`/admin/facturas/${projectId}${q ? `?${q}` : ''}`);
   },
-  createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at'> & { crear_gasto?: boolean; gasto_descripcion?: string; gasto_budget_id?: string }) =>
+  createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at' | 'gasto_id' | 'linked_buyer_name' | 'linked_cuota' | 'linked_monto' | 'linked_moneda' | 'linked_fecha_pago'> & { gasto_id?: string | null; crear_gasto?: boolean; gasto_descripcion?: string; gasto_budget_id?: string }) =>
     fetcher<{ factura_id: string; gasto_id: string | null }>(`/admin/facturas/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
   patchFactura: (facturaId: string, data: Partial<Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at'>>) =>
     fetcher<{ ok: boolean }>(`/admin/facturas/${facturaId}`, { method: 'PATCH', body: JSON.stringify(data) }),
