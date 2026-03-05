@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { api, Reservation } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Printer, CheckCircle, XCircle, Loader2, ClipboardList } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, Loader2, ClipboardList, ExternalLink } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,6 +51,7 @@ const FILTERS = [
 
 export default function ReservasPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { isReader } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +175,13 @@ export default function ReservasPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button
+                    title="Ver detalle y plan de pagos"
+                    onClick={() => router.push(`/proyectos/${id}/reservas/${r.id}`)}
+                    className="p-2 rounded-lg text-gray-400 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                  >
+                    <ExternalLink size={15} />
+                  </button>
                   <button
                     title="Imprimir comprobante"
                     onClick={() =>

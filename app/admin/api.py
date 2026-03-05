@@ -10,7 +10,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.admin.auth import create_token, verify_token
+from app.admin.auth import (
+    authenticate_user_db,
+    authenticate_user_env,
+    create_token,
+    hash_password,
+    update_ultimo_acceso,
+    verify_token,
+)
 from app.config import get_settings
 from app.database import get_pool
 from app.modules.handoff.manager import (
@@ -23,7 +30,7 @@ from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
 from datetime import datetime, timezone, date as date_type
 from app.modules.project_loader import parse_project_csv, create_project_from_parsed, build_summary
-from app.modules.storage import upload_file, upload_obra_foto
+from app.modules.storage import upload_file, upload_obra_foto, upload_factura_pdf
 from app.modules.whatsapp.sender import send_text_message
 from pydantic import BaseModel
 
@@ -42,37 +49,274 @@ class LoginBody(BaseModel):
 
 @router.post("/auth/login")
 async def auth_login(body: LoginBody):
-    """Validate credentials and return a token. Supports admin and reader roles."""
-    settings = get_settings()
-    if not settings.admin_username or not settings.admin_password:
-        raise HTTPException(status_code=503, detail="Login not configured")
+    """Validate credentials and return a JWT.
+    Tries DB users first; falls back to env vars (legacy transition support).
+    """
+    pool = await get_pool()
 
-    if body.username == settings.admin_username and body.password == settings.admin_password:
-        role = "admin"
-    elif (
-        settings.reader_username
-        and settings.reader_password
-        and body.username == settings.reader_username
-        and body.password == settings.reader_password
-    ):
-        role = "reader"
-    else:
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    # 1. Primary: DB-based auth
+    db_user = await authenticate_user_db(pool, body.username, body.password)
+    if db_user:
+        await update_ultimo_acceso(pool, str(db_user["id"]))
+        token = create_token(
+            sub=db_user["email"],
+            role=db_user["role"],
+            user_id=str(db_user["id"]),
+            organization_id=str(db_user["organization_id"]),
+            nombre=f"{db_user['nombre']} {db_user['apellido']}".strip(),
+        )
+        return {
+            "token": token,
+            "user": db_user["email"],
+            "role": db_user["role"],
+            "nombre": f"{db_user['nombre']} {db_user['apellido']}".strip(),
+            "user_id": str(db_user["id"]),
+            "organization_id": str(db_user["organization_id"]),
+            "debe_cambiar_password": db_user["debe_cambiar_password"],
+        }
 
-    token = create_token(body.username, role)
-    return {"token": token, "user": body.username, "role": role}
+    # 2. Fallback: env-var auth (legacy)
+    env_user = authenticate_user_env(body.username, body.password)
+    if env_user:
+        token = create_token(sub=env_user["sub"], role=env_user["role"], nombre=env_user["nombre"])
+        return {
+            "token": token,
+            "user": env_user["sub"],
+            "role": env_user["role"],
+            "nombre": env_user["nombre"],
+        }
+
+    raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
 @router.get("/auth/me")
 async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-    """Return current user and role if token is valid."""
+    """Return current user identity from JWT."""
     if not credentials or credentials.scheme != "Bearer":
         return {"user": None, "role": None}
-    result = verify_token(credentials.credentials)
-    if not result:
+    payload = verify_token(credentials.credentials)
+    if not payload:
         return {"user": None, "role": None}
-    username, role = result
-    return {"user": username, "role": role}
+    result = {
+        "user": payload.get("sub"),
+        "role": payload.get("role"),
+        "nombre": payload.get("nombre"),
+        "user_id": payload.get("user_id"),
+        "organization_id": payload.get("organization_id"),
+    }
+    # Append debe_cambiar_password from DB if user_id present
+    user_id = payload.get("user_id")
+    if user_id:
+        try:
+            pool = await get_pool()
+            row = await pool.fetchrow(
+                "SELECT debe_cambiar_password FROM users WHERE id = $1", user_id
+            )
+            if row:
+                result["debe_cambiar_password"] = row["debe_cambiar_password"]
+        except Exception:
+            pass
+    return result
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/auth/change-password")
+async def change_password(
+    body: ChangePasswordBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Allow any authenticated user to change their own password."""
+    if not credentials or credentials.scheme != "Bearer":
+        raise HTTPException(status_code=401, detail="No autenticado")
+    payload = verify_token(credentials.credentials)
+    if not payload or not payload.get("user_id"):
+        raise HTTPException(status_code=401, detail="Token inválido o usuario legacy")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT id, password_hash FROM users WHERE id = $1", payload["user_id"]
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    from app.admin.auth import verify_password as vp
+    if not vp(body.current_password, row["password_hash"]):
+        raise HTTPException(status_code=400, detail="Contraseña actual incorrecta")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La nueva contraseña debe tener al menos 8 caracteres")
+    new_hash = hash_password(body.new_password)
+    await pool.execute(
+        "UPDATE users SET password_hash = $1, debe_cambiar_password = false WHERE id = $2",
+        new_hash, payload["user_id"],
+    )
+    return {"ok": True}
+
+
+# --- Users CRUD ---
+
+ADMIN_ROLES = {"superadmin", "admin"}
+
+
+def _require_admin(credentials: Optional[HTTPAuthorizationCredentials]) -> dict:
+    """Raise 403 if the token doesn't belong to an admin/superadmin."""
+    if not credentials or credentials.scheme != "Bearer":
+        raise HTTPException(status_code=401, detail="No autenticado")
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+    if payload.get("role") not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Acceso restringido a administradores")
+    return payload
+
+
+class UserCreateBody(BaseModel):
+    organization_id: str
+    email: str
+    password: str
+    nombre: str
+    apellido: str = ""
+    role: str = "vendedor"
+
+
+class UserUpdateBody(BaseModel):
+    nombre: Optional[str] = None
+    apellido: Optional[str] = None
+    role: Optional[str] = None
+    activo: Optional[bool] = None
+
+
+class PasswordResetBody(BaseModel):
+    new_password: str
+
+
+@router.get("/users")
+async def list_users(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """List all users. Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT u.id, u.email, u.nombre, u.apellido, u.role, u.activo,
+                  u.debe_cambiar_password, u.ultimo_acceso, u.created_at,
+                  u.organization_id, o.name AS organization_name
+           FROM users u
+           JOIN organizations o ON o.id = u.organization_id
+           ORDER BY u.created_at DESC"""
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/users/{user_id}")
+async def get_user(user_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Get a single user. Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT u.id, u.email, u.nombre, u.apellido, u.role, u.activo,
+                  u.debe_cambiar_password, u.ultimo_acceso, u.created_at,
+                  u.organization_id, o.name AS organization_name
+           FROM users u
+           JOIN organizations o ON o.id = u.organization_id
+           WHERE u.id = $1""",
+        user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return dict(row)
+
+
+@router.post("/users")
+async def create_user(body: UserCreateBody, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Create a new user. Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+
+    existing = await pool.fetchrow("SELECT id FROM users WHERE email = $1", body.email)
+    if existing:
+        raise HTTPException(status_code=409, detail="Ya existe un usuario con ese email")
+
+    valid_roles = {"superadmin", "admin", "gerente", "vendedor", "lector"}
+    if body.role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Rol inválido. Opciones: {', '.join(valid_roles)}")
+
+    hashed = hash_password(body.password)
+    row = await pool.fetchrow(
+        """INSERT INTO users (organization_id, email, password_hash, nombre, apellido, role, debe_cambiar_password)
+           VALUES ($1, $2, $3, $4, $5, $6, true)
+           RETURNING id, email, nombre, apellido, role, activo, debe_cambiar_password, created_at""",
+        body.organization_id, body.email, hashed, body.nombre, body.apellido, body.role,
+    )
+    return dict(row)
+
+
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    body: UserUpdateBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Update user fields. Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+
+    set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    row = await pool.fetchrow(
+        f"UPDATE users SET {set_clauses} WHERE id = $1 RETURNING id, email, nombre, apellido, role, activo",
+        user_id, *values,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return dict(row)
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Deactivate a user (soft delete). Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "UPDATE users SET activo = false WHERE id = $1 RETURNING id, email",
+        user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"ok": True, "user_id": str(row["id"])}
+
+
+@router.post("/users/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: str,
+    body: PasswordResetBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Reset a user's password. Admin/superadmin only."""
+    _require_admin(credentials)
+    pool = await get_pool()
+    hashed = hash_password(body.new_password)
+    row = await pool.fetchrow(
+        "UPDATE users SET password_hash = $1, debe_cambiar_password = true WHERE id = $2 RETURNING id, email",
+        hashed, user_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"ok": True, "user_id": str(row["id"])}
+
+
+@router.get("/organizations")
+async def list_organizations(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """List all organizations."""
+    _require_admin(credentials)
+    pool = await get_pool()
+    rows = await pool.fetch(
+        "SELECT id, name, tipo, cuit, activa, created_at FROM organizations ORDER BY name"
+    )
+    return [dict(r) for r in rows]
 
 
 # --- Document upload ---
@@ -91,15 +335,16 @@ async def upload_document(
     """
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT id, name FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow("SELECT id, name, organization_id FROM projects WHERE id = $1", project_id)
     if not project:
         return {"error": f"Project {project_id} not found"}
 
     content = await file.read()
     filename = file.filename or "document.pdf"
     project_slug = project["name"].lower().replace(" ", "-")
+    org_id = str(project["organization_id"]) if project["organization_id"] else None
 
-    file_url = await upload_file(content, project_slug, doc_type, filename)
+    file_url = await upload_file(content, project_slug, doc_type, filename, org_id=org_id)
 
     if unit_identifier:
         await pool.execute(
@@ -147,7 +392,7 @@ async def get_project(project_id: str):
     """Get full project details."""
     pool = await get_pool()
     row = await pool.fetchrow(
-        """SELECT id, developer_id, name, slug, address, neighborhood, city,
+        """SELECT id, organization_id, name, slug, address, neighborhood, city,
                   description, amenities, total_floors, total_units,
                   construction_start, estimated_delivery, delivery_status,
                   payment_info, whatsapp_number, status, created_at
@@ -197,11 +442,11 @@ VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
 async def list_projects(developer_id: str | None = None):
     """List projects, optionally filtered by developer."""
     pool = await get_pool()
-    columns = """id, developer_id, name, slug, address, neighborhood, city,
+    columns = """id, organization_id, name, slug, address, neighborhood, city,
                  total_floors, total_units, delivery_status, status, created_at"""
     if developer_id:
         rows = await pool.fetch(
-            f"SELECT {columns} FROM projects WHERE developer_id = $1 ORDER BY name",
+            f"SELECT {columns} FROM projects WHERE organization_id = $1 ORDER BY name",
             developer_id,
         )
     else:
@@ -850,7 +1095,7 @@ async def create_obra_update(
     """Create an obra update: saves record, uploads photos, updates etapa progress."""
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT slug FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow("SELECT slug, organization_id FROM projects WHERE id = $1", project_id)
     if not project:
         return {"error": "Project not found"}
 
@@ -877,7 +1122,8 @@ async def create_obra_update(
         if not content:
             continue
         identifier = unit_identifier or (str(floor_num) if floor_num else None)
-        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier)
+        org_id = str(project["organization_id"]) if project["organization_id"] else None
+        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier, org_id=org_id)
         foto_row = await pool.fetchrow(
             """INSERT INTO obra_fotos (project_id, update_id, file_url, filename, scope, unit_identifier, floor)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -928,6 +1174,51 @@ class ReservationBody(BaseModel):
 
 class ReservationPatchBody(BaseModel):
     status: str   # cancelled | converted
+
+
+@router.post("/reservations/{project_id}/direct-sale")
+async def create_direct_sale(project_id: str, body: ReservationBody):
+    """Create a reservation already converted (direct sale). Atomic: unit → sold + reservation → converted + buyer created."""
+    pool = await get_pool()
+
+    unit = await pool.fetchrow(
+        "SELECT id, identifier, status FROM units WHERE id = $1 AND project_id = $2",
+        body.unit_id, project_id,
+    )
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada en este proyecto")
+    if unit["status"] == "sold":
+        raise HTTPException(status_code=409, detail="La unidad ya está vendida")
+
+    signed = datetime.strptime(body.signed_at, "%Y-%m-%d").date() if body.signed_at else None
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # 1. Mark unit as sold
+            await conn.execute("UPDATE units SET status = 'sold' WHERE id = $1", str(unit["id"]))
+
+            # 2. Create reservation already converted
+            res = await conn.fetchrow(
+                """INSERT INTO reservations
+                   (project_id, unit_id, lead_id, buyer_name, buyer_phone, buyer_email,
+                    amount_usd, payment_method, notes, signed_at, status)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'converted')
+                   RETURNING id""",
+                project_id, str(unit["id"]), body.lead_id,
+                body.buyer_name, body.buyer_phone, body.buyer_email,
+                body.amount_usd, body.payment_method, body.notes, signed,
+            )
+            reservation_id = str(res["id"])
+
+            # 3. Create buyer record
+            await conn.execute(
+                """INSERT INTO buyers (project_id, unit_id, lead_id, name, phone, signed_at)
+                   VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING""",
+                project_id, str(unit["id"]), body.lead_id,
+                body.buyer_name or "", body.buyer_phone or "", signed,
+            )
+
+    return {"reservation_id": reservation_id, "status": "converted"}
 
 
 @router.post("/reservations/{project_id}")
@@ -1130,6 +1421,556 @@ async def patch_reservation(reservation_id: str, body: ReservationPatchBody):
     return {"reservation_id": reservation_id, "status": body.status}
 
 
+# ---------- Payment Plans ----------
+
+class InstallmentBody(BaseModel):
+    numero_cuota: int
+    concepto: str = "cuota"
+    monto: float
+    moneda: str = "USD"
+    fecha_vencimiento: str  # ISO date
+    notas: Optional[str] = None
+
+
+class PaymentPlanBody(BaseModel):
+    descripcion: Optional[str] = None
+    moneda_base: str = "USD"
+    monto_total: float
+    tipo_ajuste: str = "ninguno"
+    porcentaje_ajuste: Optional[float] = None
+    installments: list[InstallmentBody]
+
+
+class PaymentRecordBody(BaseModel):
+    installment_id: str
+    fecha_pago: str  # ISO date
+    monto_pagado: float
+    moneda: str = "USD"
+    metodo_pago: str = "transferencia"
+    referencia: Optional[str] = None
+    notas: Optional[str] = None
+
+
+@router.get("/payment-plans/{reservation_id}")
+async def get_payment_plan(reservation_id: str):
+    """Get payment plan and installments for a reservation."""
+    pool = await get_pool()
+    plan = await pool.fetchrow(
+        "SELECT * FROM payment_plans WHERE reservation_id = $1", reservation_id
+    )
+    if not plan:
+        return None
+    installments = await pool.fetch(
+        """SELECT i.*, COALESCE(
+               json_agg(r ORDER BY r.created_at) FILTER (WHERE r.id IS NOT NULL), '[]'
+           ) AS records
+           FROM payment_installments i
+           LEFT JOIN payment_records r ON r.installment_id = i.id
+           WHERE i.plan_id = $1
+           GROUP BY i.id
+           ORDER BY i.numero_cuota""",
+        str(plan["id"]),
+    )
+    import json as _json
+    result = dict(plan)
+    result["installments"] = []
+    for row in installments:
+        inst = dict(row)
+        inst["records"] = _json.loads(inst["records"]) if isinstance(inst["records"], str) else inst["records"]
+        result["installments"].append(inst)
+    return result
+
+
+@router.post("/payment-plans/{reservation_id}")
+async def create_payment_plan(reservation_id: str, body: PaymentPlanBody):
+    """Create a payment plan with installments for a reservation."""
+    pool = await get_pool()
+
+    # Check reservation exists
+    res = await pool.fetchrow("SELECT id FROM reservations WHERE id = $1", reservation_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+
+    # Delete existing plan if any (replace)
+    await pool.execute(
+        "DELETE FROM payment_plans WHERE reservation_id = $1", reservation_id
+    )
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            plan = await conn.fetchrow(
+                """INSERT INTO payment_plans
+                   (reservation_id, descripcion, moneda_base, monto_total, tipo_ajuste, porcentaje_ajuste)
+                   VALUES ($1,$2,$3,$4,$5,$6) RETURNING id""",
+                reservation_id, body.descripcion, body.moneda_base,
+                body.monto_total, body.tipo_ajuste, body.porcentaje_ajuste,
+            )
+            plan_id = str(plan["id"])
+            for inst in body.installments:
+                await conn.execute(
+                    """INSERT INTO payment_installments
+                       (plan_id, numero_cuota, concepto, monto, moneda, fecha_vencimiento, notas)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                    plan_id, inst.numero_cuota, inst.concepto, inst.monto,
+                    inst.moneda, datetime.strptime(inst.fecha_vencimiento, "%Y-%m-%d").date(), inst.notas,
+                )
+
+    return {"plan_id": plan_id, "installments_created": len(body.installments)}
+
+
+@router.patch("/payment-installments/{installment_id}")
+async def patch_installment(installment_id: str, request: Request):
+    """Update installment estado, notas, monto or fecha_vencimiento."""
+    pool = await get_pool()
+    data = await request.json()
+    allowed = {"estado", "notas", "monto", "fecha_vencimiento"}
+    updates: dict = {}
+    for k, v in data.items():
+        if k not in allowed:
+            continue
+        if k == "fecha_vencimiento" and v:
+            updates[k] = datetime.strptime(v, "%Y-%m-%d").date()
+        else:
+            updates[k] = v
+    if not updates:
+        raise HTTPException(status_code=400, detail="Sin campos válidos")
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    row = await pool.fetchrow(
+        f"UPDATE payment_installments SET {set_clause} WHERE id = $1 RETURNING id, estado, monto, fecha_vencimiento",
+        installment_id, *updates.values(),
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Cuota no encontrada")
+    return dict(row)
+
+
+@router.post("/payment-records")
+async def create_payment_record(body: PaymentRecordBody):
+    """Register a payment against an installment."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """INSERT INTO payment_records
+           (installment_id, fecha_pago, monto_pagado, moneda, metodo_pago, referencia, notas)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+        body.installment_id, datetime.strptime(body.fecha_pago, "%Y-%m-%d").date(),
+        body.monto_pagado, body.moneda, body.metodo_pago, body.referencia, body.notas,
+    )
+    # Auto-update installment estado
+    await pool.execute(
+        "UPDATE payment_installments SET estado = 'pagado' WHERE id = $1",
+        body.installment_id,
+    )
+    return {"record_id": str(row["id"])}
+
+
+class UpdatePaymentRecordBody(BaseModel):
+    fecha_pago: Optional[str] = None
+    monto_pagado: Optional[float] = None
+    moneda: Optional[str] = None
+    metodo_pago: Optional[str] = None
+    referencia: Optional[str] = None
+    notas: Optional[str] = None
+
+
+@router.patch("/payment-records/{record_id}")
+async def update_payment_record(record_id: str, body: UpdatePaymentRecordBody):
+    """Update a payment record field."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT installment_id FROM payment_records WHERE id = $1", record_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    installment_id = row["installment_id"]
+    # Build SET clause dynamically
+    updates = {}
+    if body.fecha_pago is not None:
+        updates["fecha_pago"] = datetime.strptime(body.fecha_pago, "%Y-%m-%d").date()
+    if body.monto_pagado is not None:
+        updates["monto_pagado"] = body.monto_pagado
+    if body.moneda is not None:
+        updates["moneda"] = body.moneda
+    if body.metodo_pago is not None:
+        updates["metodo_pago"] = body.metodo_pago
+    if body.referencia is not None:
+        updates["referencia"] = body.referencia
+    if body.notas is not None:
+        updates["notas"] = body.notas
+    if updates:
+        set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
+        values = [record_id] + list(updates.values())
+        await pool.execute(
+            f"UPDATE payment_records SET {set_clause} WHERE id = $1", *values
+        )
+    # Recalculate installment estado
+    total_paid = await pool.fetchval(
+        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1",
+        installment_id,
+    )
+    inst_monto = await pool.fetchval(
+        "SELECT monto FROM payment_installments WHERE id = $1", installment_id
+    )
+    if total_paid >= inst_monto:
+        new_estado = "pagado"
+    elif total_paid > 0:
+        new_estado = "parcial"
+    else:
+        new_estado = "pendiente"
+    await pool.execute(
+        "UPDATE payment_installments SET estado = $1 WHERE id = $2",
+        new_estado, installment_id,
+    )
+    return {"ok": True}
+
+
+@router.delete("/payment-records/{record_id}")
+async def delete_payment_record(record_id: str):
+    """Delete a payment record and recalculate installment estado."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT installment_id FROM payment_records WHERE id = $1", record_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    installment_id = row["installment_id"]
+    await pool.execute("DELETE FROM payment_records WHERE id = $1", record_id)
+    # Recalculate estado
+    total_paid = await pool.fetchval(
+        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1",
+        installment_id,
+    )
+    inst_monto = await pool.fetchval(
+        "SELECT monto FROM payment_installments WHERE id = $1", installment_id
+    )
+    if total_paid >= inst_monto:
+        new_estado = "pagado"
+    elif total_paid > 0:
+        new_estado = "parcial"
+    else:
+        new_estado = "pendiente"
+    await pool.execute(
+        "UPDATE payment_installments SET estado = $1 WHERE id = $2",
+        new_estado, installment_id,
+    )
+    return {"ok": True}
+
+
+# ---------- Facturas ----------
+
+class FacturaBody(BaseModel):
+    tipo: str = "otro"
+    numero_factura: Optional[str] = None
+    proveedor_nombre: Optional[str] = None
+    cuit_emisor: Optional[str] = None
+    fecha_emision: str
+    fecha_vencimiento: Optional[str] = None
+    monto_neto: Optional[float] = None
+    iva_pct: Optional[float] = 21
+    monto_total: float
+    moneda: str = "ARS"
+    categoria: str = "egreso"
+    file_url: Optional[str] = None
+    gasto_id: Optional[str] = None
+    estado: str = "cargada"
+    notas: Optional[str] = None
+    # Auto-create expense
+    crear_gasto: bool = False
+    gasto_descripcion: Optional[str] = None
+    gasto_budget_id: Optional[str] = None
+    payment_record_id: Optional[str] = None
+
+
+@router.get("/facturas/{project_id}")
+async def list_facturas(
+    project_id: str,
+    categoria: Optional[str] = None,
+    tipo: Optional[str] = None,
+    proveedor: Optional[str] = None,
+    fecha_desde: Optional[str] = None,
+    fecha_hasta: Optional[str] = None,
+):
+    pool = await get_pool()
+    conditions = ["f.project_id = $1"]
+    params: list = [project_id]
+    i = 2
+    if categoria:
+        conditions.append(f"f.categoria = ${i}"); params.append(categoria); i += 1
+    if tipo:
+        conditions.append(f"f.tipo = ${i}"); params.append(tipo); i += 1
+    if proveedor:
+        conditions.append(f"(f.proveedor_nombre ILIKE ${i} OR s.nombre ILIKE ${i})"); params.append(f"%{proveedor}%"); i += 1
+    if fecha_desde:
+        conditions.append(f"f.fecha_emision >= ${i}"); params.append(datetime.strptime(fecha_desde, "%Y-%m-%d").date()); i += 1
+    if fecha_hasta:
+        conditions.append(f"f.fecha_emision <= ${i}"); params.append(datetime.strptime(fecha_hasta, "%Y-%m-%d").date()); i += 1
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""SELECT f.*, s.nombre AS proveedor_supplier,
+                   r.buyer_name AS linked_buyer_name,
+                   pi.numero_cuota AS linked_cuota,
+                   pr.monto_pagado AS linked_monto,
+                   pr.moneda AS linked_moneda,
+                   pr.fecha_pago AS linked_fecha_pago
+            FROM facturas f
+            LEFT JOIN suppliers s ON s.id = f.proveedor_id
+            LEFT JOIN payment_records pr ON pr.id = f.payment_record_id
+            LEFT JOIN payment_installments pi ON pi.id = pr.installment_id
+            LEFT JOIN payment_plans pp ON pp.id = pi.plan_id
+            LEFT JOIN reservations r ON r.id = pp.reservation_id
+            WHERE {where}
+            ORDER BY f.fecha_emision DESC""",
+        *params,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/facturas/{project_id}/linkable-payments")
+async def list_linkable_payments(
+    project_id: str,
+    q: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List payment_records for a project, optionally filtered by buyer name."""
+    pool = await get_pool()
+    conditions = ["r.project_id = $1"]
+    params: list = [project_id]
+    if q:
+        conditions.append(f"r.buyer_name ILIKE $2")
+        params.append(f"%{q}%")
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""SELECT pr.id, r.buyer_name, pi.numero_cuota, pi.concepto,
+                   pr.monto_pagado, pr.moneda, pr.fecha_pago
+            FROM payment_records pr
+            JOIN payment_installments pi ON pi.id = pr.installment_id
+            JOIN payment_plans pp ON pp.id = pi.plan_id
+            JOIN reservations r ON r.id = pp.reservation_id
+            WHERE {where}
+            ORDER BY pr.fecha_pago DESC
+            LIMIT 20""",
+        *params,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.post("/facturas/{project_id}")
+async def create_factura(project_id: str, body: FacturaBody):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            gasto_id = body.gasto_id
+            if body.crear_gasto:
+                # Auto-create expense from factura
+                monto_usd = body.monto_total if body.moneda == "USD" else None
+                monto_ars = body.monto_total if body.moneda == "ARS" else None
+                desc = body.gasto_descripcion or f"Factura {body.numero_factura or ''} - {body.proveedor_nombre or ''}"
+                gasto_row = await conn.fetchrow(
+                    """INSERT INTO project_expenses
+                       (project_id, budget_id, proveedor, descripcion, monto_usd, monto_ars, fecha)
+                       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
+                    project_id,
+                    body.gasto_budget_id or None,
+                    body.proveedor_nombre,
+                    desc,
+                    monto_usd,
+                    monto_ars,
+                    datetime.strptime(body.fecha_emision, "%Y-%m-%d").date(),
+                )
+                gasto_id = str(gasto_row["id"])
+            payment_record_id = body.payment_record_id or None
+            row = await conn.fetchrow(
+                """INSERT INTO facturas
+                   (project_id, tipo, numero_factura, proveedor_nombre, cuit_emisor,
+                    fecha_emision, fecha_vencimiento, monto_neto, iva_pct, monto_total,
+                    moneda, categoria, file_url, gasto_id, payment_record_id, estado, notas)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                   RETURNING id""",
+                project_id, body.tipo, body.numero_factura, body.proveedor_nombre,
+                body.cuit_emisor,
+                datetime.strptime(body.fecha_emision, "%Y-%m-%d").date(),
+                datetime.strptime(body.fecha_vencimiento, "%Y-%m-%d").date() if body.fecha_vencimiento else None,
+                body.monto_neto, body.iva_pct, body.monto_total,
+                body.moneda, body.categoria, body.file_url,
+                gasto_id, payment_record_id, body.estado, body.notas,
+            )
+            estado_final = "vinculada" if (gasto_id or payment_record_id) else "cargada"
+            if gasto_id:
+                await conn.execute(
+                    "UPDATE facturas SET estado=$1 WHERE id=$2", estado_final, row["id"]
+                )
+    return {"factura_id": str(row["id"]), "gasto_id": gasto_id}
+
+
+class PatchFacturaBody(BaseModel):
+    tipo: Optional[str] = None
+    numero_factura: Optional[str] = None
+    proveedor_nombre: Optional[str] = None
+    cuit_emisor: Optional[str] = None
+    fecha_emision: Optional[str] = None
+    fecha_vencimiento: Optional[str] = None
+    monto_neto: Optional[float] = None
+    iva_pct: Optional[float] = None
+    monto_total: Optional[float] = None
+    moneda: Optional[str] = None
+    categoria: Optional[str] = None
+    file_url: Optional[str] = None
+    estado: Optional[str] = None
+    notas: Optional[str] = None
+    payment_record_id: Optional[str] = None
+
+
+@router.patch("/facturas/{factura_id}")
+async def patch_factura(factura_id: str, body: PatchFacturaBody):
+    pool = await get_pool()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "fecha_emision" in updates:
+        updates["fecha_emision"] = datetime.strptime(updates["fecha_emision"], "%Y-%m-%d").date()
+    if "fecha_vencimiento" in updates:
+        updates["fecha_vencimiento"] = datetime.strptime(updates["fecha_vencimiento"], "%Y-%m-%d").date()
+    if not updates:
+        return {"ok": True}
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
+    values = [factura_id] + list(updates.values())
+    await pool.execute(f"UPDATE facturas SET {set_clause} WHERE id = $1", *values)
+    return {"ok": True}
+
+
+@router.delete("/facturas/{factura_id}")
+async def delete_factura(factura_id: str):
+    pool = await get_pool()
+    await pool.execute("DELETE FROM facturas WHERE id = $1", factura_id)
+    return {"ok": True}
+
+
+@router.post("/facturas/{project_id}/upload-pdf")
+async def upload_factura_pdf_endpoint(
+    project_id: str,
+    file: UploadFile = File(...),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Upload a factura PDF to S3 under orgs/{org_id}/projects/{slug}/facturas/..."""
+    pool = await get_pool()
+    project = await pool.fetchrow(
+        "SELECT slug, organization_id FROM projects WHERE id = $1",
+        project_id,
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    if project["organization_id"] is None:
+        raise HTTPException(status_code=400, detail="El proyecto no tiene organización asignada")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    try:
+        url = await upload_factura_pdf(
+            file_bytes=content,
+            org_id=str(project["organization_id"]),
+            project_slug=project["slug"],
+            filename=file.filename or "factura.pdf",
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"file_url": url}
+
+
+# ---------- Cash Flow ----------
+
+@router.get("/cash-flow/{project_id}")
+async def get_cash_flow(project_id: str):
+    """Monthly cash flow: ingresos (payment_records) vs egresos (expenses + obra_payments)."""
+    pool = await get_pool()
+    # Cobros reales de cuotas (convertidos a USD si es ARS usando tipo_cambio del proyecto)
+    ingresos_rows = await pool.fetch(
+        """SELECT
+             to_char(pr.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pr.moneda='USD' THEN pr.monto_pagado
+                      ELSE pr.monto_pagado / COALESCE(fc.tipo_cambio,1) END) AS total
+           FROM payment_records pr
+           JOIN payment_installments pi ON pi.id = pr.installment_id
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = $1
+           GROUP BY mes
+           ORDER BY mes""",
+        project_id,
+    )
+    # Gastos (project_expenses)
+    gastos_rows = await pool.fetch(
+        """SELECT
+             to_char(fecha, 'YYYY-MM') AS mes,
+             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio,1), 0)) AS total
+           FROM project_expenses pe
+           LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
+           WHERE pe.project_id = $1
+           GROUP BY mes
+           ORDER BY mes""",
+        project_id,
+    )
+    # Obra payments
+    obra_rows = await pool.fetch(
+        """SELECT
+             to_char(op.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio,1), 0)) AS total
+           FROM obra_payments op
+           JOIN obra_etapas oe ON oe.id = op.etapa_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
+           WHERE oe.project_id = $1
+           GROUP BY mes
+           ORDER BY mes""",
+        project_id,
+    )
+    # Proyección: cuotas futuras pendientes/vencidas
+    proyeccion_rows = await pool.fetch(
+        """SELECT
+             to_char(pi.fecha_vencimiento, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pi.moneda='USD' THEN pi.monto
+                      ELSE pi.monto / COALESCE(fc.tipo_cambio,1) END) AS total
+           FROM payment_installments pi
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = $1
+             AND pi.estado IN ('pendiente','vencido')
+             AND pi.fecha_vencimiento >= CURRENT_DATE
+           GROUP BY mes
+           ORDER BY mes""",
+        project_id,
+    )
+    # Merge into unified month buckets
+    meses: dict = {}
+    for r in ingresos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["ingresos"] += float(r["total"] or 0)
+    for r in gastos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in obra_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in proyeccion_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["proyeccion"] += float(r["total"] or 0)
+    # Sort and add saldo/acumulado
+    result = sorted(meses.values(), key=lambda x: x["mes"])
+    acumulado = 0.0
+    for row in result:
+        row["saldo"] = round(row["ingresos"] - row["egresos"], 2)
+        acumulado += row["saldo"]
+        row["acumulado"] = round(acumulado, 2)
+        row["ingresos"] = round(row["ingresos"], 2)
+        row["egresos"] = round(row["egresos"], 2)
+        row["proyeccion"] = round(row["proyeccion"], 2)
+    return result
+
+
 # ---------- Buyers ----------
 
 class BuyerBody(BaseModel):
@@ -1229,7 +2070,7 @@ async def download_project_template():
 
 @router.post("/load-project")
 async def load_project_from_csv(
-    developer_id: str = Form(...),
+    developer_id: str = Form(...),  # maps to organization_id in DB
     csv_file: UploadFile = File(...),
 ):
     """Parse a CSV file and create a project with units."""
@@ -1947,8 +2788,14 @@ async def get_exchange_rate_history(tipo: str, days: int = 30):
 @router.post("/jobs/update-payment-states")
 async def update_payment_states():
     pool = await get_pool()
-    result = await pool.execute(
+    # Update obra_payments
+    r1 = await pool.execute(
         "UPDATE obra_payments SET estado = 'vencido' WHERE fecha_vencimiento < CURRENT_DATE AND estado = 'pendiente'"
     )
-    updated = int(result.split()[-1])
-    return {"updated": updated}
+    # Update payment_installments
+    r2 = await pool.execute(
+        "UPDATE payment_installments SET estado = 'vencido' WHERE fecha_vencimiento < CURRENT_DATE AND estado = 'pendiente'"
+    )
+    updated_obra = int(r1.split()[-1])
+    updated_installments = int(r2.split()[-1])
+    return {"updated_obra": updated_obra, "updated_installments": updated_installments}

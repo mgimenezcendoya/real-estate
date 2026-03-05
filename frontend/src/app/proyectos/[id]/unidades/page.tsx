@@ -51,12 +51,10 @@ export default function UnidadesPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Unit | null>(null);
 
-  // Buyer registration modal (for sold)
-  const [buyerUnit, setBuyerUnit] = useState<Unit | null>(null);
-  const [buyerName, setBuyerName] = useState('');
-  const [buyerPhone, setBuyerPhone] = useState('');
-  const [buyerSignedAt, setBuyerSignedAt] = useState('');
-  const [savingBuyer, setSavingBuyer] = useState(false);
+  // Direct sale modal
+  const [saleUnit, setSaleUnit] = useState<Unit | null>(null);
+  const [saleForm, setSaleForm] = useState({ buyer_name: '', buyer_phone: '', buyer_email: '', amount_usd: '', payment_method: 'transferencia', signed_at: new Date().toISOString().slice(0, 10) });
+  const [savingSale, setSavingSale] = useState(false);
 
   // Reservation sheet (for reserved)
   const [reservationUnit, setReservationUnit] = useState<Unit | null>(null);
@@ -91,18 +89,18 @@ export default function UnidadesPage() {
     setUpdatingId(unit.id);
 
     try {
-      await api.updateUnitStatus(unit.id, newStatus);
-      toast.success(`Unidad ${unit.identifier} → ${STATUS_CONFIG[newStatus].label}`);
       if (newStatus === 'sold') {
-        setBuyerUnit(unit);
-        setBuyerName('');
-        setBuyerPhone('');
-        setBuyerSignedAt(new Date().toISOString().slice(0, 10));
-      } else if (newStatus === 'reserved') {
-        setReservationUnit(unit);
+        // Revert optimistic — sold requires the direct-sale modal
+        setUnits((prev) => prev.map((u) => (u.id === unit.id ? { ...u, status: prevStatus } : u)));
+        setSelected((prev) => (prev?.id === unit.id ? { ...prev, status: prevStatus } : prev));
+        setSaleUnit(unit);
+        setSaleForm({ buyer_name: '', buyer_phone: '', buyer_email: '', amount_usd: unit.price_usd ? String(unit.price_usd) : '', payment_method: 'transferencia', signed_at: new Date().toISOString().slice(0, 10) });
+      } else {
+        await api.updateUnitStatus(unit.id, newStatus);
+        toast.success(`Unidad ${unit.identifier} → ${STATUS_CONFIG[newStatus].label}`);
+        if (newStatus === 'reserved') setReservationUnit(unit);
       }
     } catch {
-      // Revert on error
       setUnits((prev) => prev.map((u) => (u.id === unit.id ? { ...u, status: prevStatus } : u)));
       setSelected((prev) => (prev?.id === unit.id ? { ...prev, status: prevStatus } : prev));
       toast.error('No se pudo actualizar el estado');
@@ -111,22 +109,27 @@ export default function UnidadesPage() {
     }
   };
 
-  const handleRegisterBuyer = async () => {
-    if (!buyerUnit || !buyerPhone.trim()) return;
-    setSavingBuyer(true);
+  const handleDirectSale = async () => {
+    if (!saleUnit || !saleForm.buyer_phone.trim()) return;
+    setSavingSale(true);
     try {
-      await api.registerBuyer(id, {
-        unit_id: buyerUnit.id,
-        name: buyerName.trim() || '',
-        phone: buyerPhone.trim(),
-        ...(buyerSignedAt ? { signed_at: buyerSignedAt } : {}),
+      await api.createDirectSale(id, {
+        unit_id: saleUnit.id,
+        buyer_name: saleForm.buyer_name || undefined,
+        buyer_phone: saleForm.buyer_phone,
+        buyer_email: saleForm.buyer_email || undefined,
+        amount_usd: saleForm.amount_usd ? parseFloat(saleForm.amount_usd) : undefined,
+        payment_method: saleForm.payment_method || undefined,
+        signed_at: saleForm.signed_at || undefined,
       });
-      toast.success(`Comprador registrado para unidad ${buyerUnit.identifier}`);
-      setBuyerUnit(null);
-    } catch {
-      toast.error('No se pudo registrar el comprador');
+      toast.success(`Venta registrada — Unidad ${saleUnit.identifier}`);
+      setSaleUnit(null);
+      // Refresh units
+      api.getUnits(id).then(setUnits);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo registrar la venta');
     } finally {
-      setSavingBuyer(false);
+      setSavingSale(false);
     }
   };
 
@@ -229,66 +232,74 @@ export default function UnidadesPage() {
         )}
       </div>
 
-      {/* Buyer Registration Dialog */}
-      <Dialog open={!!buyerUnit} onOpenChange={(v) => !v && setBuyerUnit(null)}>
-        <DialogContent className="sm:max-w-[400px] bg-white">
+      {/* Direct Sale Dialog */}
+      <Dialog open={!!saleUnit} onOpenChange={(v) => !v && setSaleUnit(null)}>
+        <DialogContent className="sm:max-w-[420px] bg-white">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-gray-900">
               <UserPlus size={18} className="text-blue-700" />
-              Registrar comprador — Unidad {buyerUnit?.identifier}
+              Registrar venta — Unidad {saleUnit?.identifier}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                Nombre <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-              </label>
-              <input
-                type="text"
-                value={buyerName}
-                onChange={(e) => setBuyerName(e.target.value)}
-                placeholder="Ej: Martín García"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+          <div className="space-y-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Nombre</label>
+                <input type="text" value={saleForm.buyer_name} onChange={(e) => setSaleForm(f => ({ ...f, buyer_name: e.target.value }))}
+                  placeholder="Martín García" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Teléfono <span className="text-red-500">*</span></label>
+                <input type="tel" value={saleForm.buyer_phone} onChange={(e) => setSaleForm(f => ({ ...f, buyer_phone: e.target.value }))}
+                  placeholder="+54911..." className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                Teléfono <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                value={buyerPhone}
-                onChange={(e) => setBuyerPhone(e.target.value)}
-                placeholder="Ej: +54911XXXXXXXX"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Email</label>
+              <input type="email" value={saleForm.buyer_email} onChange={(e) => setSaleForm(f => ({ ...f, buyer_email: e.target.value }))}
+                placeholder="comprador@ejemplo.com" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Monto (USD)</label>
+                <input type="number" value={saleForm.amount_usd} onChange={(e) => setSaleForm(f => ({ ...f, amount_usd: e.target.value }))}
+                  placeholder="0" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Método de pago</label>
+                <select value={saleForm.payment_method} onChange={(e) => setSaleForm(f => ({ ...f, payment_method: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                  <option value="transferencia">Transferencia</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="financiacion">Financiación</option>
+                </select>
+              </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                Fecha de firma <span className="text-gray-400 font-normal normal-case">(opcional)</span>
-              </label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 block">Fecha de firma</label>
               <input
                 type="date"
-                value={buyerSignedAt}
-                onChange={(e) => setBuyerSignedAt(e.target.value)}
+                value={saleForm.signed_at}
+                onChange={(e) => setSaleForm(f => ({ ...f, signed_at: e.target.value }))}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
           <DialogFooter className="gap-2">
             <button
-              onClick={() => setBuyerUnit(null)}
+              onClick={() => setSaleUnit(null)}
               className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
             >
-              Omitir
+              Cancelar
             </button>
             <button
-              onClick={handleRegisterBuyer}
-              disabled={savingBuyer || !buyerPhone.trim()}
+              onClick={handleDirectSale}
+              disabled={savingSale || !saleForm.buyer_phone.trim()}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {savingBuyer ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
-              Registrar
+              {savingSale ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+              Registrar venta
             </button>
           </DialogFooter>
         </DialogContent>

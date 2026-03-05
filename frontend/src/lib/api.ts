@@ -16,7 +16,7 @@ export function setAuthToken(token: string | null): void {
 async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(!(options?.body instanceof FormData) && { 'Content-Type': 'application/json' }),
     ...(options?.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -33,9 +33,33 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 // --- Types ---
+export interface Organization {
+  id: string;
+  name: string;
+  tipo: 'desarrolladora' | 'inmobiliaria' | 'ambas';
+  cuit?: string;
+  activa: boolean;
+  created_at: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  role: 'superadmin' | 'admin' | 'gerente' | 'vendedor' | 'lector';
+  activo: boolean;
+  debe_cambiar_password: boolean;
+  ultimo_acceso: string | null;
+  created_at: string;
+  organization_id: string;
+  organization_name: string;
+}
+
 export interface Project {
   id: string;
-  developer_id: string;
+  organization_id: string;
+  developer_id?: string; // legacy alias
   name: string;
   slug: string;
   address: string;
@@ -228,6 +252,92 @@ export interface Reservation {
   unit_price_usd: number;
   project_name?: string;
   project_address?: string;
+}
+
+// --- Payment Plan types ---
+export interface PaymentRecord {
+  id: string;
+  installment_id: string;
+  fecha_pago: string;
+  monto_pagado: number;
+  moneda: 'USD' | 'ARS';
+  metodo_pago: string;
+  referencia: string | null;
+  notas: string | null;
+  created_at: string;
+}
+
+export interface PaymentInstallment {
+  id: string;
+  plan_id: string;
+  numero_cuota: number;
+  concepto: 'anticipo' | 'cuota' | 'saldo';
+  monto: number;
+  moneda: 'USD' | 'ARS';
+  fecha_vencimiento: string;
+  estado: 'pendiente' | 'pagado' | 'vencido' | 'parcial';
+  notas: string | null;
+  records: PaymentRecord[];
+}
+
+export interface PaymentPlan {
+  id: string;
+  reservation_id: string;
+  descripcion: string | null;
+  moneda_base: 'USD' | 'ARS';
+  monto_total: number;
+  tipo_ajuste: string;
+  porcentaje_ajuste: number | null;
+  created_at: string;
+  installments: PaymentInstallment[];
+}
+
+// --- Factura types ---
+export interface Factura {
+  id: string;
+  project_id: string;
+  tipo: 'A' | 'B' | 'C' | 'recibo' | 'otro';
+  numero_factura: string | null;
+  proveedor_nombre: string | null;
+  proveedor_supplier: string | null;
+  cuit_emisor: string | null;
+  fecha_emision: string;
+  fecha_vencimiento: string | null;
+  monto_neto: number | null;
+  iva_pct: number | null;
+  monto_total: number;
+  moneda: 'USD' | 'ARS';
+  categoria: 'egreso' | 'ingreso';
+  file_url: string | null;
+  gasto_id: string | null;
+  estado: 'cargada' | 'vinculada' | 'pagada';
+  notas: string | null;
+  created_at: string;
+  payment_record_id: string | null;
+  linked_buyer_name: string | null;
+  linked_cuota: number | null;
+  linked_monto: number | null;
+  linked_moneda: string | null;
+  linked_fecha_pago: string | null;
+}
+
+export interface LinkablePayment {
+  id: string;
+  buyer_name: string | null;
+  numero_cuota: number;
+  concepto: string;
+  monto_pagado: number;
+  moneda: 'USD' | 'ARS';
+  fecha_pago: string;
+}
+
+export interface CashFlowRow {
+  mes: string; // 'YYYY-MM'
+  ingresos: number;
+  egresos: number;
+  proyeccion: number;
+  saldo: number;
+  acumulado: number;
 }
 
 // --- Financial types ---
@@ -467,6 +577,8 @@ export const api = {
     fetcher<Reservation>(`/admin/reservation/${reservationId}`),
   createReservation: (projectId: string, data: { unit_id: string; lead_id?: string | null; buyer_name?: string; buyer_phone: string; buyer_email?: string; amount_usd?: number; payment_method?: string; notes?: string; signed_at?: string }) =>
     fetcher<Reservation>(`/admin/reservations/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
+  createDirectSale: (projectId: string, data: { unit_id: string; buyer_name?: string; buyer_phone: string; buyer_email?: string; amount_usd?: number; payment_method?: string; notes?: string; signed_at?: string }) =>
+    fetcher<{ reservation_id: string; status: string }>(`/admin/reservations/${projectId}/direct-sale`, { method: 'POST', body: JSON.stringify(data) }),
   patchReservation: (reservationId: string, status: 'cancelled' | 'converted') =>
     fetcher<{ reservation_id: string; status: string }>(`/admin/reservations/${reservationId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 
@@ -548,6 +660,71 @@ export const api = {
   getExchangeRateHistory: (tipo: string, days?: number) =>
     fetcher<ExchangeRateHistory[]>(`/admin/tools/exchange-rates/history/${tipo}${days ? `?days=${days}` : ''}`),
 
+  // --- Payment Plans ---
+  getPaymentPlan: (reservationId: string) => fetcher<PaymentPlan | null>(`/admin/payment-plans/${reservationId}`),
+  createPaymentPlan: (reservationId: string, data: {
+    descripcion?: string; moneda_base?: string; monto_total: number;
+    tipo_ajuste?: string; porcentaje_ajuste?: number;
+    installments: Array<{ numero_cuota: number; concepto?: string; monto: number; moneda?: string; fecha_vencimiento: string; notas?: string }>;
+  }) => fetcher<{ plan_id: string; installments_created: number }>(`/admin/payment-plans/${reservationId}`, { method: 'POST', body: JSON.stringify(data) }),
+  patchInstallment: (installmentId: string, data: { estado?: string; notas?: string; monto?: number; fecha_vencimiento?: string }) =>
+    fetcher<{ id: string; estado: string; monto: number; fecha_vencimiento: string }>(`/admin/payment-installments/${installmentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  createPaymentRecord: (data: { installment_id: string; fecha_pago: string; monto_pagado: number; moneda?: string; metodo_pago?: string; referencia?: string; notas?: string }) =>
+    fetcher<{ record_id: string }>('/admin/payment-records', { method: 'POST', body: JSON.stringify(data) }),
+  updatePaymentRecord: (recordId: string, data: { fecha_pago?: string; monto_pagado?: number; moneda?: string; metodo_pago?: string; referencia?: string; notas?: string }) =>
+    fetcher<{ ok: boolean }>(`/admin/payment-records/${recordId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePaymentRecord: (recordId: string) =>
+    fetcher<{ ok: boolean }>(`/admin/payment-records/${recordId}`, { method: 'DELETE' }),
+
+  // --- Facturas ---
+  getFacturas: (projectId: string, params?: { categoria?: string; tipo?: string; proveedor?: string; fecha_desde?: string; fecha_hasta?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.categoria) qs.set('categoria', params.categoria);
+    if (params?.tipo) qs.set('tipo', params.tipo);
+    if (params?.proveedor) qs.set('proveedor', params.proveedor);
+    if (params?.fecha_desde) qs.set('fecha_desde', params.fecha_desde);
+    if (params?.fecha_hasta) qs.set('fecha_hasta', params.fecha_hasta);
+    const q = qs.toString();
+    return fetcher<Factura[]>(`/admin/facturas/${projectId}${q ? `?${q}` : ''}`);
+  },
+  createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at'> & { crear_gasto?: boolean; gasto_descripcion?: string; gasto_budget_id?: string }) =>
+    fetcher<{ factura_id: string; gasto_id: string | null }>(`/admin/facturas/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
+  patchFactura: (facturaId: string, data: Partial<Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at'>>) =>
+    fetcher<{ ok: boolean }>(`/admin/facturas/${facturaId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteFactura: (facturaId: string) =>
+    fetcher<{ ok: boolean }>(`/admin/facturas/${facturaId}`, { method: 'DELETE' }),
+  uploadFacturaPdf: (projectId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetcher<{ file_url: string }>(`/admin/facturas/${projectId}/upload-pdf`, {
+      method: 'POST',
+      body: form,
+    });
+  },
+  getLinkablePayments: (projectId: string, q?: string) =>
+    fetcher<LinkablePayment[]>(
+      `/admin/facturas/${projectId}/linkable-payments${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    ),
+
+  // --- Cash Flow ---
+  getCashFlow: (projectId: string) =>
+    fetcher<CashFlowRow[]>(`/admin/cash-flow/${projectId}`),
+
+  // --- Users ---
+  getUsers: () => fetcher<User[]>('/admin/users'),
+  getUser: (id: string) => fetcher<User>(`/admin/users/${id}`),
+  createUser: (data: { organization_id: string; email: string; password: string; nombre: string; apellido?: string; role?: string }) =>
+    fetcher<User>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id: string, data: { nombre?: string; apellido?: string; role?: string; activo?: boolean }) =>
+    fetcher<User>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUser: (id: string) =>
+    fetcher<{ ok: boolean }>(`/admin/users/${id}`, { method: 'DELETE' }),
+  resetUserPassword: (id: string, newPassword: string) =>
+    fetcher<{ ok: boolean }>(`/admin/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ new_password: newPassword }) }),
+
+  // --- Organizations ---
+  getOrganizations: () => fetcher<Organization[]>('/admin/organizations'),
+
   login: (username: string, password: string) =>
     fetch(`${BASE_URL}/admin/auth/login`, {
       method: 'POST',
@@ -559,8 +736,10 @@ export const api = {
         const msg = data.detail || data.error || 'Error al iniciar sesión';
         throw new Error(typeof msg === 'string' ? msg : msg.message || 'Error al iniciar sesión');
       }
-      return data as { token: string; user: string; role: string };
+      return data as { token: string; user: string; role: string; nombre?: string; user_id?: string; organization_id?: string; debe_cambiar_password?: boolean };
     }),
 
-  authMe: () => fetcher<{ user: string | null; role?: string }>('/admin/auth/me'),
+  authMe: () => fetcher<{ user: string | null; role?: string; nombre?: string; user_id?: string; organization_id?: string; debe_cambiar_password?: boolean }>('/admin/auth/me'),
+  changePassword: (current_password: string, new_password: string) =>
+    fetcher<{ ok: boolean }>('/admin/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
 };

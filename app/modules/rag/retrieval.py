@@ -29,7 +29,7 @@ async def get_developer_document_blocks(developer_id: str) -> list[dict[str, Any
                   p.name AS project_name, p.slug AS project_slug
            FROM documents d
            JOIN projects p ON p.id = d.project_id
-           WHERE p.developer_id = $1 AND d.is_active = TRUE
+           WHERE p.organization_id = $1 AND d.is_active = TRUE
            ORDER BY p.name, d.doc_type, d.unit_identifier""",
         developer_id,
     )

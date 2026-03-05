@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench } from 'lucide-react';
+import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import AlertsPanel, { useAlertCount } from '@/components/AlertsPanel';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 const navItems = [
   { href: '/proyectos', label: 'Proyectos', icon: Building2 },
@@ -29,8 +30,9 @@ function NavContent({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, nombre, isAdmin, logout, userId } = useAuth();
   const { inboxUnreadCount } = useNotifications();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -103,6 +105,29 @@ function NavContent({
         })}
       </nav>
 
+      {/* Admin links */}
+      {isAdmin && (
+        <div className={cn('px-3 pb-1', collapsed && 'px-0 flex flex-col items-center')}>
+          <Link
+            href="/admin/usuarios"
+            onClick={onNavigate}
+            className={cn(
+              'relative flex items-center gap-3 rounded-xl transition-all duration-150 group',
+              collapsed ? 'justify-center p-3' : 'px-3.5 py-2.5',
+              pathname.startsWith('/admin/usuarios')
+                ? 'bg-blue-50 text-blue-700'
+                : 'text-gray-500 hover:bg-gray-100/80 hover:text-gray-800'
+            )}
+          >
+            {pathname.startsWith('/admin/usuarios') && !collapsed && (
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-blue-700 rounded-r-full" />
+            )}
+            <Users size={17} className="flex-shrink-0 transition-colors duration-150" />
+            {!collapsed && <span className="text-sm font-medium">Usuarios</span>}
+          </Link>
+        </div>
+      )}
+
       {/* Alerts button */}
       {onAlertsClick && (
         <div className={cn('px-3 pb-3', collapsed && 'px-0 flex justify-center')}>
@@ -151,19 +176,39 @@ function NavContent({
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-white text-[11px] font-bold">
-                  {(user || 'A').charAt(0).toUpperCase()}
+                  {(nombre || user || 'A').charAt(0).toUpperCase()}
                 </span>
               </div>
-              <p className="text-sm text-gray-700 font-medium truncate">{user || 'Admin'}</p>
+              <p className="text-sm text-gray-700 font-medium truncate">{nombre || user || 'Admin'}</p>
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-              title="Cerrar sesión"
-            >
-              <LogOut size={14} />
-            </button>
+            <div className="flex items-center gap-0.5">
+              {userId && (
+                <button
+                  type="button"
+                  onClick={() => setShowChangePassword(true)}
+                  className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                  title="Cambiar contraseña"
+                >
+                  <KeyRound size={14} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                title="Cerrar sesión"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+        {showChangePassword && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <ChangePasswordModal
+              onSuccess={() => setShowChangePassword(false)}
+              onCancel={() => setShowChangePassword(false)}
+            />
           </div>
         )}
       </div>
