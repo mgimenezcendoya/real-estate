@@ -22,7 +22,7 @@ async def get_authorized_number(phone: str, developer_id: str) -> dict | None:
         SELECT an.id, an.phone, an.project_id, an.role, an.name, an.status, an.activation_code
         FROM authorized_numbers an
         JOIN projects p ON p.id = an.project_id
-        WHERE an.phone = $1 AND p.developer_id = $2
+        WHERE an.phone = $1 AND p.organization_id = $2
         LIMIT 1
         """,
         phone,
@@ -44,13 +44,13 @@ async def resolve_developer(phone_number_id: str) -> dict | None:
 
     if settings.active_developer_id:
         dev = await pool.fetchrow(
-            "SELECT id, name FROM developers WHERE id = $1",
+            "SELECT id, name FROM organizations WHERE id = $1",
             settings.active_developer_id,
         )
         if not dev:
             return None
         proj = await pool.fetchrow(
-            "SELECT id, name FROM projects WHERE developer_id = $1 AND status = 'active' ORDER BY name LIMIT 1",
+            "SELECT id, name FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 1",
             str(dev["id"]),
         )
         return {
@@ -61,13 +61,13 @@ async def resolve_developer(phone_number_id: str) -> dict | None:
         }
 
     proj = await pool.fetchrow(
-        "SELECT id, name, developer_id FROM projects WHERE whatsapp_number = $1 AND status = 'active'",
+        "SELECT id, name, organization_id FROM projects WHERE whatsapp_number = $1 AND status = 'active'",
         phone_number_id,
     )
     if not proj:
         return None
 
-    dev = await pool.fetchrow("SELECT id, name FROM developers WHERE id = $1", str(proj["developer_id"]))
+    dev = await pool.fetchrow("SELECT id, name FROM organizations WHERE id = $1", str(proj["organization_id"]))
     return {
         "developer_id": str(dev["id"]),
         "developer_name": dev["name"],

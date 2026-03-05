@@ -29,6 +29,11 @@ function alertLink(alert: Alert): string | null {
       return `/proyectos/${pid}/obra`;
     case 'INVERSOR_SIN_REPORTE':
       return `/proyectos/${pid}/inversores`;
+    case 'CUOTA_VENCIDA':
+    case 'CUOTA_PROXIMA':
+      return meta?.reservation_id
+        ? `/proyectos/${pid}/reservas/${meta.reservation_id}`
+        : `/proyectos/${pid}/reservas`;
     default:
       return meta?.resource_id ? `/proyectos/${pid}` : null;
   }

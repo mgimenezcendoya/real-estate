@@ -10,3 +10,5 @@ pydantic-settings
 python-multipart
 aioboto3
 boto3
+PyJWT
+bcrypt

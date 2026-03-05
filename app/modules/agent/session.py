@@ -140,7 +140,7 @@ async def get_developer_projects(developer_id: str) -> list[dict]:
     """Return basic project info (id, name, slug) for a developer."""
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, name, slug FROM projects WHERE developer_id = $1 ORDER BY name",
+        "SELECT id, name, slug FROM projects WHERE organization_id = $1 ORDER BY name",
         developer_id,
     )
     return [dict(r) for r in rows]
@@ -185,7 +185,7 @@ async def get_developer_context(developer_id: str) -> str:
                   amenities, total_floors, total_units,
                   construction_start, estimated_delivery, delivery_status,
                   payment_info, status
-           FROM projects WHERE developer_id = $1 ORDER BY name""",
+           FROM projects WHERE organization_id = $1 ORDER BY name""",
         developer_id,
     )
 

@@ -5,11 +5,12 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationsProvider } from '@/contexts/NotificationsContext';
 import Sidebar from '@/components/Sidebar';
+import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, mustChangePassword, setMustChangePassword, logout } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -53,6 +54,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <NotificationsProvider>
+      {mustChangePassword && (
+        <ChangePasswordModal
+          forced
+          onSuccess={() => setMustChangePassword(false)}
+          onCancel={logout}
+        />
+      )}
       <Sidebar />
       <main className="flex-1 overflow-auto bg-transparent relative">
         <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.03] pointer-events-none mix-blend-overlay" />

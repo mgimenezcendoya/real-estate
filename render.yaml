@@ -28,7 +28,7 @@ services:
       - key: S3_SECRET_ACCESS_KEY
         sync: false
       - key: S3_BUCKET_NAME
-        value: realia-docs
+        value: real-state
       - key: S3_PUBLIC_URL
         sync: false
       - key: CHATWOOT_BASE_URL

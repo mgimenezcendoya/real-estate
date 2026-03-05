@@ -128,7 +128,59 @@ async def evaluate_alerts(project_id: Optional[str] = None) -> int:
     except Exception as e:
         logger.debug("Etapa atrasada check skipped: %s", e)
 
-    # 5. INVERSOR_SIN_REPORTE: projects with investors but no report sent in 30 days
+    # 5. CUOTA_VENCIDA: installments overdue (fecha_vencimiento < today, estado = vencido)
+    try:
+        cuota_conditions = "" if not project_id else f"AND r.project_id = '{project_id}'"
+        vencidas = await pool.fetch(
+            f"""SELECT pi.id, pi.numero_cuota, pi.monto, pi.moneda, pi.fecha_vencimiento,
+                       r.project_id, r.id AS reservation_id, r.buyer_name
+                FROM payment_installments pi
+                JOIN payment_plans pp ON pp.id = pi.plan_id
+                JOIN reservations r ON r.id = pp.reservation_id
+                WHERE pi.estado = 'vencido'
+                  AND pi.fecha_vencimiento < CURRENT_DATE
+                {cuota_conditions}"""
+        )
+        for cv in vencidas:
+            await _insert_if_new(
+                pid=str(cv["project_id"]),
+                tipo="CUOTA_VENCIDA",
+                titulo=f"Cuota vencida — {cv['buyer_name'] or 'Comprador'}",
+                descripcion=f"Cuota #{cv['numero_cuota']} de {cv['buyer_name'] or 'comprador'} venció el {cv['fecha_vencimiento'].strftime('%d/%m/%Y')} ({cv['moneda']} {float(cv['monto']):,.0f})",
+                severidad="critical",
+                metadata={"resource_id": str(cv["id"]), "reservation_id": str(cv["reservation_id"]), "buyer_name": cv["buyer_name"] or ""},
+            )
+    except Exception as e:
+        logger.debug("Cuota vencida check skipped: %s", e)
+
+    # 6. CUOTA_PROXIMA: installments due within 3 days
+    try:
+        proxima_conditions = "" if not project_id else f"AND r.project_id = '{project_id}'"
+        proximas = await pool.fetch(
+            f"""SELECT pi.id, pi.numero_cuota, pi.monto, pi.moneda, pi.fecha_vencimiento,
+                       r.project_id, r.id AS reservation_id, r.buyer_name
+                FROM payment_installments pi
+                JOIN payment_plans pp ON pp.id = pi.plan_id
+                JOIN reservations r ON r.id = pp.reservation_id
+                WHERE pi.estado IN ('pendiente', 'parcial')
+                  AND pi.fecha_vencimiento BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 days'
+                {proxima_conditions}"""
+        )
+        for cp in proximas:
+            dias = (cp["fecha_vencimiento"] - __import__("datetime").date.today()).days
+            label = "hoy" if dias == 0 else f"en {dias} día{'s' if dias > 1 else ''}"
+            await _insert_if_new(
+                pid=str(cp["project_id"]),
+                tipo="CUOTA_PROXIMA",
+                titulo=f"Cuota por vencer — {cp['buyer_name'] or 'Comprador'}",
+                descripcion=f"Cuota #{cp['numero_cuota']} de {cp['buyer_name'] or 'comprador'} vence {label} ({cp['moneda']} {float(cp['monto']):,.0f})",
+                severidad="warning",
+                metadata={"resource_id": str(cp["id"]), "reservation_id": str(cp["reservation_id"]), "buyer_name": cp["buyer_name"] or ""},
+            )
+    except Exception as e:
+        logger.debug("Cuota proxima check skipped: %s", e)
+
+    # 7. INVERSOR_SIN_REPORTE: projects with investors but no report sent in 30 days
     try:
         investor_conditions = "" if not project_id else f"AND i.project_id = '{project_id}'"
         sin_reporte = await pool.fetch(

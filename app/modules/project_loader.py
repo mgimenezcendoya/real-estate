@@ -139,7 +139,7 @@ async def create_project_from_parsed(developer_id: str, parsed: dict) -> dict:
         return {"error": f"Ya existe un proyecto con el slug '{project['slug']}'. Cambiá el nombre."}
 
     proj = await pool.fetchrow(
-        """INSERT INTO projects (developer_id, name, slug, address, neighborhood, city,
+        """INSERT INTO projects (organization_id, name, slug, address, neighborhood, city,
                 description, amenities, total_floors, total_units,
                 construction_start, estimated_delivery, delivery_status, payment_info, status)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active')

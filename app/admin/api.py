@@ -1728,7 +1728,7 @@ async def list_facturas(
 async def list_linkable_payments(
     project_id: str,
     q: Optional[str] = None,
-    user=Depends(require_auth),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """List payment_records for a project, optionally filtered by buyer name."""
     pool = await get_pool()
@@ -1846,7 +1846,7 @@ async def delete_factura(factura_id: str):
 async def upload_factura_pdf_endpoint(
     project_id: str,
     file: UploadFile = File(...),
-    user=Depends(require_auth),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Upload a factura PDF to S3 under orgs/{org_id}/projects/{slug}/facturas/..."""
     pool = await get_pool()
