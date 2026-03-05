@@ -150,3 +150,41 @@ def get_presigned_url_for_document(file_url: str) -> str:
     else:
         key = file_url
     return get_presigned_url(key)
+
+
+async def upload_factura_pdf(
+    file_bytes: bytes,
+    org_id: str,
+    project_slug: str,
+    filename: str,
+) -> str:
+    """Upload a factura PDF with org-hierarchical path.
+
+    Path: orgs/{org_id}/projects/{project_slug}/facturas/{YYYY}/{MM}/{ts}_{filename}
+    """
+    import time
+    from datetime import datetime as _dt
+
+    if not file_bytes[:5] == b"%PDF-":
+        raise ValueError(f"El archivo '{filename}' no es un PDF válido")
+
+    settings = get_settings()
+    safe_filename = filename.replace(" ", "_").lower()
+    now = _dt.utcnow()
+    ts = int(time.time())
+    key = (
+        f"orgs/{org_id}/projects/{project_slug}/facturas/"
+        f"{now.year}/{now.month:02d}/{ts}_{safe_filename}"
+    )
+
+    client = _get_s3_client()
+    client.put_object(
+        Bucket=settings.s3_bucket_name,
+        Key=key,
+        Body=file_bytes,
+        ContentType="application/pdf",
+    )
+
+    public_url = f"{settings.s3_public_url}/{key}"
+    logger.info("Uploaded factura PDF %s (%d bytes) to %s", filename, len(file_bytes), public_url)
+    return public_url
