@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, ObraData, ObraEtapa, ObraUpdate, Buyer, Unit, ObraPayment, Supplier } from '@/lib/api';
+import { api, ObraData, ObraEtapa, ObraUpdate, Buyer, ObraPayment, Supplier } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -693,123 +693,6 @@ function PesosSheet({
   );
 }
 
-// ─── BuyerModal ───────────────────────────────────────────────────────────────
-
-function BuyerModal({
-  open,
-  onClose,
-  soldUnits,
-  onSave,
-}: {
-  open: boolean;
-  onClose: () => void;
-  soldUnits: Unit[];
-  onSave: (data: { unit_id: string; name: string; phone: string; signed_at: string }) => Promise<void>;
-}) {
-  const [unitId, setUnitId] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [signedAt, setSignedAt] = useState(new Date().toISOString().slice(0, 10));
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setUnitId(soldUnits[0]?.id || '');
-      setName('');
-      setPhone('');
-      setSignedAt(new Date().toISOString().slice(0, 10));
-    }
-  }, [open, soldUnits]);
-
-  const handleSave = async () => {
-    if (!unitId || !name.trim() || !phone.trim()) return;
-    setSaving(true);
-    try {
-      await onSave({ unit_id: unitId, name: name.trim(), phone: phone.trim(), signed_at: signedAt });
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm bg-white border border-gray-200">
-        <DialogHeader>
-          <DialogTitle className="text-gray-900">Registrar comprador</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Unidad vendida</label>
-            {soldUnits.length === 0 ? (
-              <p className="text-sm text-gray-400">No hay unidades vendidas todavía</p>
-            ) : (
-              <select
-                value={unitId}
-                onChange={(e) => setUnitId(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-              >
-                {soldUnits.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.identifier} — Piso {u.floor}, {u.bedrooms} amb.
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Nombre</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Juan García"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Teléfono</label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+54 11 1234-5678"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Fecha de firma</label>
-            <input
-              type="date"
-              value={signedAt}
-              onChange={(e) => setSignedAt(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500"
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || !unitId || !name.trim() || !phone.trim()}
-              className="flex-1 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1.5"
-            >
-              {saving && <Loader2 size={14} className="animate-spin" />}
-              Registrar
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Payments tab ─────────────────────────────────────────────────────────────
 
 const PAYMENT_ESTADOS = ['pendiente', 'aprobado', 'pagado', 'vencido'] as const;
@@ -1139,7 +1022,6 @@ export default function ObraPage() {
   const { isReader } = useAuth();
   const [obra, setObra] = useState<ObraData | null>(null);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [initing, setIniting] = useState(false);
   const [activeTab, setActiveTab] = useState<'obra' | 'pagos'>('obra');
@@ -1149,19 +1031,16 @@ export default function ObraPage() {
   const [activeEtapaId, setActiveEtapaId] = useState<string | null>(null);
   const [editingEtapa, setEditingEtapa] = useState<ObraEtapa | null>(null);
   const [pesosSheetOpen, setPesosSheetOpen] = useState(false);
-  const [buyerModalOpen, setBuyerModalOpen] = useState(false);
   const [addingEtapa, setAddingEtapa] = useState(false);
 
   const load = async () => {
     if (!id) return;
-    const [obraData, buyerData, unitData] = await Promise.all([
+    const [obraData, buyerData] = await Promise.all([
       api.getObra(id).catch(() => null),
       api.getBuyers(id).catch(() => []),
-      api.getUnits(id).catch(() => []),
     ]);
     if (obraData) setObra(obraData);
     setBuyers(buyerData as Buyer[]);
-    setUnits(unitData as Unit[]);
   };
 
   useEffect(() => {
@@ -1270,15 +1149,6 @@ export default function ObraPage() {
     }
   };
 
-  const handleRegisterBuyer = async (data: { unit_id: string; name: string; phone: string; signed_at: string }) => {
-    if (!id) return;
-    const res = await api.registerBuyer(id, data) as { id?: string; error?: string };
-    if (res.error) { toast.error(res.error); return; }
-    await load();
-    toast.success(`Comprador ${data.name} registrado`);
-  };
-
-  const soldUnits = units.filter((u) => u.status === 'sold');
   const progress = obra ? calcProgress(obra.etapas) : 0;
 
   if (loading) {
@@ -1415,16 +1285,6 @@ export default function ObraPage() {
                     {buyers.length}
                   </Badge>
                 </div>
-                {!isReader && (
-                  <button
-                    type="button"
-                    onClick={() => setBuyerModalOpen(true)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold transition-colors border border-blue-200"
-                  >
-                    <Plus size={11} />
-                    Registrar
-                  </button>
-                )}
               </div>
 
               {buyers.length === 0 ? (
@@ -1480,13 +1340,6 @@ export default function ObraPage() {
         onClose={() => setPesosSheetOpen(false)}
         etapas={obra?.etapas ?? []}
         onSave={handleUpdatePesos}
-      />
-
-      <BuyerModal
-        open={buyerModalOpen}
-        onClose={() => setBuyerModalOpen(false)}
-        soldUnits={soldUnits}
-        onSave={handleRegisterBuyer}
       />
 
       </>}

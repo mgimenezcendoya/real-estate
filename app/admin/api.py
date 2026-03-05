@@ -40,6 +40,46 @@ router = APIRouter()
 security = HTTPBearer(auto_error=False)
 
 
+# ---------------------------------------------------------------------------
+# Audit log helpers
+# ---------------------------------------------------------------------------
+
+def _get_actor(credentials) -> tuple:
+    """Extract (user_id, user_nombre) from JWT credentials. Returns (None, None) on failure."""
+    if not credentials:
+        return None, None
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        return None, None
+    return payload.get("user_id"), payload.get("nombre")
+
+
+async def _audit(
+    pool,
+    *,
+    user_id,
+    user_nombre,
+    action: str,
+    table_name: str,
+    record_id=None,
+    project_id=None,
+    details: dict | None = None,
+) -> None:
+    """Insert an audit log entry. Silently swallows errors to avoid breaking the main flow."""
+    import json as _json
+    try:
+        await pool.execute(
+            """INSERT INTO audit_log
+               (user_id, user_nombre, action, table_name, record_id, project_id, details)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            user_id, user_nombre, action, table_name,
+            record_id, project_id,
+            _json.dumps(details) if details else None,
+        )
+    except Exception as _e:
+        logger.warning("audit_log insert failed: %s", _e)
+
+
 # --- Auth (login for web panel) ---
 
 class LoginBody(BaseModel):
@@ -58,6 +98,10 @@ async def auth_login(body: LoginBody):
     db_user = await authenticate_user_db(pool, body.username, body.password)
     if db_user:
         await update_ultimo_acceso(pool, str(db_user["id"]))
+        org_row = await pool.fetchrow(
+            "SELECT name FROM organizations WHERE id = $1", db_user["organization_id"]
+        )
+        organization_name = org_row["name"] if org_row else None
         token = create_token(
             sub=db_user["email"],
             role=db_user["role"],
@@ -72,6 +116,7 @@ async def auth_login(body: LoginBody):
             "nombre": f"{db_user['nombre']} {db_user['apellido']}".strip(),
             "user_id": str(db_user["id"]),
             "organization_id": str(db_user["organization_id"]),
+            "organization_name": organization_name,
             "debe_cambiar_password": db_user["debe_cambiar_password"],
         }
 
@@ -104,16 +149,20 @@ async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         "user_id": payload.get("user_id"),
         "organization_id": payload.get("organization_id"),
     }
-    # Append debe_cambiar_password from DB if user_id present
     user_id = payload.get("user_id")
     if user_id:
         try:
             pool = await get_pool()
             row = await pool.fetchrow(
-                "SELECT debe_cambiar_password FROM users WHERE id = $1", user_id
+                """SELECT u.debe_cambiar_password, o.name AS organization_name
+                   FROM users u
+                   LEFT JOIN organizations o ON o.id = u.organization_id
+                   WHERE u.id = $1""",
+                user_id,
             )
             if row:
                 result["debe_cambiar_password"] = row["debe_cambiar_password"]
+                result["organization_name"] = row["organization_name"]
         except Exception:
             pass
     return result
@@ -319,7 +368,76 @@ async def list_organizations(credentials: Optional[HTTPAuthorizationCredentials]
     return [dict(r) for r in rows]
 
 
-# --- Document upload ---
+class OrganizationBody(BaseModel):
+    name: str
+    tipo: str = "ambas"
+    cuit: Optional[str] = None
+
+
+@router.post("/organizations")
+async def create_organization(
+    body: OrganizationBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Create a new organization. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede crear organizaciones")
+    pool = await get_pool()
+    existing = await pool.fetchrow("SELECT id FROM organizations WHERE name = $1", body.name)
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Ya existe una organización con el nombre '{body.name}'")
+    row = await pool.fetchrow(
+        """INSERT INTO organizations (name, tipo, cuit)
+           VALUES ($1, $2, $3)
+           RETURNING id, name, tipo, cuit, activa, created_at""",
+        body.name, body.tipo, body.cuit,
+    )
+    logger.info("Organization created: %s (%s)", body.name, row["id"])
+    return dict(row)
+
+
+@router.patch("/organizations/{org_id}")
+async def update_organization(
+    org_id: str,
+    body: OrganizationBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Update an organization. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede editar organizaciones")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE organizations SET name = $1, tipo = $2, cuit = $3
+           WHERE id = $4
+           RETURNING id, name, tipo, cuit, activa, created_at""",
+        body.name, body.tipo, body.cuit, org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Organización no encontrada")
+    logger.info("Organization updated: %s (%s)", body.name, org_id)
+    return dict(row)
+
+
+@router.patch("/organizations/{org_id}/toggle-active")
+async def toggle_organization_active(
+    org_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Toggle organization active/inactive. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede desactivar organizaciones")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "UPDATE organizations SET activa = NOT activa WHERE id = $1 RETURNING id, name, activa",
+        org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Organización no encontrada")
+    logger.info("Organization %s toggled active=%s", org_id, row["activa"])
+    return dict(row)
 
 @router.post("/upload-document")
 async def upload_document(
@@ -439,15 +557,25 @@ VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
 
 
 @router.get("/projects")
-async def list_projects(developer_id: str | None = None):
-    """List projects, optionally filtered by developer."""
+async def list_projects(
+    developer_id: str | None = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List projects. Automatically scoped to the caller's organization unless superadmin."""
     pool = await get_pool()
     columns = """id, organization_id, name, slug, address, neighborhood, city,
                  total_floors, total_units, delivery_status, status, created_at"""
-    if developer_id:
+
+    effective_org_id = developer_id
+    if not effective_org_id and credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
         rows = await pool.fetch(
             f"SELECT {columns} FROM projects WHERE organization_id = $1 ORDER BY name",
-            developer_id,
+            effective_org_id,
         )
     else:
         rows = await pool.fetch(f"SELECT {columns} FROM projects ORDER BY name")
@@ -594,24 +722,35 @@ async def run_obra_notifications():
 # --- Analytics / Pipeline ---
 
 @router.get("/leads")
-async def list_leads(project_id: str | None = None, score: str | None = None):
-    """List leads for a project, optionally filtered by score. If no project_id is provided, lists all leads."""
+async def list_leads(
+    project_id: str | None = None,
+    score: str | None = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """List leads. Automatically scoped to the caller's organization unless superadmin."""
     pool = await get_pool()
     conditions = []
     params = []
-    
+
     if project_id:
         conditions.append(f"l.project_id = ${len(params) + 1}")
         params.append(project_id)
-        
+    elif credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            org_id = payload.get("organization_id")
+            if org_id:
+                conditions.append(f"p.organization_id = ${len(params) + 1}")
+                params.append(org_id)
+
     if score:
         conditions.append(f"l.score = ${len(params) + 1}")
         params.append(score)
-        
+
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    
+
     query = f"""
-        SELECT 
+        SELECT
             l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
             l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
             l.created_at, l.last_contact,
@@ -621,7 +760,7 @@ async def list_leads(project_id: str | None = None, score: str | None = None):
         {where_clause}
         ORDER BY l.last_contact DESC NULLS LAST, l.created_at DESC
     """
-    
+
     rows = await pool.fetch(query, *params)
     return [dict(r) for r in rows]
 
@@ -756,20 +895,35 @@ async def get_analytics(project_id: str):
 
 
 @router.get("/leads/{lead_id}")
-async def get_lead(lead_id: str):
+async def get_lead(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Get full lead detail including conversation history."""
     pool = await get_pool()
     lead = await pool.fetchrow(
         """
-        SELECT id, project_id, phone, name, intent, financing, timeline,
-               budget_usd, bedrooms, location_pref, score, source,
-               created_at, last_contact
-        FROM leads WHERE id = $1
+        SELECT l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
+               l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
+               l.created_at, l.last_contact,
+               p.organization_id
+        FROM leads l
+        LEFT JOIN projects p ON l.project_id = p.id
+        WHERE l.id = $1
         """,
         lead_id,
     )
     if not lead:
         return {"error": f"Lead {lead_id} not found"}
+
+    # Verify the caller's org matches the lead's org (unless superadmin)
+    if credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            caller_org = payload.get("organization_id")
+            lead_org = str(lead["organization_id"]) if lead["organization_id"] else None
+            if caller_org and lead_org and caller_org != lead_org:
+                raise HTTPException(status_code=403, detail="No tenés acceso a este lead")
 
     conversations = await pool.fetch(
         """
@@ -781,8 +935,10 @@ async def get_lead(lead_id: str):
         lead_id,
     )
 
+    lead_dict = dict(lead)
+    lead_dict.pop("organization_id", None)
     return {
-        **dict(lead),
+        **lead_dict,
         "conversations": [dict(c) for c in conversations],
     }
 
@@ -1222,9 +1378,14 @@ async def create_direct_sale(project_id: str, body: ReservationBody):
 
 
 @router.post("/reservations/{project_id}")
-async def create_reservation(project_id: str, body: ReservationBody):
+async def create_reservation(
+    project_id: str,
+    body: ReservationBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Create a reservation for a unit. Also marks the unit as 'reserved' if it was 'available'."""
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
 
     unit = await pool.fetchrow(
         "SELECT id, identifier, status FROM units WHERE id = $1 AND project_id = $2",
@@ -1286,6 +1447,10 @@ async def create_reservation(project_id: str, body: ReservationBody):
         result["amount_usd"] = float(result["amount_usd"])
 
     logger.info("Reservation created for unit %s (project %s)", u["identifier"], project_id)
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="reservations", record_id=str(row["id"]), project_id=project_id,
+                 details={"buyer_name": body.buyer_name, "unit_id": body.unit_id,
+                          "amount_usd": body.amount_usd})
     return result
 
 
@@ -1365,12 +1530,17 @@ async def get_reservation(reservation_id: str):
 
 
 @router.patch("/reservations/{reservation_id}")
-async def patch_reservation(reservation_id: str, body: ReservationPatchBody):
+async def patch_reservation(
+    reservation_id: str,
+    body: ReservationPatchBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Change reservation status: cancelled or converted."""
     if body.status not in ("cancelled", "converted"):
         raise HTTPException(status_code=400, detail="Estado debe ser 'cancelled' o 'converted'")
 
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
 
     reservation = await pool.fetchrow(
         "SELECT id, unit_id, status FROM reservations WHERE id = $1",
@@ -1418,6 +1588,9 @@ async def patch_reservation(reservation_id: str, body: ReservationPatchBody):
                     )
 
     logger.info("Reservation %s status changed to %s", reservation_id, body.status)
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="UPDATE",
+                 table_name="reservations", record_id=reservation_id,
+                 details={"status": body.status})
     return {"reservation_id": reservation_id, "status": body.status}
 
 
@@ -1465,7 +1638,7 @@ async def get_payment_plan(reservation_id: str):
                json_agg(r ORDER BY r.created_at) FILTER (WHERE r.id IS NOT NULL), '[]'
            ) AS records
            FROM payment_installments i
-           LEFT JOIN payment_records r ON r.installment_id = i.id
+           LEFT JOIN payment_records r ON r.installment_id = i.id AND r.deleted_at IS NULL
            WHERE i.plan_id = $1
            GROUP BY i.id
            ORDER BY i.numero_cuota""",
@@ -1545,9 +1718,13 @@ async def patch_installment(installment_id: str, request: Request):
 
 
 @router.post("/payment-records")
-async def create_payment_record(body: PaymentRecordBody):
+async def create_payment_record(
+    body: PaymentRecordBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Register a payment against an installment."""
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     row = await pool.fetchrow(
         """INSERT INTO payment_records
            (installment_id, fecha_pago, monto_pagado, moneda, metodo_pago, referencia, notas)
@@ -1560,6 +1737,10 @@ async def create_payment_record(body: PaymentRecordBody):
         "UPDATE payment_installments SET estado = 'pagado' WHERE id = $1",
         body.installment_id,
     )
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="payment_records", record_id=str(row["id"]),
+                 details={"installment_id": body.installment_id, "fecha_pago": body.fecha_pago,
+                          "monto_pagado": body.monto_pagado, "moneda": body.moneda})
     return {"record_id": str(row["id"])}
 
 
@@ -1573,11 +1754,16 @@ class UpdatePaymentRecordBody(BaseModel):
 
 
 @router.patch("/payment-records/{record_id}")
-async def update_payment_record(record_id: str, body: UpdatePaymentRecordBody):
+async def update_payment_record(
+    record_id: str,
+    body: UpdatePaymentRecordBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Update a payment record field."""
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     row = await pool.fetchrow(
-        "SELECT installment_id FROM payment_records WHERE id = $1", record_id
+        "SELECT installment_id FROM payment_records WHERE id = $1 AND deleted_at IS NULL", record_id
     )
     if not row:
         raise HTTPException(status_code=404, detail="Payment record not found")
@@ -1604,7 +1790,7 @@ async def update_payment_record(record_id: str, body: UpdatePaymentRecordBody):
         )
     # Recalculate installment estado
     total_paid = await pool.fetchval(
-        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1",
+        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1 AND deleted_at IS NULL",
         installment_id,
     )
     inst_monto = await pool.fetchval(
@@ -1620,23 +1806,33 @@ async def update_payment_record(record_id: str, body: UpdatePaymentRecordBody):
         "UPDATE payment_installments SET estado = $1 WHERE id = $2",
         new_estado, installment_id,
     )
+    if updates:
+        await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="UPDATE",
+                     table_name="payment_records", record_id=record_id,
+                     details={k: str(v) for k, v in updates.items()})
     return {"ok": True}
 
 
 @router.delete("/payment-records/{record_id}")
-async def delete_payment_record(record_id: str):
-    """Delete a payment record and recalculate installment estado."""
+async def delete_payment_record(
+    record_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Soft-delete a payment record and recalculate installment estado."""
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     row = await pool.fetchrow(
-        "SELECT installment_id FROM payment_records WHERE id = $1", record_id
+        "SELECT installment_id FROM payment_records WHERE id = $1 AND deleted_at IS NULL", record_id
     )
     if not row:
         raise HTTPException(status_code=404, detail="Payment record not found")
     installment_id = row["installment_id"]
-    await pool.execute("DELETE FROM payment_records WHERE id = $1", record_id)
+    await pool.execute("UPDATE payment_records SET deleted_at = NOW() WHERE id = $1", record_id)
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="DELETE",
+                 table_name="payment_records", record_id=record_id)
     # Recalculate estado
     total_paid = await pool.fetchval(
-        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1",
+        "SELECT COALESCE(SUM(monto_pagado),0) FROM payment_records WHERE installment_id = $1 AND deleted_at IS NULL",
         installment_id,
     )
     inst_monto = await pool.fetchval(
@@ -1690,7 +1886,7 @@ async def list_facturas(
     fecha_hasta: Optional[str] = None,
 ):
     pool = await get_pool()
-    conditions = ["f.project_id = $1"]
+    conditions = ["f.project_id = $1", "f.deleted_at IS NULL"]
     params: list = [project_id]
     i = 2
     if categoria:
@@ -1745,7 +1941,7 @@ async def list_linkable_payments(
             JOIN payment_installments pi ON pi.id = pr.installment_id
             JOIN payment_plans pp ON pp.id = pi.plan_id
             JOIN reservations r ON r.id = pp.reservation_id
-            WHERE {where}
+            WHERE {where} AND pr.deleted_at IS NULL
             ORDER BY pr.fecha_pago DESC
             LIMIT 20""",
         *params,
@@ -1754,8 +1950,13 @@ async def list_linkable_payments(
 
 
 @router.post("/facturas/{project_id}")
-async def create_factura(project_id: str, body: FacturaBody):
+async def create_factura(
+    project_id: str,
+    body: FacturaBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     async with pool.acquire() as conn:
         async with conn.transaction():
             gasto_id = body.gasto_id
@@ -1798,6 +1999,10 @@ async def create_factura(project_id: str, body: FacturaBody):
                 await conn.execute(
                     "UPDATE facturas SET estado=$1 WHERE id=$2", estado_final, row["id"]
                 )
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="facturas", record_id=str(row["id"]), project_id=project_id,
+                 details={"numero_factura": body.numero_factura, "proveedor_nombre": body.proveedor_nombre,
+                          "monto_total": body.monto_total, "moneda": body.moneda})
     return {"factura_id": str(row["id"]), "gasto_id": gasto_id}
 
 
@@ -1820,8 +2025,13 @@ class PatchFacturaBody(BaseModel):
 
 
 @router.patch("/facturas/{factura_id}")
-async def patch_factura(factura_id: str, body: PatchFacturaBody):
+async def patch_factura(
+    factura_id: str,
+    body: PatchFacturaBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if "fecha_emision" in updates:
         updates["fecha_emision"] = datetime.strptime(updates["fecha_emision"], "%Y-%m-%d").date()
@@ -1831,14 +2041,23 @@ async def patch_factura(factura_id: str, body: PatchFacturaBody):
         return {"ok": True}
     set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates.keys()))
     values = [factura_id] + list(updates.values())
-    await pool.execute(f"UPDATE facturas SET {set_clause} WHERE id = $1", *values)
+    await pool.execute(f"UPDATE facturas SET {set_clause} WHERE id = $1 AND deleted_at IS NULL", *values)
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="UPDATE",
+                 table_name="facturas", record_id=factura_id,
+                 details={k: str(v) for k, v in updates.items()})
     return {"ok": True}
 
 
 @router.delete("/facturas/{factura_id}")
-async def delete_factura(factura_id: str):
+async def delete_factura(
+    factura_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
-    await pool.execute("DELETE FROM facturas WHERE id = $1", factura_id)
+    user_id, user_nombre = _get_actor(credentials)
+    await pool.execute("UPDATE facturas SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL", factura_id)
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="DELETE",
+                 table_name="facturas", record_id=factura_id)
     return {"ok": True}
 
 
@@ -1893,7 +2112,7 @@ async def get_cash_flow(project_id: str):
            JOIN payment_plans pp ON pp.id = pi.plan_id
            JOIN reservations r ON r.id = pp.reservation_id
            LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
-           WHERE r.project_id = $1
+           WHERE r.project_id = $1 AND pr.deleted_at IS NULL
            GROUP BY mes
            ORDER BY mes""",
         project_id,
@@ -1905,7 +2124,7 @@ async def get_cash_flow(project_id: str):
              SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio,1), 0)) AS total
            FROM project_expenses pe
            LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
-           WHERE pe.project_id = $1
+           WHERE pe.project_id = $1 AND pe.deleted_at IS NULL
            GROUP BY mes
            ORDER BY mes""",
         project_id,
@@ -2147,7 +2366,7 @@ async def get_financials_summary(project_id: str):
         """SELECT e.monto_usd, b.categoria
            FROM project_expenses e
            LEFT JOIN project_budget b ON b.id = e.budget_id
-           WHERE e.project_id = $1""",
+           WHERE e.project_id = $1 AND e.deleted_at IS NULL""",
         project_id,
     )
 
@@ -2223,7 +2442,7 @@ async def list_expenses(
     fecha_hasta_date = datetime.strptime(fecha_hasta, "%Y-%m-%d").date() if fecha_hasta else None
 
     # --- project_expenses ---
-    conditions = ["e.project_id = $1"]
+    conditions = ["e.project_id = $1", "e.deleted_at IS NULL"]
     params: list = [project_id]
     if categoria and categoria != OBRA_CATEGORIA:
         params.append(categoria)
@@ -2289,8 +2508,13 @@ async def list_expenses(
 
 
 @router.post("/financials/{project_id}/expenses")
-async def create_expense(project_id: str, body: ExpenseBody):
+async def create_expense(
+    project_id: str,
+    body: ExpenseBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     fecha = datetime.strptime(body.fecha, "%Y-%m-%d").date()
     row = await pool.fetchrow(
         """INSERT INTO project_expenses
@@ -2305,12 +2529,22 @@ async def create_expense(project_id: str, body: ExpenseBody):
         d["monto_usd"] = float(d["monto_usd"])
     if d.get("monto_ars") is not None:
         d["monto_ars"] = float(d["monto_ars"])
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="project_expenses", record_id=str(row["id"]), project_id=project_id,
+                 details={"descripcion": body.descripcion, "proveedor": body.proveedor,
+                          "monto_usd": body.monto_usd, "monto_ars": body.monto_ars})
     return d
 
 
 @router.patch("/financials/{project_id}/expenses/{expense_id}")
-async def patch_expense(project_id: str, expense_id: str, request: Request):
+async def patch_expense(
+    project_id: str,
+    expense_id: str,
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     body = await request.json()
     ALLOWED = {"proveedor", "descripcion", "monto_usd", "monto_ars", "fecha", "comprobante_url", "budget_id"}
     fields = {k: v for k, v in body.items() if k in ALLOWED}
@@ -2326,22 +2560,34 @@ async def patch_expense(project_id: str, expense_id: str, request: Request):
         params.append(v)
 
     row = await pool.fetchrow(
-        f"UPDATE project_expenses SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 RETURNING id",
+        f"UPDATE project_expenses SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL RETURNING id",
         *params,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="UPDATE",
+                 table_name="project_expenses", record_id=expense_id, project_id=project_id,
+                 details={k: str(v) for k, v in fields.items()})
     return {"updated": True, "id": str(row["id"])}
 
 
 @router.delete("/financials/{project_id}/expenses/{expense_id}")
-async def delete_expense(project_id: str, expense_id: str):
+async def delete_expense(
+    project_id: str,
+    expense_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     result = await pool.execute(
-        "DELETE FROM project_expenses WHERE id = $1 AND project_id = $2",
+        "UPDATE project_expenses SET deleted_at = NOW() WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL",
         expense_id, project_id,
     )
-    return {"deleted": result.split()[-1] != "0"}
+    deleted = result.split()[-1] != "0"
+    if deleted:
+        await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="DELETE",
+                     table_name="project_expenses", record_id=expense_id, project_id=project_id)
+    return {"deleted": deleted}
 
 
 @router.get("/financials/{project_id}/budget")
@@ -2446,7 +2692,7 @@ class InvestorBody(BaseModel):
 async def list_investors(project_id: str):
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion, created_at FROM investors WHERE project_id = $1 ORDER BY nombre",
+        "SELECT id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion, created_at FROM investors WHERE project_id = $1 AND deleted_at IS NULL ORDER BY nombre",
         project_id,
     )
     result = []
@@ -2461,8 +2707,13 @@ async def list_investors(project_id: str):
 
 
 @router.post("/investors/{project_id}")
-async def create_investor(project_id: str, body: InvestorBody):
+async def create_investor(
+    project_id: str,
+    body: InvestorBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     fecha = datetime.strptime(body.fecha_aporte, "%Y-%m-%d").date() if body.fecha_aporte else None
     row = await pool.fetchrow(
         """INSERT INTO investors (project_id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion)
@@ -2476,12 +2727,21 @@ async def create_investor(project_id: str, body: InvestorBody):
         d["monto_aportado_usd"] = float(d["monto_aportado_usd"])
     if d.get("porcentaje_participacion") is not None:
         d["porcentaje_participacion"] = float(d["porcentaje_participacion"])
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="investors", record_id=str(row["id"]), project_id=project_id,
+                 details={"nombre": body.nombre, "monto_aportado_usd": body.monto_aportado_usd})
     return d
 
 
 @router.patch("/investors/{project_id}/{investor_id}")
-async def patch_investor(project_id: str, investor_id: str, request: Request):
+async def patch_investor(
+    project_id: str,
+    investor_id: str,
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     body = await request.json()
     ALLOWED = {"nombre", "email", "telefono", "monto_aportado_usd", "fecha_aporte", "porcentaje_participacion"}
     fields = {k: v for k, v in body.items() if k in ALLOWED}
@@ -2497,21 +2757,34 @@ async def patch_investor(project_id: str, investor_id: str, request: Request):
         params.append(v)
 
     row = await pool.fetchrow(
-        f"UPDATE investors SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 RETURNING id, nombre",
+        f"UPDATE investors SET {', '.join(set_clauses)} WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL RETURNING id, nombre",
         *params,
     )
     if not row:
         raise HTTPException(status_code=404, detail="Inversor no encontrado")
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="UPDATE",
+                 table_name="investors", record_id=investor_id, project_id=project_id,
+                 details={k: str(v) for k, v in fields.items()})
     return {"updated": True, "id": str(row["id"])}
 
 
 @router.delete("/investors/{project_id}/{investor_id}")
-async def delete_investor(project_id: str, investor_id: str):
+async def delete_investor(
+    project_id: str,
+    investor_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
     result = await pool.execute(
-        "DELETE FROM investors WHERE id = $1 AND project_id = $2", investor_id, project_id
+        "UPDATE investors SET deleted_at = NOW() WHERE id = $1 AND project_id = $2 AND deleted_at IS NULL",
+        investor_id, project_id,
     )
-    return {"deleted": result.split()[-1] != "0"}
+    deleted = result.split()[-1] != "0"
+    if deleted:
+        await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="DELETE",
+                     table_name="investors", record_id=investor_id, project_id=project_id)
+    return {"deleted": deleted}
 
 
 @router.get("/investors/{project_id}/report/preview")
@@ -2595,7 +2868,7 @@ async def send_investor_report(project_id: str, request: Request):
     )
 
     investors = await pool.fetch(
-        "SELECT nombre, telefono FROM investors WHERE project_id = $1 AND telefono IS NOT NULL",
+        "SELECT nombre, telefono FROM investors WHERE project_id = $1 AND telefono IS NOT NULL AND deleted_at IS NULL",
         project_id,
     )
 
@@ -2887,3 +3160,48 @@ async def update_payment_states():
     updated_obra = int(r1.split()[-1])
     updated_installments = int(r2.split()[-1])
     return {"updated_obra": updated_obra, "updated_installments": updated_installments}
+
+
+# ---------- Audit log ----------
+
+@router.get("/audit-log")
+async def get_audit_log(
+    project_id: Optional[str] = None,
+    table_name: Optional[str] = None,
+    record_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Return audit log entries. Superadmin only."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    payload = verify_token(credentials.credentials)
+    if not payload or payload.get("role") not in ("superadmin", "admin"):
+        raise HTTPException(status_code=403, detail="Acceso denegado")
+
+    pool = await get_pool()
+    conditions = []
+    params: list = []
+    i = 1
+    if project_id:
+        conditions.append(f"project_id = ${i}"); params.append(project_id); i += 1
+    if table_name:
+        conditions.append(f"table_name = ${i}"); params.append(table_name); i += 1
+    if record_id:
+        conditions.append(f"record_id = ${i}"); params.append(record_id); i += 1
+    if user_id:
+        conditions.append(f"user_id = ${i}"); params.append(user_id); i += 1
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    rows = await pool.fetch(
+        f"""SELECT id, user_id, user_nombre, action, table_name, record_id,
+                   project_id, details, created_at
+            FROM audit_log
+            {where}
+            ORDER BY created_at DESC
+            LIMIT ${i} OFFSET ${i+1}""",
+        *params, limit, offset,
+    )
+    return [dict(r) for r in rows]
