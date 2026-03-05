@@ -650,21 +650,27 @@ Toda la conversación queda en la tabla `conversations` de Realia, incluyendo me
 Panel unificado en `frontend/` — Next.js 16, React 19, TypeScript 5, Tailwind CSS 4, shadcn/ui v3 (tema claro, estética OpenAI).
 Auth: JWT almacenado en `sessionStorage` bajo `realia_token`; rutas protegidas por `AuthLayout`.
 
+**Auth:** JWT desde tabla `users` (no env vars). JWT incluye `user_id`, `role`, `org_id`, `nombre`. Roles: superadmin/admin/gerente/vendedor/lector. Primer login fuerza cambio de contraseña (modal bloqueante).
+
 **Rutas:**
 
 | Ruta | Descripción |
 |---|---|
-| `/` | Login — usuario/contraseña configurados via `ADMIN_USERNAME`/`ADMIN_PASSWORD` |
+| `/` | Login — email/contraseña contra tabla `users`; JWT almacenado en sessionStorage |
+| `/admin/usuarios` | CRUD usuarios: tabla, modal crear/editar, toggle activo, reset password; solo admin/superadmin |
 | `/proyectos` | Tarjetas de proyectos con métricas de leads + avance; modal "Nuevo Proyecto" sube CSV |
 | `/proyectos/[id]` | Dashboard: funnel (total/hot/reservadas/vendidas), revenue (disponible/reservado/vendido), gráfico semanal de leads, fuentes |
-| `/proyectos/[id]/unidades` | Grilla de unidades por piso con leyenda de estado; click abre Sheet con datos y cambio de estado; marcar `reserved` abre ReservationSheet |
-| `/proyectos/[id]/leads` | Kanban hot/warm/cold; Sheet con score, edición de campos, notas del equipo, "Reservar unidad", link WhatsApp |
-| `/proyectos/[id]/reservas` | Lista de reservas con chips de filtro (activas/canceladas/convertidas); acciones en hover: imprimir, convertir en venta, cancelar |
+| `/proyectos/[id]/unidades` | Grilla de unidades por piso; marcar `reserved` abre ReservationSheet; venta directa sin reserva previa |
+| `/proyectos/[id]/leads` | Kanban hot/warm/cold; Sheet con score, edición de campos, notas del equipo, "Reservar unidad" |
+| `/proyectos/[id]/reservas` | Lista de reservas con chips de filtro (activas/canceladas/convertidas); acciones: imprimir, convertir, cancelar |
+| `/proyectos/[id]/reservas/[reservationId]` | Detalle reserva: tabs "Detalle" + "Plan de Pagos"; grilla de cuotas; registrar/editar/eliminar pagos |
+| `/proyectos/[id]/reservas/[id]/print` | Comprobante de reserva imprimible: auto-print; layout limpio |
 | `/proyectos/[id]/documentos` | Documentos por tipo con upload directo |
-| `/proyectos/[id]/obra` | Etapas de obra con barra de progreso ponderada; modal de update con fotos; ajuste de pesos; notificar compradores |
-| `/proyectos/[id]/reservas/[id]/print` | Comprobante de reserva imprimible: auto-dispara `window.print()` tras 500 ms; layout limpio sin navegación |
-| `/inbox` | Conversaciones WhatsApp agrupadas por teléfono; mensajes diferenciados (lead/AI/humano); HITL con polling cada 1.5 s; "Tomar conversación" / "Terminar intervención" |
-| `/tools` | Hub de herramientas para el mercado inmobiliario argentino. Primera herramienta: tipos de cambio ARS/USD (Oficial/Blue/MEP) con simulador de conversión bidireccional |
+| `/proyectos/[id]/obra` | Etapas con barra de progreso ponderada; updates con fotos; tab "Pagos" (obra_payments a proveedores) |
+| `/proyectos/[id]/financiero` | Tabs: "Resumen" (KPIs + barras presupuesto/ejecutado + tabla gastos), "Facturas" (CRUD + PDF upload + vínculo a cuota), "Flujo de Caja" (bar chart + tabla mes a mes) |
+| `/proyectos/[id]/inversores` | Portal inversores; envío de reporte por WhatsApp con preview HTML; historial |
+| `/inbox` | Conversaciones WhatsApp; HITL con polling 1.5 s; "Tomar conversación" / "Terminar intervención" |
+| `/tools` | Tipos de cambio ARS/USD (Oficial/Blue/MEP) + simulador de conversión bidireccional |
 
 **Flujo de reserva asistida:**
 - Entrada desde **unidades** (trigger al marcar `reserved`) o desde **leads** (botón "Reservar unidad" en Sheet).
@@ -731,15 +737,28 @@ erDiagram
 
     handoffs }o--|| authorized_numbers : asignado
 
-    developers {
+    organizations {
         uuid id PK
-        text name
+        text nombre
+        varchar tipo
+        text cuit
         text contact_phone
+    }
+
+    users {
+        uuid id PK
+        uuid organization_id FK
+        text email
+        text password_hash
+        text nombre
+        varchar role
+        boolean activo
+        boolean debe_cambiar_password
     }
 
     projects {
         uuid id PK
-        uuid developer_id FK
+        uuid organization_id FK
         text name
         text slug UK
         text address
@@ -848,6 +867,52 @@ erDiagram
         uuid lead_id FK
         uuid unit_id FK
         varchar status
+    }
+
+    payment_plans {
+        uuid id PK
+        uuid reservation_id FK
+        text descripcion
+        varchar moneda_base
+        decimal monto_total
+        varchar tipo_ajuste
+    }
+
+    payment_installments {
+        uuid id PK
+        uuid plan_id FK
+        int numero_cuota
+        varchar concepto
+        decimal monto
+        varchar moneda
+        date fecha_vencimiento
+        varchar estado
+    }
+
+    payment_records {
+        uuid id PK
+        uuid installment_id FK
+        date fecha_pago
+        decimal monto_pagado
+        varchar moneda
+        text metodo_pago
+        text comprobante_url
+    }
+
+    facturas {
+        uuid id PK
+        uuid project_id FK
+        varchar tipo
+        text numero_factura
+        text proveedor_nombre
+        date fecha_emision
+        decimal monto_total
+        varchar moneda
+        varchar categoria
+        text file_url
+        uuid gasto_id FK
+        uuid payment_record_id FK
+        varchar estado
     }
 
     obra_updates {

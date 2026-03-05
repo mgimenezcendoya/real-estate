@@ -21,6 +21,14 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `migrations/006_lead_notes.sql` | ✅ OK | Tabla `lead_notes` |
 | `migrations/007_obra_etapas.sql` | ✅ OK | Tablas `obra_etapas`, `obra_updates`, `obra_fotos` |
 | `migrations/009_reservations.sql` | ✅ OK | Tabla `reservations` con índice parcial único por unidad |
+| `migrations/010–015` | ✅ OK | Financiero, inversores, alertas, proveedores/pagos |
+| `migrations/016_organizations.sql` | ✅ OK | `developers` → `organizations`; campo `tipo` (desarrolladora/inmobiliaria/ambas); `projects.organization_id` |
+| `migrations/017_users.sql` | ✅ OK | Tabla `users` con roles superadmin/admin/gerente/vendedor/lector; bcrypt hash |
+| `migrations/018_payment_plans.sql` | ✅ OK | `payment_plans`, `payment_installments`, `payment_records` |
+| `migrations/019_facturas.sql` | ✅ OK | Tabla `facturas` con enums tipo/categoria/estado; FK a `project_expenses` |
+| `migrations/020_migrate_factura_files.py` | ✅ OK | Script Python: migra PDFs de facturas existentes a jerarquía org en S3 |
+| `migrations/021_migrate_all_files.py` | ✅ OK | Script Python: migra todos los archivos S3 de `projects/` a `orgs/{org_id}/projects/` via copy_object |
+| `migrations/022_factura_payment_record.sql` | ✅ OK | FK `payment_record_id` en `facturas` para vincular factura de ingreso a cuota cobrada |
 | `modules/whatsapp/webhook.py` | ✅ OK | Parseo de mensajes, routing |
 | `modules/whatsapp/sender.py` | ✅ OK | Envío texto, docs, imágenes, templates |
 | `modules/whatsapp/media.py` | ✅ OK | Download de media + `download_media_with_filename` |
@@ -47,7 +55,9 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `modules/handoff/telegram.py` | ✅ OK | Notificaciones vía Telegram |
 | `modules/handoff/chatwoot.py` | ⬜ Stub | Endpoint OK; API calls pendientes |
 | `modules/obra/notifier.py` | ✅ OK | Envío personalizado a compradores |
-| `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV, tools/exchange-rates |
+| `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV, tools/exchange-rates, users CRUD, payment plans/installments/records, facturas, flujo de caja, alertas, proveedores/pagos |
+| `app/admin/auth.py` | ✅ OK | JWT + bcrypt + tabla users; roles superadmin/admin/gerente/vendedor/lector; fallback env vars para compatibilidad |
+| `app/services/alerts_service.py` | ✅ OK | Evalúa 5 condiciones de alerta (avance obra, gastos, cuotas vencidas, cuotas próximas); cron job POST /admin/jobs/alerts |
 | `app/modules/tools/__init__.py` | ✅ OK | Módulo tools |
 | `app/modules/tools/exchange_rates.py` | ✅ OK | Proxy + cache 15 min para ArgentinaDatos API; tipos oficial/blue/bolsa(mep); follow_redirects=True requerido |
 
@@ -55,26 +65,31 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 
 | Archivo | Estado | Notas |
 |---|---|---|
-| `src/lib/api.ts` | ✅ OK | Cliente HTTP tipado con todos los endpoints; tipos ExchangeRate, ExchangeRateHistory |
+| `src/lib/api.ts` | ✅ OK | Cliente HTTP tipado con todos los endpoints; tipos ExchangeRate, Factura, LinkablePayment, PaymentPlan, etc. |
 | `src/lib/utils.ts` | ✅ OK | `cn()` helper |
-| `src/contexts/AuthContext.tsx` | ✅ OK | JWT, login/logout, isAuthenticated |
-| `src/components/AuthLayout.tsx` | ✅ OK | Guard de rutas protegidas |
-| `src/components/Sidebar.tsx` | ✅ OK | Sidebar responsivo con Sheet en mobile; items: Proyectos, Inbox, Tools |
+| `src/contexts/AuthContext.tsx` | ✅ OK | JWT con user_id/role/org_id/nombre; login/logout/isAuthenticated; flujo debe_cambiar_password |
+| `src/components/AuthLayout.tsx` | ✅ OK | Guard de rutas protegidas; ChangePasswordModal bloqueante si debe_cambiar_password |
+| `src/components/ChangePasswordModal.tsx` | ✅ OK | Modal bloqueante para primer login; POST /auth/change-password |
+| `src/components/Sidebar.tsx` | ✅ OK | Sidebar responsivo; nombre de usuario + rol; link "Usuarios" solo para admin/superadmin |
 | `src/components/NewProjectModal.tsx` | ✅ OK | Modal de carga CSV |
 | `src/components/ReservationSheet.tsx` | ✅ OK | Wizard de reserva reutilizable (desde unidad o desde lead) |
+| `src/components/AlertsPanel.tsx` | ✅ OK | Sheet lateral de alertas agrupadas por severidad; badge en sidebar con polling 60s |
 | `src/components/ui/` | ✅ OK | shadcn/ui v3: Sheet, Dialog, Badge, Avatar, Skeleton, Separator, etc. |
 | `src/hooks/useAsync.ts` | ✅ OK | Hook genérico con AbortController |
 | `src/app/page.tsx` | ✅ OK | Login |
+| `src/app/admin/usuarios/page.tsx` | ✅ OK | CRUD usuarios: tabla, modal crear/editar, reset password, toggle activo |
 | `src/app/proyectos/page.tsx` | ✅ OK | Listado de proyectos |
 | `src/app/proyectos/[id]/page.tsx` | ✅ OK | Dashboard: funnel, revenue, gráfico semanal, fuentes |
-| `src/app/proyectos/[id]/layout.tsx` | ✅ OK | Tabs: Dashboard / Unidades / Leads / Reservas / Documentos / Obra |
-| `src/app/proyectos/[id]/unidades/page.tsx` | ✅ OK | Grilla por piso; trigger reserva al marcar `reserved` |
+| `src/app/proyectos/[id]/layout.tsx` | ✅ OK | Tabs: Dashboard / Unidades / Leads / Reservas / Documentos / Obra / Financiero / Inversores |
+| `src/app/proyectos/[id]/unidades/page.tsx` | ✅ OK | Grilla por piso; trigger reserva al marcar `reserved`; venta directa |
 | `src/app/proyectos/[id]/leads/page.tsx` | ✅ OK | Kanban; Sheet con notas, edición, "Reservar unidad" |
-| `src/app/proyectos/[id]/reservas/page.tsx` | ✅ OK | Lista con filtros, acciones hover, dialog de confirmación |
-| `src/app/proyectos/[id]/reservas/[id]/print/layout.tsx` | ✅ OK | Layout limpio sin navegación |
+| `src/app/proyectos/[id]/reservas/page.tsx` | ✅ OK | Lista con filtros (activas/canceladas/convertidas), acciones hover |
+| `src/app/proyectos/[id]/reservas/[reservationId]/page.tsx` | ✅ OK | Detalle reserva: tabs "Detalle" + "Plan de Pagos"; grilla cuotas; registrar/editar/eliminar pagos |
 | `src/app/proyectos/[id]/reservas/[id]/print/page.tsx` | ✅ OK | Comprobante imprimible con auto-print |
 | `src/app/proyectos/[id]/documentos/page.tsx` | ✅ OK | Gestión documentos por tipo |
-| `src/app/proyectos/[id]/obra/page.tsx` | ✅ OK | Etapas con barra de progreso, updates con fotos, notificación compradores |
+| `src/app/proyectos/[id]/obra/page.tsx` | ✅ OK | Etapas con barra de progreso, updates con fotos, tab "Pagos" (obra_payments) |
+| `src/app/proyectos/[id]/financiero/page.tsx` | ✅ OK | Tabs: "Resumen" (KPIs + presupuesto vs ejecutado + gastos), "Facturas" (CRUD + PDF upload + link a payment_record), "Flujo de Caja" (bar chart + tabla mes a mes + proyección) |
+| `src/app/proyectos/[id]/inversores/page.tsx` | ✅ OK | Portal inversores; envío reporte WhatsApp con preview HTML; historial |
 | `src/app/inbox/page.tsx` | ✅ OK | Conversaciones; HITL con polling 1.5 s |
 | `src/app/tools/page.tsx` | ✅ OK | Tipos de cambio ARS/USD (cards) + simulador conversión bidireccional; polling 5 min |
 
@@ -168,6 +183,41 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - [x] Alertas: panel lateral con badge en sidebar, polling 60 s
 - [x] Proveedores/Pagos: tab "Pagos" dentro de /obra
 - [x] Tools: tipos de cambio ARS/USD + simulador de conversión
+
+---
+
+### Fase 8: Modelo de Actores + Usuarios ✅ COMPLETA
+
+- [x] Migración 016: `developers` → `organizations`; campo `tipo`; `projects.organization_id`
+- [x] Migración 017: tabla `users` con roles (superadmin/admin/gerente/vendedor/lector)
+- [x] Auth backend: PyJWT + bcrypt; JWT incluye user_id/role/org_id/nombre; fallback env vars
+- [x] Endpoints CRUD usuarios: GET/POST/PATCH `/admin/users`, POST `/admin/users/{id}/reset-password`
+- [x] Flujo `debe_cambiar_password`: modal bloqueante en AuthLayout + POST `/auth/change-password`
+- [x] Panel `/admin/usuarios`: tabla de usuarios, modal crear/editar, toggle activo, reset password
+- [x] Sidebar: nombre de usuario + link "Usuarios" solo para admin/superadmin
+
+---
+
+### Fase 9: Finanzas Core — Payment Plans ✅ COMPLETA
+
+- [x] Migración 018: `payment_plans`, `payment_installments`, `payment_records`
+- [x] Endpoints: GET/POST `/admin/payment-plans/{reservation_id}`, PATCH `/admin/payment-installments/{id}`, POST/PATCH/DELETE `/admin/payment-records[/{id}]`
+- [x] Cron `update-payment-states`: marca cuotas como `vencido` + genera alertas CUOTA_VENCIDA/CUOTA_PROXIMA
+- [x] UI: `/reservas/[id]` con tabs "Detalle" + "Plan de Pagos"; grilla de cuotas; registrar/editar/eliminar pagos
+- [x] Venta directa: endpoint atómico `POST /admin/reservations/{project_id}/direct-sale`
+
+---
+
+### Fase 10: Finanzas Core — Facturas ✅ COMPLETA
+
+- [x] Migración 019: tabla `facturas`; enums tipo/categoria/estado; FK a `project_expenses`
+- [x] Migración 022: `payment_record_id` FK en `facturas` para vincular factura de ingreso a cuota cobrada
+- [x] Endpoints: GET/POST/PATCH/DELETE facturas; `POST /admin/facturas/{id}/upload-pdf`; `GET .../linkable-payments?q=`
+- [x] Storage org-jerárquico: `orgs/{org_id}/projects/{slug}/...`; `storage.py` actualizado con `org_id` opcional
+- [x] Migración S3 (020, 021): scripts Python para migrar archivos existentes a nueva jerarquía
+- [x] UI: tab "Facturas" en /financiero; modal con file picker PDF; selector buscable de pago para vincular
+- [x] Flujo de Caja: endpoint `GET /admin/cash-flow/{project_id}`; ingresos reales + egresos + proyección
+- [x] UI: tab "Flujo de Caja" en /financiero; bar chart CSS + tabla mes a mes + saldo acumulado
 
 ---
 
