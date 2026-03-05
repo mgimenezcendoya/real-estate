@@ -29,6 +29,10 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `migrations/020_migrate_factura_files.py` | ✅ OK | Script Python: migra PDFs de facturas existentes a jerarquía org en S3 |
 | `migrations/021_migrate_all_files.py` | ✅ OK | Script Python: migra todos los archivos S3 de `projects/` a `orgs/{org_id}/projects/` via copy_object |
 | `migrations/022_factura_payment_record.sql` | ✅ OK | FK `payment_record_id` en `facturas` para vincular factura de ingreso a cuota cobrada |
+| `migrations/023_obra_payment_budget.sql` | ✅ OK | Link obra_payments ↔ project_budget |
+| `migrations/024_budget_etapa_link.sql` | ✅ OK | Link project_budget ↔ obra_etapas |
+| `migrations/025_soft_delete_financials.sql` | ✅ OK | Columna `deleted_at` en `project_expenses`, `payment_records`, `facturas`, `investors` |
+| `migrations/026_audit_log.sql` | ✅ OK | Tabla `audit_log` con índices; tracking de INSERT/UPDATE/DELETE por usuario |
 | `modules/whatsapp/webhook.py` | ✅ OK | Parseo de mensajes, routing |
 | `modules/whatsapp/sender.py` | ✅ OK | Envío texto, docs, imágenes, templates |
 | `modules/whatsapp/media.py` | ✅ OK | Download de media + `download_media_with_filename` |
@@ -228,6 +232,30 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - [x] Endpoints: `GET /admin/tools/exchange-rates`, `GET /admin/tools/exchange-rates/history/{tipo}`
 - [x] Frontend: página `/tools` con cards de cotización (Oficial/MEP/Blue), polling 5 min
 - [x] Simulador: conversión bidireccional ARS↔USD con toggle Comprar/Vender, tabla comparativa, separador de miles
+
+---
+
+### Fase 11: Soft Delete ✅ COMPLETA
+
+- [x] Migración 025: columna `deleted_at TIMESTAMPTZ NULL` en `project_expenses`, `payment_records`, `facturas`, `investors`
+- [x] Todos los endpoints `DELETE` de esas tablas hacen `UPDATE SET deleted_at = NOW()` en lugar de `DELETE FROM`
+- [x] Todos los `SELECT`, `SUM` y analytics filtran `AND deleted_at IS NULL`
+- [x] Endpoints `PATCH`/`UPDATE` incluyen `AND deleted_at IS NULL` en el `WHERE` para no operar sobre registros eliminados
+- [x] `reservations` ya tenía soft delete nativo vía campo `status` (`active`/`cancelled`/`converted`) — sin cambios
+- [x] `app/services/alerts_service.py` actualizado: JOIN con `project_expenses` e `investors` filtra `deleted_at IS NULL`
+- [x] Convención documentada en `CONTEXT.md § 10. Convenciones de Base de Datos`
+
+---
+
+### Fase 12: Audit Log ✅ COMPLETA
+
+- [x] Migración 026: tabla `audit_log(id, user_id, user_nombre, action, table_name, record_id, project_id, details JSONB, created_at)` con 4 índices
+- [x] Helpers en `api.py`: `_get_actor(credentials)` y `_audit(pool, ...)` (silencia errores)
+- [x] Tablas auditadas: `project_expenses`, `payment_records`, `facturas`, `investors`, `reservations` — INSERT/UPDATE/DELETE
+- [x] Todos los endpoints de escritura de esas tablas reciben `credentials` y llaman `_audit` post-operación
+- [x] Endpoint `GET /admin/audit-log` con filtros `project_id`, `table_name`, `record_id`, `user_id`; paginado; acceso `admin`/`superadmin`
+- [x] Tipo `AuditLogEntry` y método `api.getAuditLog()` en `frontend/src/lib/api.ts`
+- [x] Convención documentada en `CONTEXT.md § 10. Convenciones de Base de Datos`
 
 ---
 

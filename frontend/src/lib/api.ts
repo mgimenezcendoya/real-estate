@@ -42,6 +42,18 @@ export interface Organization {
   created_at: string;
 }
 
+export interface AuditLogEntry {
+  id: string;
+  user_id: string | null;
+  user_nombre: string | null;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  table_name: string;
+  record_id: string | null;
+  project_id: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -739,6 +751,19 @@ export const api = {
     fetcher<Organization>(`/admin/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   toggleOrganizationActive: (id: string) =>
     fetcher<{ id: string; name: string; activa: boolean }>(`/admin/organizations/${id}/toggle-active`, { method: 'PATCH' }),
+
+  // --- Audit log ---
+  getAuditLog: (params?: { project_id?: string; table_name?: string; record_id?: string; user_id?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.project_id) qs.set('project_id', params.project_id)
+    if (params?.table_name) qs.set('table_name', params.table_name)
+    if (params?.record_id) qs.set('record_id', params.record_id)
+    if (params?.user_id) qs.set('user_id', params.user_id)
+    if (params?.limit !== undefined) qs.set('limit', String(params.limit))
+    if (params?.offset !== undefined) qs.set('offset', String(params.offset))
+    const q = qs.toString()
+    return fetcher<AuditLogEntry[]>(`/admin/audit-log${q ? `?${q}` : ''}`)
+  },
 
   login: (username: string, password: string) =>
     fetch(`${BASE_URL}/admin/auth/login`, {

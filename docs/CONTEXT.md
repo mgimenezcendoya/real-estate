@@ -1411,6 +1411,111 @@ NEXT_PUBLIC_API_URL=
 | **Realia como proxy unico del webhook** | El webhook de WhatsApp siempre apunta a Realia. Realia decide si procesa con el agente o reenvia a Chatwoot. Evita conflictos de dos sistemas procesando el mismo mensaje. |
 | **S3 compartido como storage central** | Archivos entran por WhatsApp o NocoDB, terminan en el mismo bucket S3. Accesibles por RAG (indexar), agente (enviar al lead), y NocoDB (preview/descarga). |
 | **NocoDB para gestion, no para operacion de campo** | WhatsApp para campo (audios, fotos rapidas). NocoDB para oficina (CRUD, batch uploads, pipeline, config). Cada herramienta donde rinde. |
+
+---
+
+## 10. Convenciones de Base de Datos
+
+### Soft Delete
+
+Toda tabla con registros editables/borrables por usuarios del panel **debe** implementar soft delete en lugar de `DELETE`:
+
+```sql
+-- Columna estándar a agregar en cada tabla
+deleted_at TIMESTAMPTZ NULL
+```
+
+**Reglas:**
+- `DELETE` de la API → `UPDATE SET deleted_at = NOW()` (nunca `DELETE FROM`)
+- Todos los `SELECT` deben incluir `WHERE deleted_at IS NULL` (o `AND deleted_at IS NULL` si hay otras condiciones)
+- Los endpoints `PATCH`/`UPDATE` también deben incluir `AND deleted_at IS NULL` en su `WHERE` para no operar sobre registros eliminados
+- Tablas con soft delete activo: `users` (campo `activo`), `organizations` (campo `activa`), `project_expenses`, `payment_records`, `facturas`, `investors`
+- Tablas con soft delete nativo por campo de estado: `reservations` (campo `status`: `active`/`cancelled`/`converted`)
+
+**Patrón en `api.py`:**
+```python
+# Soft delete
+await pool.execute(
+    "UPDATE mi_tabla SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+    record_id,
+)
+
+# SELECT siempre filtra
+rows = await pool.fetch(
+    "SELECT ... FROM mi_tabla WHERE project_id = $1 AND deleted_at IS NULL",
+    project_id,
+)
+```
+
+---
+
+### Audit Log
+
+Toda operación de escritura (INSERT/UPDATE/DELETE) sobre registros de negocio debe registrarse en la tabla `audit_log`.
+
+**Schema de la tabla:**
+```sql
+audit_log(
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID,           -- NULL si es sesión legacy (env vars)
+    user_nombre  TEXT,           -- denormalizado para legibilidad
+    action       TEXT NOT NULL,  -- INSERT | UPDATE | DELETE
+    table_name   TEXT NOT NULL,
+    record_id    UUID,
+    project_id   UUID,
+    details      JSONB,          -- contexto opcional (nombre, monto, campos modificados)
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)
+```
+
+**Tablas auditadas actualmente:** `project_expenses`, `payment_records`, `facturas`, `investors`, `reservations`.
+
+**Helpers disponibles en `api.py`:**
+
+```python
+def _get_actor(credentials) -> tuple:
+    """Extrae (user_id, user_nombre) del JWT. Retorna (None, None) si no hay token."""
+
+async def _audit(pool, *, user_id, user_nombre, action, table_name,
+                 record_id=None, project_id=None, details=None) -> None:
+    """Inserta en audit_log. Silencia errores para no romper el flujo principal."""
+```
+
+**Patrón para nuevos endpoints:**
+```python
+@router.post("/mi-tabla/{project_id}")
+async def create_algo(
+    project_id: str,
+    body: MiBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    pool = await get_pool()
+    user_id, user_nombre = _get_actor(credentials)
+
+    row = await pool.fetchrow("INSERT INTO mi_tabla (...) VALUES (...) RETURNING id", ...)
+
+    await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
+                 table_name="mi_tabla", record_id=str(row["id"]), project_id=project_id,
+                 details={"campo_clave": body.campo_clave})
+    return dict(row)
+```
+
+**Endpoint de consulta:** `GET /admin/audit-log` — filtra por `project_id`, `table_name`, `record_id`, `user_id`; paginado con `limit`/`offset`; acceso restringido a roles `admin`/`superadmin`.
+
+---
+
+### Nuevas tablas: checklist
+
+Al crear una nueva tabla que almacene registros editables por usuarios del panel:
+
+1. Agregar `deleted_at TIMESTAMPTZ NULL` en la migración SQL
+2. Todos los `SELECT` en `api.py` deben incluir `AND deleted_at IS NULL`
+3. El endpoint `DELETE` debe hacer soft delete (`UPDATE SET deleted_at = NOW()`)
+4. Los endpoints `PATCH`/`UPDATE` deben agregar `AND deleted_at IS NULL` al `WHERE`
+5. Todo endpoint de escritura (POST/PATCH/DELETE) debe:
+   - Recibir `credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)`
+   - Llamar `user_id, user_nombre = _get_actor(credentials)`
+   - Llamar `await _audit(...)` después de la operación exitosa
 | **Clasificacion conversacional de docs por WhatsApp** | Cuando un developer envia un archivo sin contexto, el agente pregunta proyecto, tipo, y metadata antes de guardar. Si el mensaje incluye contexto, Claude lo extrae automaticamente. |
 | **El agente envia documentos, no solo responde sobre ellos** | Cuando un lead pide planos o precios, el agente los envia como PDF/imagen por WhatsApp ademas de responder con texto. Diferencia clave de UX. |
 | **WhatsApp para operativo, Chatwoot para ventas** | El Modo Developer (audios de obra, PDFs, hitos) sigue siendo por WhatsApp. Solo el handoff de ventas va a Chatwoot. Cada herramienta donde rinde. |

@@ -82,7 +82,7 @@ async def evaluate_alerts(project_id: Optional[str] = None) -> int:
             f"""SELECT b.id, b.project_id, b.categoria, b.monto_usd,
                        COALESCE(SUM(e.monto_usd), 0) as ejecutado
                 FROM project_budget b
-                LEFT JOIN project_expenses e ON e.budget_id = b.id
+                LEFT JOIN project_expenses e ON e.budget_id = b.id AND e.deleted_at IS NULL
                 WHERE b.monto_usd > 0 {budget_conditions}
                 GROUP BY b.id, b.project_id, b.categoria, b.monto_usd
                 HAVING COALESCE(SUM(e.monto_usd), 0) > b.monto_usd * 1.1"""
@@ -191,6 +191,7 @@ async def evaluate_alerts(project_id: Optional[str] = None) -> int:
                     WHERE r.project_id = i.project_id
                       AND r.enviado_at > NOW() - INTERVAL '30 days'
                 )
+                AND i.deleted_at IS NULL
                 {investor_conditions}"""
         )
         for sr in sin_reporte:
