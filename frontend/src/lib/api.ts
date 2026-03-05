@@ -313,6 +313,22 @@ export interface Factura {
   estado: 'cargada' | 'vinculada' | 'pagada';
   notas: string | null;
   created_at: string;
+  payment_record_id: string | null;
+  linked_buyer_name: string | null;
+  linked_cuota: number | null;
+  linked_monto: number | null;
+  linked_moneda: string | null;
+  linked_fecha_pago: string | null;
+}
+
+export interface LinkablePayment {
+  id: string;
+  buyer_name: string | null;
+  numero_cuota: number;
+  concepto: string;
+  monto_pagado: number;
+  moneda: 'USD' | 'ARS';
+  fecha_pago: string;
 }
 
 export interface CashFlowRow {
@@ -685,6 +701,10 @@ export const api = {
       body: form,
     });
   },
+  getLinkablePayments: (projectId: string, q?: string) =>
+    fetcher<LinkablePayment[]>(
+      `/admin/facturas/${projectId}/linkable-payments${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    ),
 
   // --- Cash Flow ---
   getCashFlow: (projectId: string) =>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow } from '@/lib/api';
+import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, LinkablePayment } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, FileText, Receipt, ArrowUpCircle, ArrowDownCircle, ExternalLink } from 'lucide-react';
@@ -87,6 +87,7 @@ const FACTURA_EMPTY = {
   crear_gasto: false,
   gasto_descripcion: '',
   gasto_budget_id: '',
+  payment_record_id: '',
 };
 
 function fmtMes(mes: string) {
@@ -126,6 +127,9 @@ export default function FinancieroPage() {
   const [loadingFacturas, setLoadingFacturas] = useState(false);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [linkablePayments, setLinkablePayments] = useState<LinkablePayment[]>([]);
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [loadingPayments, setLoadingPayments] = useState(false);
   const [editingFactura, setEditingFactura] = useState<Factura | null>(null);
   const [facturaForm, setFacturaForm] = useState<typeof FACTURA_EMPTY>(FACTURA_EMPTY);
   const [savingFactura, setSavingFactura] = useState(false);
@@ -285,6 +289,8 @@ export default function FinancieroPage() {
   const openNewFactura = () => {
     setEditingFactura(null);
     setFacturaForm(FACTURA_EMPTY);
+    setPaymentSearch('');
+    setLinkablePayments([]);
     setShowFacturaModal(true);
   };
 
@@ -308,8 +314,27 @@ export default function FinancieroPage() {
       crear_gasto: false,
       gasto_descripcion: '',
       gasto_budget_id: '',
+      payment_record_id: f.payment_record_id || '',
     });
+    setPaymentSearch('');
+    setLinkablePayments([]);
+    if (f.categoria === 'ingreso') {
+      searchLinkablePayments('');
+    }
     setShowFacturaModal(true);
+  };
+
+  const searchLinkablePayments = async (q: string) => {
+    if (!id) return;
+    setLoadingPayments(true);
+    try {
+      const results = await api.getLinkablePayments(id as string, q || undefined);
+      setLinkablePayments(results);
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingPayments(false);
+    }
   };
 
   const handlePdfUpload = async (file: File) => {
@@ -347,6 +372,7 @@ export default function FinancieroPage() {
         notas: facturaForm.notas || null,
         gasto_budget_id: facturaForm.gasto_budget_id || undefined,
         gasto_descripcion: facturaForm.gasto_descripcion || undefined,
+        payment_record_id: facturaForm.payment_record_id || null,
       };
       if (editingFactura) {
         await api.patchFactura(editingFactura.id, data);
@@ -1014,6 +1040,66 @@ export default function FinancieroPage() {
                 </select>
               </div>
             </div>
+            {facturaForm.categoria === 'ingreso' && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Vincular a pago registrado
+                </label>
+                <input
+                  type="text"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
+                  placeholder="Buscar comprador..."
+                  value={paymentSearch}
+                  onChange={(e) => {
+                    setPaymentSearch(e.target.value);
+                    searchLinkablePayments(e.target.value);
+                  }}
+                  onFocus={() => { if (!linkablePayments.length) searchLinkablePayments(''); }}
+                />
+                {loadingPayments && (
+                  <p className="text-xs text-gray-400 px-1">Buscando...</p>
+                )}
+                {linkablePayments.length > 0 && (
+                  <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                    {linkablePayments.map((pr) => (
+                      <button
+                        key={pr.id}
+                        type="button"
+                        onClick={() =>
+                          setFacturaForm(f => ({
+                            ...f,
+                            payment_record_id: f.payment_record_id === pr.id ? '' : pr.id,
+                          }))
+                        }
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors',
+                          facturaForm.payment_record_id === pr.id
+                            ? 'bg-blue-50 text-blue-800'
+                            : 'hover:bg-gray-50 text-gray-700',
+                        )}
+                      >
+                        <span className="font-medium">{pr.buyer_name || 'Comprador'}</span>
+                        <span className="text-gray-400">
+                          Cuota #{pr.numero_cuota} · {pr.moneda} {Number(pr.monto_pagado).toLocaleString('es-AR')} · {new Date(pr.fecha_pago).toLocaleDateString('es-AR')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {facturaForm.payment_record_id && (
+                  <p className="text-xs text-blue-700 font-medium px-1 flex items-center gap-1">
+                    ✓ Pago vinculado
+                    <button
+                      type="button"
+                      className="ml-1 text-gray-400 hover:text-red-500"
+                      onClick={() => setFacturaForm(f => ({ ...f, payment_record_id: '' }))}
+                    >
+                      (quitar)
+                    </button>
+                  </p>
+                )}
+              </div>
+            )}
             <div>
               <label className="text-xs font-medium text-gray-600 mb-1 block">URL archivo (PDF)</label>
               <div className="space-y-2">

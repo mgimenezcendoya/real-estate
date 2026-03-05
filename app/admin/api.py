@@ -1677,6 +1677,7 @@ class FacturaBody(BaseModel):
     crear_gasto: bool = False
     gasto_descripcion: Optional[str] = None
     gasto_budget_id: Optional[str] = None
+    payment_record_id: Optional[str] = None
 
 
 @router.get("/facturas/{project_id}")
@@ -1704,11 +1705,49 @@ async def list_facturas(
         conditions.append(f"f.fecha_emision <= ${i}"); params.append(datetime.strptime(fecha_hasta, "%Y-%m-%d").date()); i += 1
     where = " AND ".join(conditions)
     rows = await pool.fetch(
-        f"""SELECT f.*, s.nombre AS proveedor_supplier
+        f"""SELECT f.*, s.nombre AS proveedor_supplier,
+                   r.buyer_name AS linked_buyer_name,
+                   pi.numero_cuota AS linked_cuota,
+                   pr.monto_pagado AS linked_monto,
+                   pr.moneda AS linked_moneda,
+                   pr.fecha_pago AS linked_fecha_pago
             FROM facturas f
             LEFT JOIN suppliers s ON s.id = f.proveedor_id
+            LEFT JOIN payment_records pr ON pr.id = f.payment_record_id
+            LEFT JOIN payment_installments pi ON pi.id = pr.installment_id
+            LEFT JOIN payment_plans pp ON pp.id = pi.plan_id
+            LEFT JOIN reservations r ON r.id = pp.reservation_id
             WHERE {where}
             ORDER BY f.fecha_emision DESC""",
+        *params,
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/facturas/{project_id}/linkable-payments")
+async def list_linkable_payments(
+    project_id: str,
+    q: Optional[str] = None,
+    user=Depends(require_auth),
+):
+    """List payment_records for a project, optionally filtered by buyer name."""
+    pool = await get_pool()
+    conditions = ["r.project_id = $1"]
+    params: list = [project_id]
+    if q:
+        conditions.append(f"r.buyer_name ILIKE $2")
+        params.append(f"%{q}%")
+    where = " AND ".join(conditions)
+    rows = await pool.fetch(
+        f"""SELECT pr.id, r.buyer_name, pi.numero_cuota, pi.concepto,
+                   pr.monto_pagado, pr.moneda, pr.fecha_pago
+            FROM payment_records pr
+            JOIN payment_installments pi ON pi.id = pr.installment_id
+            JOIN payment_plans pp ON pp.id = pi.plan_id
+            JOIN reservations r ON r.id = pp.reservation_id
+            WHERE {where}
+            ORDER BY pr.fecha_pago DESC
+            LIMIT 20""",
         *params,
     )
     return [dict(r) for r in rows]
@@ -1738,12 +1777,13 @@ async def create_factura(project_id: str, body: FacturaBody):
                     datetime.strptime(body.fecha_emision, "%Y-%m-%d").date(),
                 )
                 gasto_id = str(gasto_row["id"])
+            payment_record_id = body.payment_record_id or None
             row = await conn.fetchrow(
                 """INSERT INTO facturas
                    (project_id, tipo, numero_factura, proveedor_nombre, cuit_emisor,
                     fecha_emision, fecha_vencimiento, monto_neto, iva_pct, monto_total,
-                    moneda, categoria, file_url, gasto_id, estado, notas)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+                    moneda, categoria, file_url, gasto_id, payment_record_id, estado, notas)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
                    RETURNING id""",
                 project_id, body.tipo, body.numero_factura, body.proveedor_nombre,
                 body.cuit_emisor,
@@ -1751,9 +1791,9 @@ async def create_factura(project_id: str, body: FacturaBody):
                 datetime.strptime(body.fecha_vencimiento, "%Y-%m-%d").date() if body.fecha_vencimiento else None,
                 body.monto_neto, body.iva_pct, body.monto_total,
                 body.moneda, body.categoria, body.file_url,
-                gasto_id, body.estado, body.notas,
+                gasto_id, payment_record_id, body.estado, body.notas,
             )
-            estado_final = "vinculada" if gasto_id else "cargada"
+            estado_final = "vinculada" if (gasto_id or payment_record_id) else "cargada"
             if gasto_id:
                 await conn.execute(
                     "UPDATE facturas SET estado=$1 WHERE id=$2", estado_final, row["id"]
@@ -1776,6 +1816,7 @@ class PatchFacturaBody(BaseModel):
     file_url: Optional[str] = None
     estado: Optional[str] = None
     notas: Optional[str] = None
+    payment_record_id: Optional[str] = None
 
 
 @router.patch("/facturas/{factura_id}")
