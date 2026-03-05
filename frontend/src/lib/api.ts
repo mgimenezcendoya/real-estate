@@ -347,6 +347,8 @@ export interface BudgetItem {
   descripcion?: string | null;
   monto_usd: number | null;
   monto_ars: number | null;
+  etapa_id?: string | null;
+  etapa_nombre?: string | null;
   created_at?: string;
 }
 
@@ -361,6 +363,8 @@ export interface Expense {
   comprobante_url: string | null;
   created_at: string;
   categoria?: string | null;
+  source?: 'expense' | 'obra';
+  etapa_nombre?: string | null;
 }
 
 export interface FinancialSummary {
@@ -452,6 +456,7 @@ export interface ObraPayment {
   id: string;
   supplier_id: string | null;
   etapa_id: string | null;
+  budget_id: string | null;
   descripcion: string;
   monto_usd: number | null;
   monto_ars: number | null;
@@ -601,8 +606,12 @@ export const api = {
     fetcher<{ deleted: boolean }>(`/admin/financials/${projectId}/expenses/${expenseId}`, { method: 'DELETE' }),
   getBudget: (projectId: string) =>
     fetcher<BudgetItem[]>(`/admin/financials/${projectId}/budget`),
-  upsertBudget: (projectId: string, data: Omit<BudgetItem, 'id' | 'created_at'>) =>
+  upsertBudget: (projectId: string, data: Omit<BudgetItem, 'id' | 'created_at' | 'etapa_nombre'>) =>
     fetcher<BudgetItem>(`/admin/financials/${projectId}/budget`, { method: 'POST', body: JSON.stringify(data) }),
+  patchBudget: (projectId: string, budgetId: string, data: Omit<BudgetItem, 'id' | 'created_at' | 'etapa_nombre'>) =>
+    fetcher<BudgetItem>(`/admin/financials/${projectId}/budget/${budgetId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteBudget: (projectId: string, budgetId: string) =>
+    fetcher<void>(`/admin/financials/${projectId}/budget/${budgetId}`, { method: 'DELETE' }),
   patchFinancialsConfig: (projectId: string, tipo_cambio_usd_ars: number) =>
     fetcher<{ tipo_cambio: number }>(`/admin/financials/${projectId}/config`, { method: 'PATCH', body: JSON.stringify({ tipo_cambio_usd_ars }) }),
 

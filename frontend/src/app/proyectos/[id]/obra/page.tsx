@@ -841,6 +841,7 @@ function isVencemientoProximo(payment: ObraPayment) {
 const PAYMENT_EMPTY: Omit<ObraPayment, 'id' | 'created_at' | 'supplier_nombre' | 'etapa_nombre'> = {
   supplier_id: null,
   etapa_id: null,
+  budget_id: null,
   descripcion: '',
   monto_usd: null,
   monto_ars: null,
@@ -861,7 +862,7 @@ function PaymentsTab({ projectId, etapas, readOnly }: { projectId: string; etapa
   const [saving, setSaving] = useState(false);
   const [showVenc, setShowVenc] = useState(true);
 
-  const load = async () => {
+const load = async () => {
     setLoadingP(true);
     try {
       const [p, v, s] = await Promise.all([

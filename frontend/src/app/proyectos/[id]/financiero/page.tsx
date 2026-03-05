@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, LinkablePayment } from '@/lib/api';
+import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, LinkablePayment, ObraEtapa } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, FileText, Receipt, ArrowUpCircle, ArrowDownCircle, ExternalLink } from 'lucide-react';
@@ -119,8 +119,10 @@ export default function FinancieroPage() {
 
   // Budget modal
   const [showBudgetModal, setShowBudgetModal] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({ categoria: '', descripcion: '', monto_usd: '' });
+  const [editingBudget, setEditingBudget] = useState<BudgetItem | null>(null);
+  const [budgetForm, setBudgetForm] = useState({ categoria: '', descripcion: '', monto_usd: '', etapa_id: '' });
   const [savingBudget, setSavingBudget] = useState(false);
+  const [etapas, setEtapas] = useState<ObraEtapa[]>([]);
 
   // Facturas
   const [facturas, setFacturas] = useState<Factura[]>([]);
@@ -160,7 +162,10 @@ export default function FinancieroPage() {
     }
   };
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => {
+    load();
+    if (id) api.getObra(id).then((d) => setEtapas(d.etapas)).catch(() => {});
+  }, [id]);
 
   const loadExpenses = async () => {
     if (!id) return;
@@ -244,19 +249,56 @@ export default function FinancieroPage() {
     }
   };
 
+  const openNewBudget = () => {
+    setEditingBudget(null);
+    setBudgetForm({ categoria: '', descripcion: '', monto_usd: '', etapa_id: '' });
+    setShowBudgetModal(true);
+  };
+
+  const openEditBudget = (item: BudgetItem) => {
+    setEditingBudget(item);
+    setBudgetForm({
+      categoria: item.categoria,
+      descripcion: item.descripcion || '',
+      monto_usd: item.monto_usd != null ? String(item.monto_usd) : '',
+      etapa_id: item.etapa_id || '',
+    });
+    setShowBudgetModal(true);
+  };
+
+  const deleteBudgetItem = async (item: BudgetItem) => {
+    if (!id) return;
+    if (!confirm(`¿Eliminar la categoría "${item.categoria}"? Los gastos asociados quedarán sin categoría.`)) return;
+    try {
+      await api.deleteBudget(id, item.id);
+      toast.success('Categoría eliminada');
+      await load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    }
+  };
+
   const saveBudget = async () => {
     if (!id || !budgetForm.categoria) return toast.error('Categoría requerida');
     setSavingBudget(true);
+    const data = {
+      categoria: budgetForm.categoria,
+      descripcion: budgetForm.descripcion || null,
+      monto_usd: budgetForm.monto_usd ? parseFloat(budgetForm.monto_usd) : null,
+      monto_ars: null,
+      etapa_id: budgetForm.etapa_id || null,
+    };
     try {
-      await api.upsertBudget(id, {
-        categoria: budgetForm.categoria,
-        descripcion: budgetForm.descripcion || null,
-        monto_usd: budgetForm.monto_usd ? parseFloat(budgetForm.monto_usd) : null,
-        monto_ars: null,
-      });
-      toast.success('Presupuesto guardado');
+      if (editingBudget) {
+        await api.patchBudget(id, editingBudget.id, data);
+        toast.success('Categoría actualizada');
+      } else {
+        await api.upsertBudget(id, data);
+        toast.success('Categoría creada');
+      }
       setShowBudgetModal(false);
-      setBudgetForm({ categoria: '', descripcion: '', monto_usd: '' });
+      setEditingBudget(null);
+      setBudgetForm({ categoria: '', descripcion: '', monto_usd: '', etapa_id: '' });
       await load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Error');
@@ -399,7 +441,7 @@ export default function FinancieroPage() {
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error'); }
   };
 
-  const categorias = budget.map((b) => b.categoria);
+  const categorias = [...budget.map((b) => b.categoria), 'Pagos de Obra'];
 
   return (
     <div className="p-6 md:p-8">
@@ -459,7 +501,7 @@ export default function FinancieroPage() {
           <h3 className="text-sm font-semibold text-gray-900">Por categoría</h3>
           {!isReader && (
             <button
-              onClick={() => setShowBudgetModal(true)}
+              onClick={openNewBudget}
               className="flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-900 font-medium"
             >
               <Plus size={13} /> Nueva categoría
@@ -474,13 +516,32 @@ export default function FinancieroPage() {
               const maxVal = Math.max(cat.presupuesto_usd, cat.ejecutado_usd);
               const budPct = maxVal ? (cat.presupuesto_usd / maxVal) * 100 : 0;
               const exePct = maxVal ? (cat.ejecutado_usd / maxVal) * 100 : 0;
+              const budgetItem = budget.find((b) => b.categoria === cat.categoria);
               return (
-                <div key={cat.categoria}>
+                <div key={cat.categoria} className="group">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm text-gray-700 font-medium">{cat.categoria}</span>
-                    <span className={cn('text-xs font-medium', cat.desvio_pct > 0 ? 'text-red-500' : 'text-emerald-600')}>
-                      {cat.desvio_pct > 0 ? '+' : ''}{cat.desvio_pct}%
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {!isReader && budgetItem && (
+                        <>
+                          <button
+                            onClick={() => openEditBudget(budgetItem)}
+                            className="p-1 text-gray-300 hover:text-blue-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                          <button
+                            onClick={() => deleteBudgetItem(budgetItem)}
+                            className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </>
+                      )}
+                      <span className={cn('text-xs font-medium', cat.desvio_pct > 0 ? 'text-red-500' : 'text-emerald-600')}>
+                        {cat.desvio_pct > 0 ? '+' : ''}{cat.desvio_pct}%
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -565,26 +626,42 @@ export default function FinancieroPage() {
                 {expenses.map((exp) => (
                   <tr key={exp.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">
-                      {new Date(exp.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: '2-digit' })}
+                      {exp.fecha ? new Date(exp.fecha + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                     </td>
                     <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">{exp.proveedor || '—'}</td>
-                    <td className="py-3 pr-4 text-gray-800 max-w-xs truncate">{exp.descripcion}</td>
+                    <td className="py-3 pr-4 text-gray-800 max-w-xs">
+                      <span className="truncate block">{exp.descripcion}</span>
+                      {exp.etapa_nombre && (
+                        <span className="text-[10px] text-gray-400">{exp.etapa_nombre}</span>
+                      )}
+                    </td>
                     <td className="py-3 pr-4">
-                      {exp.categoria ? <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200">{exp.categoria}</Badge> : <span className="text-gray-300">—</span>}
+                      {exp.categoria ? (
+                        <Badge className={cn(
+                          "text-[10px]",
+                          exp.source === 'obra'
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-blue-50 text-blue-800 border-blue-200"
+                        )}>{exp.categoria}</Badge>
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-3 pr-4 text-right font-medium text-gray-800 whitespace-nowrap">
                       {exp.monto_usd != null ? formatUSD(exp.monto_usd) : '—'}
                     </td>
                     {!isReader && (
                       <td className="py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => openEdit(exp)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
-                            <Pencil size={13} />
-                          </button>
-                          <button onClick={() => deleteExpense(exp)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                        {exp.source !== 'obra' ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button onClick={() => openEdit(exp)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => deleteExpense(exp)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-gray-300 pr-1">Obra</span>
+                        )}
                       </td>
                     )}
                   </tr>
@@ -907,10 +984,10 @@ export default function FinancieroPage() {
       </Dialog>
 
       {/* Budget modal */}
-      <Dialog open={showBudgetModal} onOpenChange={setShowBudgetModal}>
+      <Dialog open={showBudgetModal} onOpenChange={(open) => { setShowBudgetModal(open); if (!open) setEditingBudget(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Nueva categoría de presupuesto</DialogTitle>
+            <DialogTitle>{editingBudget ? 'Editar categoría' : 'Nueva categoría de presupuesto'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
@@ -943,6 +1020,20 @@ export default function FinancieroPage() {
                 step="0.01"
               />
             </div>
+            {etapas.length > 0 && (
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1 block">Etapa de obra vinculada</label>
+                <select
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none"
+                  value={budgetForm.etapa_id}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, etapa_id: e.target.value })}
+                >
+                  <option value="">Sin etapa (gasto general)</option>
+                  {etapas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">Los pagos de obra de esta etapa se contabilizarán automáticamente en esta categoría.</p>
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setShowBudgetModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50">
                 Cancelar
@@ -952,7 +1043,7 @@ export default function FinancieroPage() {
                 disabled={savingBudget}
                 className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
               >
-                {savingBudget ? 'Guardando...' : 'Guardar'}
+                {savingBudget ? 'Guardando...' : editingBudget ? 'Actualizar' : 'Crear'}
               </button>
             </div>
           </div>

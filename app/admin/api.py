@@ -2109,6 +2109,7 @@ class BudgetBody(BaseModel):
     categoria: str
     descripcion: Optional[str] = None
     monto_usd: Optional[float] = None
+    etapa_id: Optional[str] = None
     monto_ars: Optional[float] = None
 
 
@@ -2149,7 +2150,19 @@ async def get_financials_summary(project_id: str):
            WHERE e.project_id = $1""",
         project_id,
     )
-    ejecutado_total = sum(float(r["monto_usd"] or 0) for r in expenses_rows)
+
+    obra_payments_rows = await pool.fetch(
+        """SELECT COALESCE(op.monto_usd, op.monto_ars / NULLIF($2, 0), 0) AS monto_usd,
+                  pb.categoria
+           FROM obra_payments op
+           LEFT JOIN project_budget pb ON pb.etapa_id = op.etapa_id AND pb.project_id = $1
+           WHERE op.project_id = $1""",
+        project_id, tipo_cambio,
+    )
+
+    ejecutado_expenses = sum(float(r["monto_usd"] or 0) for r in expenses_rows)
+    ejecutado_obra = sum(float(r["monto_usd"] or 0) for r in obra_payments_rows)
+    ejecutado_total = ejecutado_expenses + ejecutado_obra
 
     revenue_row = await pool.fetchrow(
         "SELECT COALESCE(SUM(price_usd), 0) as revenue FROM units WHERE project_id = $1",
@@ -2165,6 +2178,9 @@ async def get_financials_summary(project_id: str):
     cat_exec: dict = {}
     for r in expenses_rows:
         cat = r["categoria"] or "Sin categoría"
+        cat_exec[cat] = cat_exec.get(cat, 0.0) + float(r["monto_usd"] or 0)
+    for r in obra_payments_rows:
+        cat = r["categoria"] or "Pagos de Obra"
         cat_exec[cat] = cat_exec.get(cat, 0.0) + float(r["monto_usd"] or 0)
 
     por_categoria = []
@@ -2192,6 +2208,9 @@ async def get_financials_summary(project_id: str):
     }
 
 
+OBRA_CATEGORIA = "Pagos de Obra"
+
+
 @router.get("/financials/{project_id}/expenses")
 async def list_expenses(
     project_id: str,
@@ -2200,38 +2219,72 @@ async def list_expenses(
     fecha_hasta: Optional[str] = None,
 ):
     pool = await get_pool()
+    fecha_desde_date = datetime.strptime(fecha_desde, "%Y-%m-%d").date() if fecha_desde else None
+    fecha_hasta_date = datetime.strptime(fecha_hasta, "%Y-%m-%d").date() if fecha_hasta else None
+
+    # --- project_expenses ---
     conditions = ["e.project_id = $1"]
     params: list = [project_id]
-
-    if categoria:
+    if categoria and categoria != OBRA_CATEGORIA:
         params.append(categoria)
         conditions.append(f"b.categoria = ${len(params)}")
-    if fecha_desde:
-        params.append(datetime.strptime(fecha_desde, "%Y-%m-%d").date())
+    elif categoria == OBRA_CATEGORIA:
+        conditions.append("1=0")  # exclude regular expenses when filtering by obra
+    if fecha_desde_date:
+        params.append(fecha_desde_date)
         conditions.append(f"e.fecha >= ${len(params)}")
-    if fecha_hasta:
-        params.append(datetime.strptime(fecha_hasta, "%Y-%m-%d").date())
+    if fecha_hasta_date:
+        params.append(fecha_hasta_date)
         conditions.append(f"e.fecha <= ${len(params)}")
 
-    where = " AND ".join(conditions)
     rows = await pool.fetch(
-        f"""SELECT e.id, e.budget_id, e.proveedor, e.descripcion,
+        f"""SELECT e.id::text, e.budget_id, e.proveedor, e.descripcion,
                    e.monto_usd, e.monto_ars, e.fecha, e.comprobante_url, e.created_at,
-                   b.categoria
+                   b.categoria, 'expense' AS source, NULL::text AS etapa_nombre
             FROM project_expenses e
             LEFT JOIN project_budget b ON b.id = e.budget_id
-            WHERE {where}
+            WHERE {" AND ".join(conditions)}
             ORDER BY e.fecha DESC, e.created_at DESC""",
         *params,
     )
+
+    # --- obra_payments (only if not filtering by a different category) ---
+    obra_rows = []
+    if not categoria or categoria == OBRA_CATEGORIA:
+        obra_conds = ["op.project_id = $1"]
+        obra_params: list = [project_id]
+        if fecha_desde_date:
+            obra_params.append(fecha_desde_date)
+            obra_conds.append(f"COALESCE(op.fecha_pago, op.fecha_vencimiento) >= ${len(obra_params)}")
+        if fecha_hasta_date:
+            obra_params.append(fecha_hasta_date)
+            obra_conds.append(f"COALESCE(op.fecha_pago, op.fecha_vencimiento) <= ${len(obra_params)}")
+
+        obra_rows = await pool.fetch(
+            f"""SELECT op.id::text, NULL::uuid AS budget_id, s.nombre AS proveedor, op.descripcion,
+                       op.monto_usd, op.monto_ars,
+                       COALESCE(op.fecha_pago, op.fecha_vencimiento) AS fecha,
+                       op.comprobante_url, op.created_at,
+                       COALESCE(pb.categoria, '{OBRA_CATEGORIA}') AS categoria, 'obra' AS source,
+                       oe.nombre AS etapa_nombre
+                FROM obra_payments op
+                LEFT JOIN suppliers s ON s.id = op.supplier_id
+                LEFT JOIN obra_etapas oe ON oe.id = op.etapa_id
+                LEFT JOIN project_budget pb ON pb.etapa_id = op.etapa_id AND pb.project_id = op.project_id
+                WHERE {" AND ".join(obra_conds)}""",
+            *obra_params,
+        )
+
     result = []
-    for r in rows:
+    for r in list(rows) + list(obra_rows):
         d = dict(r)
         if d.get("monto_usd") is not None:
             d["monto_usd"] = float(d["monto_usd"])
         if d.get("monto_ars") is not None:
             d["monto_ars"] = float(d["monto_ars"])
         result.append(d)
+
+    result.sort(key=lambda x: (str(x.get("fecha") or ""), str(x.get("created_at") or "")), reverse=True)
     return result
 
 
@@ -2295,7 +2348,11 @@ async def delete_expense(project_id: str, expense_id: str):
 async def get_budget(project_id: str):
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, categoria, descripcion, monto_usd, monto_ars, created_at FROM project_budget WHERE project_id = $1 ORDER BY categoria",
+        """SELECT pb.id, pb.categoria, pb.descripcion, pb.monto_usd, pb.monto_ars, pb.etapa_id,
+                  oe.nombre as etapa_nombre, pb.created_at
+           FROM project_budget pb
+           LEFT JOIN obra_etapas oe ON oe.id = pb.etapa_id
+           WHERE pb.project_id = $1 ORDER BY pb.categoria""",
         project_id,
     )
     result = []
@@ -2313,23 +2370,53 @@ async def get_budget(project_id: str):
 async def upsert_budget(project_id: str, body: BudgetBody):
     pool = await get_pool()
     row = await pool.fetchrow(
-        """INSERT INTO project_budget (project_id, categoria, descripcion, monto_usd, monto_ars)
-           VALUES ($1, $2, $3, $4, $5)
+        """INSERT INTO project_budget (project_id, categoria, descripcion, monto_usd, monto_ars, etapa_id)
+           VALUES ($1, $2, $3, $4, $5, $6)
            ON CONFLICT DO NOTHING
-           RETURNING id, categoria, monto_usd""",
+           RETURNING id, categoria, monto_usd, etapa_id""",
         project_id, body.categoria, body.descripcion, body.monto_usd, body.monto_ars,
+        body.etapa_id or None,
     )
     if not row:
         row = await pool.fetchrow(
-            """UPDATE project_budget SET descripcion = $3, monto_usd = $4, monto_ars = $5
+            """UPDATE project_budget SET descripcion = $3, monto_usd = $4, monto_ars = $5, etapa_id = $6
                WHERE project_id = $1 AND categoria = $2
-               RETURNING id, categoria, monto_usd""",
+               RETURNING id, categoria, monto_usd, etapa_id""",
             project_id, body.categoria, body.descripcion, body.monto_usd, body.monto_ars,
+            body.etapa_id or None,
         )
     d = dict(row)
     if d.get("monto_usd") is not None:
         d["monto_usd"] = float(d["monto_usd"])
     return d
+
+
+@router.patch("/financials/{project_id}/budget/{budget_id}")
+async def patch_budget(project_id: str, budget_id: str, body: BudgetBody, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """UPDATE project_budget
+           SET categoria = $3, descripcion = $4, monto_usd = $5, monto_ars = $6, etapa_id = $7
+           WHERE id = $1 AND project_id = $2
+           RETURNING id, categoria, monto_usd, etapa_id""",
+        budget_id, project_id, body.categoria, body.descripcion,
+        body.monto_usd, body.monto_ars, body.etapa_id or None,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Budget item not found")
+    d = dict(row)
+    if d.get("monto_usd") is not None:
+        d["monto_usd"] = float(d["monto_usd"])
+    return d
+
+
+@router.delete("/financials/{project_id}/budget/{budget_id}", status_code=204)
+async def delete_budget(project_id: str, budget_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    pool = await get_pool()
+    await pool.execute(
+        "DELETE FROM project_budget WHERE id = $1 AND project_id = $2",
+        budget_id, project_id,
+    )
 
 
 @router.patch("/financials/{project_id}/config")
@@ -2589,6 +2676,7 @@ class SupplierBody(BaseModel):
 class ObraPaymentBody(BaseModel):
     supplier_id: Optional[str] = None
     etapa_id: Optional[str] = None
+    budget_id: Optional[str] = None
     descripcion: str
     monto_usd: Optional[float] = None
     monto_ars: Optional[float] = None
@@ -2662,7 +2750,7 @@ async def list_obra_payments(project_id: str, estado: Optional[str] = None):
 
     where = " AND ".join(conditions)
     rows = await pool.fetch(
-        f"""SELECT p.id, p.supplier_id, p.etapa_id, p.descripcion,
+        f"""SELECT p.id, p.supplier_id, p.etapa_id, p.budget_id, p.descripcion,
                    p.monto_usd, p.monto_ars, p.fecha_vencimiento, p.estado,
                    p.fecha_pago, p.comprobante_url, p.created_at,
                    s.nombre as supplier_nombre,
@@ -2692,12 +2780,12 @@ async def create_obra_payment(project_id: str, body: ObraPaymentBody):
     fp = datetime.strptime(body.fecha_pago, "%Y-%m-%d").date() if body.fecha_pago else None
     row = await pool.fetchrow(
         """INSERT INTO obra_payments
-               (project_id, supplier_id, etapa_id, descripcion, monto_usd, monto_ars,
+               (project_id, supplier_id, etapa_id, budget_id, descripcion, monto_usd, monto_ars,
                 fecha_vencimiento, estado, fecha_pago, comprobante_url)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            RETURNING id, descripcion, estado, fecha_vencimiento, created_at""",
-        project_id, body.supplier_id or None, body.etapa_id or None, body.descripcion,
-        body.monto_usd, body.monto_ars, fv, body.estado, fp, body.comprobante_url,
+        project_id, body.supplier_id or None, body.etapa_id or None, body.budget_id or None,
+        body.descripcion, body.monto_usd, body.monto_ars, fv, body.estado, fp, body.comprobante_url,
     )
     return dict(row)
 
@@ -2706,7 +2794,7 @@ async def create_obra_payment(project_id: str, body: ObraPaymentBody):
 async def patch_obra_payment(payment_id: str, request: Request):
     pool = await get_pool()
     body = await request.json()
-    ALLOWED = {"supplier_id", "etapa_id", "descripcion", "monto_usd", "monto_ars",
+    ALLOWED = {"supplier_id", "etapa_id", "budget_id", "descripcion", "monto_usd", "monto_ars",
                "fecha_vencimiento", "estado", "fecha_pago", "comprobante_url"}
     fields = {k: v for k, v in body.items() if k in ALLOWED}
     if not fields:
