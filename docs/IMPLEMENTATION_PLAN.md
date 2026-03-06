@@ -269,8 +269,9 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - Render paid (~$31/mes) — posible pero caro; Render free tier NO sirve (spin-down rompe WebSockets)
 
 **Estrategia recomendada**:
-- Mientras se esté en Render free: usar el **trial de Chatwoot Cloud** para desarrollar e integrar el módulo sin costo.
-- Al migrar a Railway (ya previsto en el plan): deployar Chatwoot ahí junto con FastAPI + Postgres. Un solo stack, sin VPS separado.
+- **Desarrollo (costo cero)**: Chatwoot con Docker Compose local. La mobile app se conecta por WiFi (`http://192.168.x.x:3000`). Sirve para desarrollar y testear toda la integración API (crear conversaciones, HITL, webhook de cierre).
+- **Limitación local**: las push notifications NO funcionan en localhost — requieren HTTPS + FCM/APNS. Se validan recién en Railway.
+- **Al migrar a Railway**: Chatwoot va junto con FastAPI + Postgres en el mismo stack. Ahí se habilitan las push notifications reales en la mobile app.
 
 - [ ] Crear cuenta en Chatwoot Cloud (app.chatwoot.com)
 - [ ] Crear un Inbox de tipo "API" en Chatwoot para WhatsApp (un inbox por org)
