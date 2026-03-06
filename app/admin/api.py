@@ -2102,6 +2102,7 @@ async def get_cash_flow(
     project_id: str,
     desde: Optional[str] = None,
     hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Monthly cash flow: ingresos (payment_records) vs egresos (expenses + obra_payments)."""
     pool = await get_pool()
