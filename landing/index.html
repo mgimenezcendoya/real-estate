@@ -4,459 +4,386 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Realia — El copiloto de IA para desarrolladoras inmobiliarias</title>
-  <meta name="description" content="Automatizá la captación y calificación de leads, mantené informados a tus compradores y gestioná tus proyectos desde un solo lugar. 24/7." />
+  <meta name="description" content="Automatizá la captación de leads, calificá prospectos 24/7 y mantené informados a tus compradores sobre el avance de obra. Todo desde un solo lugar." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
   <style>
-    /* ─── TOKENS ──────────────────────────────────────────── */
+    /* ─── EXACT APP TOKENS ──────────────────────────────── */
     :root {
-      --bg:           #08080E;
-      --surface:      #0E0E17;
-      --surface-2:    #141420;
-      --border:       rgba(255,255,255,0.07);
-      --border-hover: rgba(255,255,255,0.14);
-      --gold:         #C9882A;
-      --gold-light:   #EBA84A;
-      --gold-glow:    rgba(201,136,42,0.18);
-      --gold-subtle:  rgba(201,136,42,0.08);
-      --text:         #EDEAE3;
-      --text-2:       #8A8997;
-      --text-3:       #4E4D5D;
-      --green:        #3ECF8E;
+      --bg:           #f4f6f9;
+      --bg-end:       #f8fafc;
+      --surface:      #ffffff;
+      --surface-muted:#f8fafc;
+      --border:       #e2e8f0;
+      --border-focus: rgba(29,78,216,0.35);
+      --primary:      #1d4ed8;
+      --primary-dark: #1e40af;
+      --indigo:       #6366f1;
+      --gradient:     linear-gradient(135deg, #1d4ed8 0%, #6366f1 100%);
+      --text:         #0f172a;
+      --text-2:       #64748b;
+      --text-3:       #94a3b8;
+      --green:        #059669;
+      --amber:        #d97706;
+      --red:          #dc2626;
+      --shadow-sm:    0 1px 2px rgba(15,23,42,0.04), 0 2px 8px rgba(15,23,42,0.04);
+      --shadow-md:    0 4px 16px rgba(15,23,42,0.07), 0 1px 3px rgba(15,23,42,0.04);
+      --shadow-lg:    0 8px 32px rgba(15,23,42,0.10), 0 2px 8px rgba(15,23,42,0.05);
+      --shadow-blue:  0 4px 24px rgba(29,78,216,0.18), 0 1px 4px rgba(0,0,0,0.04);
       --radius:       12px;
-      --radius-lg:    20px;
+      --radius-lg:    16px;
+      --radius-xl:    20px;
     }
 
-    /* ─── RESET ───────────────────────────────────────────── */
+    /* ─── RESET ─────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; font-size: 16px; }
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Sora', sans-serif;
-      font-weight: 300;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 400;
       line-height: 1.6;
       overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
     a { color: inherit; text-decoration: none; }
-    img { display: block; max-width: 100%; }
     button { cursor: pointer; border: none; background: none; font-family: inherit; }
+    h1, h2, h3, h4, h5 { font-family: 'Outfit', sans-serif; }
 
-    /* ─── GRAIN OVERLAY ──────────────────────────────────── */
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
-      opacity: 0.028;
-      pointer-events: none;
-      z-index: 9999;
+    /* ─── UTILITIES ──────────────────────────────────────── */
+    .gradient-text {
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 clamp(20px, 5vw, 48px);
+    }
+    .glass {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    .glass-elevated {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
     }
 
-    /* ─── TYPOGRAPHY SCALE ───────────────────────────────── */
-    .display-xl {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(52px, 7vw, 88px);
-      font-weight: 300;
-      line-height: 1.02;
-      letter-spacing: -0.02em;
-    }
-    .display-xl em {
-      font-style: italic;
-      font-weight: 300;
-      color: var(--gold-light);
-    }
-    .display-lg {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(36px, 4.5vw, 58px);
-      font-weight: 300;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-    }
-    .display-md {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(24px, 3vw, 38px);
-      font-weight: 400;
-      line-height: 1.2;
-    }
-    .label {
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--gold);
-    }
-    .body-lg { font-size: clamp(16px, 1.2vw, 18px); font-weight: 300; color: var(--text-2); line-height: 1.7; }
-    .body-sm { font-size: 14px; font-weight: 300; color: var(--text-2); line-height: 1.6; }
-
-    /* ─── BUTTONS ─────────────────────────────────────────── */
+    /* ─── BUTTONS ────────────────────────────────────────── */
     .btn-primary {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 28px;
-      background: var(--gold);
-      color: #0A0A0E;
-      font-family: 'Sora', sans-serif;
+      padding: 12px 24px;
+      background: var(--primary);
+      color: #fff;
+      font-family: 'DM Sans', sans-serif;
       font-size: 14px;
       font-weight: 500;
-      border-radius: 8px;
+      border-radius: var(--radius);
       transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
       white-space: nowrap;
     }
     .btn-primary:hover {
-      background: var(--gold-light);
+      background: var(--primary-dark);
       transform: translateY(-1px);
-      box-shadow: 0 8px 32px rgba(201,136,42,0.3);
+      box-shadow: var(--shadow-blue);
     }
-    .btn-ghost {
+    .btn-outline {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 14px 24px;
+      padding: 12px 24px;
       color: var(--text-2);
-      font-family: 'Sora', sans-serif;
+      font-family: 'DM Sans', sans-serif;
       font-size: 14px;
-      font-weight: 400;
-      border-radius: 8px;
+      font-weight: 500;
+      border-radius: var(--radius);
       border: 1px solid var(--border);
-      transition: color 0.2s, border-color 0.2s;
+      background: var(--surface);
+      transition: color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
     }
-    .btn-ghost:hover { color: var(--text); border-color: var(--border-hover); }
+    .btn-outline:hover {
+      color: var(--primary);
+      border-color: var(--border-focus);
+      box-shadow: var(--shadow-blue);
+      transform: translateY(-1px);
+    }
 
-    /* ─── NAV ─────────────────────────────────────────────── */
+    /* ─── NAV ────────────────────────────────────────────── */
     nav {
       position: fixed;
       top: 0; left: 0; right: 0;
       z-index: 100;
-      padding: 0 clamp(20px, 5vw, 80px);
-      height: 64px;
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      height: 60px;
+    }
+    .nav-inner {
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: rgba(8,8,14,0.7);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-      transition: background 0.3s;
+      gap: 32px;
     }
     .nav-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 22px;
-      font-weight: 400;
-      letter-spacing: 0.05em;
-      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .nav-logo span { color: var(--gold-light); }
+    .logo-mark {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: var(--gradient);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 16px; height: 16px; fill: #fff; }
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 32px;
+      gap: 28px;
       list-style: none;
     }
     .nav-links a {
-      font-size: 13px;
+      font-size: 14px;
       font-weight: 400;
       color: var(--text-2);
       transition: color 0.2s;
     }
-    .nav-links a:hover { color: var(--text); }
-    .nav-cta { display: flex; align-items: center; gap: 12px; }
+    .nav-links a:hover { color: var(--primary); }
+    .nav-cta { display: flex; align-items: center; gap: 10px; }
     @media (max-width: 768px) { .nav-links { display: none; } }
 
-    /* ─── HERO ────────────────────────────────────────────── */
+    /* ─── HERO ───────────────────────────────────────────── */
     .hero {
-      min-height: 100vh;
-      padding: 0 clamp(20px, 5vw, 80px);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+      padding: 100px clamp(20px,5vw,48px) 80px;
+      background: linear-gradient(180deg, #f0f4ff 0%, var(--bg) 100%);
       position: relative;
       overflow: hidden;
     }
-    .hero-grid-bg {
+    .hero-dots {
       position: absolute;
       inset: 0;
-      background-image:
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
-      background-size: 72px 72px;
-      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 30%, transparent 100%);
-    }
-    .hero-glow {
-      position: absolute;
-      width: 600px; height: 600px;
-      top: -100px; right: -100px;
-      background: radial-gradient(circle, rgba(201,136,42,0.07) 0%, transparent 70%);
-      pointer-events: none;
-    }
-    .hero-glow-2 {
-      position: absolute;
-      width: 400px; height: 400px;
-      bottom: 0; left: 10%;
-      background: radial-gradient(circle, rgba(62,207,142,0.04) 0%, transparent 70%);
-      pointer-events: none;
+      background-image: radial-gradient(circle, #c7d4f0 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.45;
+      mask-image: radial-gradient(ellipse 90% 80% at 50% 50%, black 40%, transparent 100%);
     }
     .hero-inner {
+      max-width: 1160px;
+      margin: 0 auto;
       position: relative;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: clamp(40px, 6vw, 100px);
+      gap: clamp(48px, 6vw, 80px);
       align-items: center;
-      padding-top: 80px;
     }
     @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; } }
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
-      border: 1px solid rgba(201,136,42,0.3);
+      padding: 5px 12px;
+      background: #eff6ff;
+      border: 1px solid rgba(29,78,216,0.2);
       border-radius: 100px;
-      background: var(--gold-subtle);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 500;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--gold-light);
-      margin-bottom: 28px;
+      color: var(--primary);
+      margin-bottom: 24px;
     }
-    .hero-badge::before {
-      content: '';
+    .hero-badge-dot {
       width: 6px; height: 6px;
       border-radius: 50%;
-      background: var(--gold);
-      animation: pulse 2s ease-in-out infinite;
+      background: var(--primary);
+      animation: pulse-blue 2s ease-in-out infinite;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
+    @keyframes pulse-blue {
+      0%,100% { opacity:1; transform:scale(1); }
+      50% { opacity:0.4; transform:scale(0.8); }
     }
-    .hero-title { margin-bottom: 24px; }
-    .hero-body { margin-bottom: 40px; max-width: 460px; }
-    .hero-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .hero-social-proof {
-      margin-top: 48px;
-      padding-top: 32px;
-      border-top: 1px solid var(--border);
+    .hero-title {
+      font-size: clamp(40px, 5.5vw, 68px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    .hero-body {
+      font-size: clamp(15px, 1.2vw, 17px);
+      color: var(--text-2);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+    .hero-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .hero-trust {
+      margin-top: 36px;
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
     }
-    .proof-item { display: flex; flex-direction: column; gap: 2px; }
-    .proof-num {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 28px;
-      font-weight: 300;
-      color: var(--text);
-      line-height: 1;
-    }
-    .proof-num span { color: var(--gold-light); }
-    .proof-label { font-size: 11px; color: var(--text-3); font-weight: 400; }
-    .proof-divider { width: 1px; height: 36px; background: var(--border); }
-
-    /* ─── CHAT MOCKUP ─────────────────────────────────────── */
-    .mockup-wrapper {
-      position: relative;
+    .trust-item {
       display: flex;
-      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-2);
+    }
+    .trust-icon { color: var(--green); font-size: 14px; }
+
+    /* ─── PRODUCT MOCKUP ─────────────────────────────────── */
+    .mockup-wrap {
+      position: relative;
     }
     .mockup-card {
-      width: 100%;
-      max-width: 420px;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg), 0 0 0 1px rgba(29,78,216,0.06);
       overflow: hidden;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04);
     }
-    .mockup-header {
-      padding: 16px 20px;
+    .mockup-topbar {
+      padding: 14px 18px;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 12px;
-      background: var(--surface-2);
+      gap: 10px;
+      background: var(--surface-muted);
     }
-    .mockup-avatar {
-      width: 36px; height: 36px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--gold) 0%, #8B5A1A 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 600;
-      color: #fff;
-      flex-shrink: 0;
-      font-family: 'Sora', sans-serif;
-    }
-    .mockup-header-info { flex: 1; }
-    .mockup-name { font-size: 13px; font-weight: 500; color: var(--text); }
-    .mockup-status { font-size: 11px; color: var(--green); display: flex; align-items: center; gap: 4px; }
-    .mockup-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
-    .mockup-badge {
-      font-size: 10px;
-      padding: 3px 8px;
-      background: var(--gold-subtle);
-      border: 1px solid rgba(201,136,42,0.2);
-      border-radius: 100px;
-      color: var(--gold-light);
-      font-weight: 500;
-      letter-spacing: 0.05em;
-    }
-    .mockup-body { padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 260px; }
-    .chat-msg {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      opacity: 0;
-      transform: translateY(8px);
-      transition: opacity 0.4s ease, transform 0.4s ease;
-    }
-    .chat-msg.visible { opacity: 1; transform: translateY(0); }
-    .chat-bubble {
-      padding: 10px 14px;
-      border-radius: 14px;
+    .topbar-dots { display: flex; gap: 5px; }
+    .td { width: 10px; height: 10px; border-radius: 50%; }
+    .td-r { background: #f87171; }
+    .td-y { background: #fbbf24; }
+    .td-g { background: #34d399; }
+    .topbar-title { font-size: 12px; color: var(--text-2); flex: 1; text-align: center; font-weight: 400; }
+    .mockup-body { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* chat messages */
+    .chat-row { display: flex; flex-direction: column; gap: 3px; }
+    .chat-row.from-lead { align-items: flex-start; }
+    .chat-row.from-ai { align-items: flex-end; }
+    .chat-sender-label { font-size: 10px; color: var(--text-3); padding: 0 4px; font-weight: 400; }
+    .bubble {
+      padding: 9px 13px;
+      border-radius: 12px;
       font-size: 13px;
-      font-weight: 300;
       line-height: 1.5;
-      max-width: 85%;
+      max-width: 88%;
+      font-weight: 400;
+      font-family: 'DM Sans', sans-serif;
     }
-    .chat-bubble.lead {
-      background: var(--surface-2);
+    .bubble.lead {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
       color: var(--text);
       border-bottom-left-radius: 4px;
-      align-self: flex-start;
     }
-    .chat-bubble.ai {
-      background: rgba(201,136,42,0.12);
-      border: 1px solid rgba(201,136,42,0.18);
+    .bubble.ai {
+      background: #eff6ff;
+      border: 1px solid rgba(29,78,216,0.15);
       color: var(--text);
       border-bottom-right-radius: 4px;
-      align-self: flex-end;
     }
-    .chat-sender { font-size: 10px; color: var(--text-3); padding: 0 4px; }
-    .chat-sender.right { text-align: right; }
-    .mockup-typing {
+    .typing-row { display: flex; align-items: center; gap: 4px; padding: 8px 13px; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 12px; border-bottom-left-radius: 4px; width: fit-content; opacity: 0; transition: opacity 0.3s; }
+    .typing-row.show { opacity: 1; }
+    .tdot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+    .tdot:nth-child(1) { animation: tdot 1.1s 0s infinite; }
+    .tdot:nth-child(2) { animation: tdot 1.1s 0.18s infinite; }
+    .tdot:nth-child(3) { animation: tdot 1.1s 0.36s infinite; }
+    @keyframes tdot { 0%,100%{opacity:0.3;transform:translateY(0)} 50%{opacity:1;transform:translateY(-3px)} }
+    .mockup-input-row {
+      margin-top: 4px;
       display: flex;
+      gap: 8px;
       align-items: center;
-      gap: 4px;
-      padding: 10px 14px;
-      background: var(--surface-2);
-      border-radius: 14px;
-      border-bottom-left-radius: 4px;
-      width: fit-content;
-      opacity: 0;
-      transition: opacity 0.3s;
     }
-    .mockup-typing.visible { opacity: 1; }
-    .typing-dot {
-      width: 5px; height: 5px;
-      border-radius: 50%;
-      background: var(--text-3);
-    }
-    .typing-dot:nth-child(1) { animation: typing 1.2s 0.0s infinite; }
-    .typing-dot:nth-child(2) { animation: typing 1.2s 0.2s infinite; }
-    .typing-dot:nth-child(3) { animation: typing 1.2s 0.4s infinite; }
-    @keyframes typing { 0%, 100% { opacity: 0.3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
-    .mockup-footer {
-      padding: 12px 16px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      background: var(--surface-2);
-    }
-    .mockup-input {
+    .mockup-inp {
       flex: 1;
-      background: var(--surface);
+      padding: 9px 13px;
+      background: var(--surface-muted);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 12px;
+      border-radius: 10px;
       font-size: 12px;
       color: var(--text-3);
-      font-family: 'Sora', sans-serif;
-      font-weight: 300;
+      font-family: 'DM Sans', sans-serif;
     }
-    .mockup-send {
-      width: 32px; height: 32px;
-      border-radius: 8px;
-      background: var(--gold);
+    .mockup-send-btn {
+      width: 34px; height: 34px;
+      background: var(--primary);
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
     }
-    .mockup-floating {
-      position: absolute;
-      top: -16px; right: -16px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      animation: float 4s ease-in-out infinite;
-    }
-    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-    .floating-icon { font-size: 18px; }
-    .floating-text { font-size: 12px; }
-    .floating-label { color: var(--text-3); font-size: 10px; }
-    .floating-value { color: var(--green); font-weight: 500; font-size: 13px; }
-    .mockup-floating-2 {
-      position: absolute;
-      bottom: -16px; left: -16px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 14px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      animation: float 4s 2s ease-in-out infinite;
-    }
-    .channel-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-    .channel-dot { width: 6px; height: 6px; border-radius: 50%; }
-    .channel-name { font-size: 11px; color: var(--text-2); }
-    .channel-count { font-size: 11px; color: var(--text-3); margin-left: auto; padding-left: 12px; }
 
-    /* ─── SECTION BASE ────────────────────────────────────── */
-    section { padding: clamp(80px, 10vw, 140px) clamp(20px, 5vw, 80px); }
-    .section-label { margin-bottom: 16px; }
-    .section-heading { margin-bottom: 20px; }
-    .section-body { max-width: 560px; }
-
-    /* ─── STATS BAR ───────────────────────────────────────── */
-    .stats-bar {
-      padding: 0 clamp(20px, 5vw, 80px);
-      margin-bottom: 0;
-    }
-    .stats-inner {
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
+    /* floating cards on mockup */
+    .float-card {
+      position: absolute;
       background: var(--surface);
-      padding: clamp(28px, 4vw, 48px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      padding: 10px 14px;
+    }
+    .float-card-1 {
+      top: -18px; right: -18px;
+      animation: floatY 3.5s ease-in-out infinite;
+    }
+    .float-card-2 {
+      bottom: -18px; left: -18px;
+      animation: floatY 3.5s 1.75s ease-in-out infinite;
+    }
+    @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-7px)} }
+    .float-label { font-size: 10px; color: var(--text-3); margin-bottom: 3px; font-weight: 400; }
+    .float-value { font-size: 13px; color: var(--text); font-weight: 500; display: flex; align-items: center; gap: 5px; font-family: 'Outfit', sans-serif; }
+    .status-dot-green { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
+    .channel-list { display: flex; flex-direction: column; gap: 4px; }
+    .channel-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+    .ch-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .ch-count { margin-left: auto; padding-left: 8px; color: var(--text-3); font-size: 10px; }
+
+    /* ─── STATS ──────────────────────────────────────────── */
+    .stats-section { padding: 0 clamp(20px,5vw,48px) 72px; }
+    .stats-grid {
+      max-width: 1160px;
+      margin: 0 auto;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
+      grid-template-columns: repeat(3,1fr);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-sm);
       overflow: hidden;
-      position: relative;
     }
-    .stats-inner::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, var(--gold-subtle) 0%, transparent 60%);
-      pointer-events: none;
-    }
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
     .stat-item {
-      padding: clamp(20px, 3vw, 36px) clamp(16px, 2vw, 32px);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      padding: clamp(24px,3vw,40px) clamp(20px,2.5vw,36px);
       position: relative;
+      transition: background 0.2s;
     }
+    .stat-item:hover { background: #f8fafc; }
     .stat-item:not(:last-child)::after {
       content: '';
       position: absolute;
@@ -464,629 +391,659 @@
       width: 1px;
       background: var(--border);
     }
-    .stat-number {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(42px, 5vw, 64px);
-      font-weight: 300;
-      color: var(--text);
-      line-height: 1;
-      counter-increment: none;
-    }
-    .stat-number span { color: var(--gold-light); }
-    .stat-desc { font-size: 13px; color: var(--text-2); font-weight: 300; max-width: 200px; line-height: 1.4; }
     @media (max-width: 600px) {
-      .stats-inner { grid-template-columns: 1fr; }
-      .stat-item:not(:last-child)::after { right: 20%; left: 20%; top: auto; bottom: 0; height: 1px; width: auto; }
+      .stat-item:not(:last-child)::after {
+        right: 10%; left: 10%; bottom: 0; top: auto;
+        height: 1px; width: auto;
+      }
+    }
+    .stat-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(36px, 4.5vw, 52px);
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 8px;
+      letter-spacing: -0.03em;
+    }
+    .stat-desc { font-size: 13px; color: var(--text-2); max-width: 200px; line-height: 1.4; }
+
+    /* ─── SECTION BASE ───────────────────────────────────── */
+    section.main { padding: clamp(72px,8vw,100px) clamp(20px,5vw,48px); }
+    .section-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--primary);
+      background: #eff6ff;
+      border: 1px solid rgba(29,78,216,0.15);
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(28px, 3.5vw, 44px);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+    .section-body {
+      font-size: 16px;
+      color: var(--text-2);
+      line-height: 1.7;
+      max-width: 560px;
     }
 
     /* ─── PROBLEM SECTION ────────────────────────────────── */
-    .problem-section {
-      background: var(--surface);
+    .problems-bg {
+      background: var(--bg-end);
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
     }
-    .problem-header {
+    .problems-header {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: clamp(40px, 6vw, 100px);
+      gap: clamp(40px, 6vw, 80px);
       align-items: end;
-      margin-bottom: clamp(48px, 6vw, 80px);
+      margin-bottom: clamp(48px, 6vw, 72px);
     }
-    @media (max-width: 768px) { .problem-header { grid-template-columns: 1fr; } }
-    .problem-cards {
+    @media (max-width: 768px) { .problems-header { grid-template-columns: 1fr; } }
+    .problems-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
+      grid-template-columns: repeat(3,1fr);
+      gap: 16px;
     }
-    @media (max-width: 900px) { .problem-cards { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .problems-grid { grid-template-columns: 1fr; } }
     .problem-card {
-      background: var(--surface-2);
-      padding: clamp(28px, 3vw, 44px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: clamp(24px, 2.5vw, 36px);
+      box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      transition: background 0.3s;
+      gap: 16px;
       position: relative;
       overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .problem-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(29,78,216,0.2);
     }
     .problem-card::before {
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      height: 3px;
+      background: var(--gradient);
       transform: scaleX(0);
-      transition: transform 0.4s;
+      transform-origin: left;
+      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
     }
     .problem-card:hover::before { transform: scaleX(1); }
-    .problem-card:hover { background: rgba(201,136,42,0.04); }
-    .problem-icon {
+    .problem-icon-wrap {
       width: 44px; height: 44px;
       border-radius: 10px;
-      border: 1px solid var(--border);
+      background: #eff6ff;
+      border: 1px solid rgba(29,78,216,0.12);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 20px;
-      background: var(--surface);
     }
-    .problem-title { font-size: 16px; font-weight: 500; color: var(--text); line-height: 1.3; }
-    .problem-body { font-size: 14px; color: var(--text-2); font-weight: 300; line-height: 1.6; }
-    .problem-stat {
+    .problem-title { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.3; font-family: 'Outfit', sans-serif; }
+    .problem-desc { font-size: 14px; color: var(--text-2); line-height: 1.6; }
+    .problem-stat-chip {
       margin-top: auto;
-      padding-top: 20px;
-      border-top: 1px solid var(--border);
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 22px;
-      color: var(--gold-light);
-      font-weight: 300;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 12px;
+      color: var(--text-2);
+      font-weight: 500;
     }
-    .problem-stat small { font-family: 'Sora', sans-serif; font-size: 11px; color: var(--text-3); display: block; margin-top: 2px; letter-spacing: 0.05em; }
+    .stat-chip-accent {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+    }
 
-    /* ─── FEATURES ────────────────────────────────────────── */
-    .features-header { text-align: center; max-width: 640px; margin: 0 auto clamp(60px, 8vw, 100px); }
-    .features-header .section-body { margin: 0 auto; }
+    /* ─── FEATURES ───────────────────────────────────────── */
     .feature-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: clamp(40px, 6vw, 100px);
+      gap: clamp(48px, 6vw, 80px);
       align-items: center;
       margin-bottom: clamp(80px, 10vw, 120px);
     }
     .feature-row:last-child { margin-bottom: 0; }
-    .feature-row.reverse .feature-visual { order: -1; }
+    .feature-row.flip .feature-visual { order: -1; }
     @media (max-width: 768px) {
       .feature-row { grid-template-columns: 1fr; }
-      .feature-row.reverse .feature-visual { order: 0; }
+      .feature-row.flip .feature-visual { order: 0; }
     }
-    .feature-list { display: flex; flex-direction: column; gap: 20px; margin-top: 32px; }
-    .feature-item { display: flex; align-items: flex-start; gap: 16px; }
-    .feature-check {
-      width: 20px; height: 20px;
+    .feature-plan-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .tag-obra { background: #ecfdf5; color: #059669; border: 1px solid rgba(5,150,105,0.2); }
+    .tag-pro  { background: #eff6ff; color: var(--primary); border: 1px solid rgba(29,78,216,0.2); }
+    .feature-list { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
+    .fi { display: flex; gap: 12px; align-items: flex-start; }
+    .fi-check {
+      width: 20px; height: 20px; flex-shrink: 0;
       border-radius: 50%;
-      background: rgba(62,207,142,0.12);
-      border: 1px solid rgba(62,207,142,0.3);
+      background: #ecfdf5;
+      border: 1px solid rgba(5,150,105,0.25);
       display: flex;
       align-items: center;
       justify-content: center;
-      flex-shrink: 0;
       margin-top: 1px;
     }
-    .feature-check svg { width: 10px; height: 10px; stroke: var(--green); }
-    .feature-item-text { font-size: 14px; color: var(--text-2); font-weight: 300; line-height: 1.5; }
-    .feature-item-text strong { color: var(--text); font-weight: 500; display: block; font-size: 14px; margin-bottom: 2px; }
-    .feature-visual {
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      border: 1px solid var(--border);
+    .fi-check svg { width: 10px; height: 10px; stroke: var(--green); }
+    .fi-text strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 1px; }
+    .fi-text span { font-size: 13px; color: var(--text-2); line-height: 1.5; }
+
+    /* obra visual */
+    .obra-card {
       background: var(--surface);
-      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
     }
-    .feature-visual-inner { padding: 24px; }
-    .obra-stages { display: flex; flex-direction: column; gap: 12px; }
-    .stage-item { display: flex; flex-direction: column; gap: 6px; }
-    .stage-header { display: flex; justify-content: space-between; align-items: center; }
-    .stage-name { font-size: 13px; font-weight: 400; color: var(--text); }
-    .stage-pct { font-size: 12px; color: var(--text-3); }
-    .stage-bar { height: 6px; background: var(--surface-2); border-radius: 100px; overflow: hidden; }
-    .stage-fill {
+    .obra-card-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .obra-project-name { font-size: 13px; font-weight: 600; color: var(--text); font-family: 'Outfit', sans-serif; }
+    .obra-progress-total { font-size: 12px; color: var(--text-2); }
+    .obra-progress-total strong { color: var(--primary); font-family: 'Outfit', sans-serif; }
+    .obra-card-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+    .etapa { display: flex; flex-direction: column; gap: 6px; }
+    .etapa-header { display: flex; justify-content: space-between; align-items: center; }
+    .etapa-name { font-size: 13px; color: var(--text); font-weight: 500; }
+    .etapa-pct { font-size: 12px; color: var(--text-3); font-family: 'Outfit', sans-serif; font-weight: 600; }
+    .etapa-bar { height: 7px; background: var(--surface-muted); border-radius: 100px; overflow: hidden; border: 1px solid var(--border); }
+    .etapa-fill {
       height: 100%;
       border-radius: 100px;
-      background: linear-gradient(90deg, var(--gold), var(--gold-light));
+      background: var(--gradient);
       position: relative;
     }
-    .stage-fill::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg, transparent 60%, rgba(255,255,255,0.2));
-    }
-    .obra-update {
-      margin-top: 20px;
-      padding: 14px;
-      background: var(--surface-2);
+    .obra-notif {
+      margin-top: 4px;
+      padding: 12px 14px;
+      background: #ecfdf5;
+      border: 1px solid rgba(5,150,105,0.2);
       border-radius: var(--radius);
-      border: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
-    .update-photo {
-      width: 44px; height: 44px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #1a2535 0%, #0d1520 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-    .update-info { flex: 1; }
-    .update-title { font-size: 12px; font-weight: 500; color: var(--text); }
-    .update-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
-    .update-badge {
+    .notif-icon { font-size: 18px; }
+    .notif-text .t1 { font-size: 12px; font-weight: 600; color: #065f46; }
+    .notif-text .t2 { font-size: 11px; color: #6ee7b7; color: #059669; margin-top: 1px; }
+    .notif-badge {
+      margin-left: auto;
       font-size: 10px;
       padding: 3px 8px;
+      background: #fff;
+      border: 1px solid rgba(5,150,105,0.3);
       border-radius: 100px;
-      background: rgba(62,207,142,0.1);
       color: var(--green);
-      border: 1px solid rgba(62,207,142,0.2);
+      font-weight: 600;
+      white-space: nowrap;
     }
 
-    /* ─── VISUAL: LEADS PANEL ─────────────────────────────── */
-    .leads-visual { padding: 24px; }
-    .leads-funnel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
-    .funnel-row { display: flex; align-items: center; gap: 10px; }
-    .funnel-label { font-size: 11px; color: var(--text-3); width: 50px; text-align: right; flex-shrink: 0; }
-    .funnel-bar-wrap { flex: 1; height: 28px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
-    .funnel-bar {
-      height: 100%;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      padding: 0 10px;
-      font-size: 11px;
-      font-weight: 500;
-      color: rgba(255,255,255,0.8);
-      transition: width 1.5s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .funnel-bar.hot { background: rgba(239,68,68,0.3); border: 1px solid rgba(239,68,68,0.3); width: 85%; }
-    .funnel-bar.warm { background: rgba(201,136,42,0.3); border: 1px solid rgba(201,136,42,0.3); width: 55%; }
-    .funnel-bar.cold { background: rgba(99,102,241,0.25); border: 1px solid rgba(99,102,241,0.3); width: 35%; }
-    .lead-card {
-      padding: 12px 14px;
-      background: var(--surface-2);
-      border-radius: var(--radius);
+    /* leads visual */
+    .leads-card {
+      background: var(--surface);
       border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+    .leads-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .leads-title { font-size: 13px; font-weight: 600; color: var(--text); font-family: 'Outfit', sans-serif; }
+    .leads-week { font-size: 11px; color: var(--text-3); }
+    .leads-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+    .funnel-item { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+    .funnel-lbl { font-size: 11px; width: 44px; text-align: right; flex-shrink: 0; font-weight: 500; }
+    .funnel-track { flex: 1; height: 26px; background: var(--surface-muted); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
+    .funnel-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: 500; color: #fff; }
+    .f-hot  { background: rgba(239,68,68,0.7); width: 85%; }
+    .f-warm { background: rgba(251,146,60,0.7); width: 55%; }
+    .f-cold { background: rgba(99,102,241,0.55); width: 35%; }
+    .lead-row-item {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
-    .lead-initials {
-      width: 32px; height: 32px;
+    .lead-av {
+      width: 30px; height: 30px;
       border-radius: 50%;
-      background: var(--gold-subtle);
-      border: 1px solid rgba(201,136,42,0.2);
+      background: #eff6ff;
+      border: 1px solid rgba(29,78,216,0.15);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--gold-light);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary);
       flex-shrink: 0;
     }
-    .lead-info { flex: 1; }
-    .lead-name { font-size: 13px; font-weight: 500; color: var(--text); }
-    .lead-detail { font-size: 11px; color: var(--text-3); }
-    .lead-score {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 100px;
-    }
-    .lead-score.high { background: rgba(239,68,68,0.1); color: #F87171; border: 1px solid rgba(239,68,68,0.2); }
-    .lead-score.mid { background: rgba(201,136,42,0.1); color: var(--gold-light); border: 1px solid rgba(201,136,42,0.2); }
+    .lead-inf { flex: 1; }
+    .lead-nm { font-size: 13px; font-weight: 500; color: var(--text); }
+    .lead-dt { font-size: 11px; color: var(--text-3); }
+    .lead-badge { font-size: 10px; padding: 3px 8px; border-radius: 100px; font-weight: 600; white-space: nowrap; }
+    .lb-hot { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+    .lb-warm { background: rgba(251,146,60,0.08); color: #f97316; border: 1px solid rgba(251,146,60,0.2); }
 
-    /* ─── HOW IT WORKS ────────────────────────────────────── */
-    .how-section { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .how-header { text-align: center; max-width: 560px; margin: 0 auto clamp(60px, 8vw, 90px); }
+    /* ─── HOW IT WORKS ───────────────────────────────────── */
+    .how-bg { background: #f0f4ff; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .how-header { text-align: center; max-width: 560px; margin: 0 auto clamp(48px,6vw,72px); }
+    .how-header .section-body { margin: 0 auto; }
     .steps-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: var(--border);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      max-width: 1000px;
+      grid-template-columns: repeat(3,1fr);
+      gap: 16px;
+      max-width: 1160px;
       margin: 0 auto;
     }
     @media (max-width: 768px) { .steps-grid { grid-template-columns: 1fr; } }
     .step-card {
-      background: var(--surface-2);
-      padding: clamp(28px, 3vw, 44px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: clamp(24px,2.5vw,36px);
+      box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
       position: relative;
-      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
-    .step-number {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 72px;
-      font-weight: 300;
-      color: var(--border);
-      line-height: 1;
-      position: absolute;
-      top: 16px; right: 20px;
-      user-select: none;
-    }
-    .step-icon {
-      width: 48px; height: 48px;
-      border-radius: 12px;
-      background: var(--gold-subtle);
-      border: 1px solid rgba(201,136,42,0.2);
+    .step-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+    .step-num-badge {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: var(--gradient);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 22px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
     }
-    .step-title { font-size: 16px; font-weight: 500; color: var(--text); line-height: 1.3; }
-    .step-body { font-size: 13px; color: var(--text-2); font-weight: 300; line-height: 1.6; }
+    .step-icon { font-size: 24px; }
+    .step-title { font-size: 16px; font-weight: 600; color: var(--text); font-family: 'Outfit', sans-serif; line-height: 1.3; }
+    .step-desc { font-size: 13px; color: var(--text-2); line-height: 1.6; }
 
-    /* ─── PRICING ─────────────────────────────────────────── */
-    .pricing-header { text-align: center; max-width: 560px; margin: 0 auto clamp(48px, 6vw, 72px); }
-    .toggle-wrapper {
+    /* ─── PRICING ────────────────────────────────────────── */
+    .pricing-header { text-align: center; max-width: 560px; margin: 0 auto clamp(20px,3vw,32px); }
+    .billing-toggle {
       display: flex;
       align-items: center;
       gap: 12px;
       justify-content: center;
-      margin-bottom: clamp(40px, 5vw, 60px);
+      margin-bottom: clamp(40px,5vw,56px);
     }
-    .toggle-label { font-size: 13px; color: var(--text-2); }
-    .toggle-btn {
-      position: relative;
-      width: 48px; height: 26px;
-      background: var(--surface-2);
-      border-radius: 100px;
+    .toggle-label-text { font-size: 14px; color: var(--text-2); }
+    .toggle-track {
+      width: 44px; height: 24px;
+      background: var(--surface-muted);
       border: 1px solid var(--border);
+      border-radius: 100px;
       cursor: pointer;
-      transition: background 0.3s;
+      position: relative;
+      transition: background 0.3s, border-color 0.3s;
     }
-    .toggle-btn.active { background: rgba(201,136,42,0.25); border-color: rgba(201,136,42,0.4); }
+    .toggle-track.on { background: #eff6ff; border-color: rgba(29,78,216,0.35); }
     .toggle-thumb {
       position: absolute;
       top: 3px; left: 3px;
-      width: 18px; height: 18px;
+      width: 16px; height: 16px;
       border-radius: 50%;
       background: var(--text-3);
       transition: transform 0.3s, background 0.3s;
     }
-    .toggle-btn.active .toggle-thumb { transform: translateX(22px); background: var(--gold); }
-    .savings-badge {
+    .toggle-track.on .toggle-thumb { transform: translateX(20px); background: var(--primary); }
+    .annual-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 4px 10px;
-      background: rgba(62,207,142,0.1);
-      border: 1px solid rgba(62,207,142,0.2);
+      background: #ecfdf5;
+      border: 1px solid rgba(5,150,105,0.2);
       border-radius: 100px;
       font-size: 11px;
       color: var(--green);
-      font-weight: 500;
+      font-weight: 600;
     }
     .pricing-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3,1fr);
       gap: 16px;
       max-width: 1000px;
       margin: 0 auto;
     }
-    @media (max-width: 900px) { .pricing-grid { grid-template-columns: 1fr; max-width: 400px; } }
+    @media (max-width: 900px) { .pricing-grid { grid-template-columns: 1fr; max-width: 420px; } }
     .pricing-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: clamp(24px, 3vw, 36px);
+      padding: clamp(24px,2.5vw,32px);
       display: flex;
       flex-direction: column;
-      gap: 24px;
+      gap: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.2s, box-shadow 0.2s;
       position: relative;
-      overflow: hidden;
-      transition: border-color 0.3s, box-shadow 0.3s;
     }
-    .pricing-card:hover { border-color: var(--border-hover); }
+    .pricing-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
     .pricing-card.featured {
-      border-color: rgba(201,136,42,0.35);
-      background: linear-gradient(135deg, rgba(201,136,42,0.06) 0%, var(--surface) 60%);
-      box-shadow: 0 0 0 1px rgba(201,136,42,0.12), 0 24px 48px rgba(0,0,0,0.3);
+      border-color: rgba(29,78,216,0.3);
+      box-shadow: var(--shadow-blue), 0 0 0 1px rgba(29,78,216,0.08);
     }
-    .featured-tag {
+    .featured-label {
       position: absolute;
-      top: 20px; right: 20px;
-      font-size: 10px;
-      padding: 4px 10px;
-      background: var(--gold);
-      color: #0A0A0E;
+      top: -12px; left: 50%; transform: translateX(-50%);
+      padding: 4px 14px;
+      background: var(--gradient);
+      color: #fff;
       border-radius: 100px;
+      font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
+      white-space: nowrap;
     }
-    .plan-name { font-size: 13px; font-weight: 500; color: var(--text-2); letter-spacing: 0.05em; text-transform: uppercase; }
-    .plan-price {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-    }
-    .price-currency { font-size: 18px; color: var(--text-2); font-weight: 300; }
-    .price-amount {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(44px, 5vw, 56px);
-      font-weight: 300;
-      color: var(--text);
-      line-height: 1;
-    }
-    .price-period { font-size: 13px; color: var(--text-3); align-self: flex-end; padding-bottom: 4px; }
-    .plan-desc { font-size: 13px; color: var(--text-2); font-weight: 300; line-height: 1.5; }
+    .plan-name-label { font-size: 13px; font-weight: 600; color: var(--text-2); letter-spacing: 0.04em; text-transform: uppercase; }
+    .plan-price-row { display: flex; align-items: baseline; gap: 3px; }
+    .price-curr { font-size: 16px; color: var(--text-2); font-weight: 400; padding-top: 4px; }
+    .price-num { font-family: 'Outfit', sans-serif; font-size: clamp(40px,5vw,52px); font-weight: 700; color: var(--text); line-height: 1; letter-spacing: -0.04em; }
+    .price-per { font-size: 13px; color: var(--text-3); align-self: flex-end; padding-bottom: 3px; }
+    .plan-desc-text { font-size: 13px; color: var(--text-2); line-height: 1.5; }
     .plan-divider { height: 1px; background: var(--border); }
-    .plan-features { display: flex; flex-direction: column; gap: 12px; }
-    .plan-feature { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text-2); font-weight: 300; }
-    .plan-feature svg { flex-shrink: 0; margin-top: 2px; }
-    .plan-cta { margin-top: auto; }
-    .btn-plan {
+    .plan-feat-list { display: flex; flex-direction: column; gap: 10px; }
+    .pf { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text-2); }
+    .pf svg { flex-shrink: 0; margin-top: 2px; }
+    .pf.disabled { opacity: 0.45; }
+    .plan-cta-btn {
       width: 100%;
-      padding: 13px;
-      border-radius: 8px;
+      padding: 12px;
+      border-radius: var(--radius);
       font-size: 14px;
       font-weight: 500;
-      font-family: 'Sora', sans-serif;
+      font-family: 'DM Sans', sans-serif;
       text-align: center;
       display: block;
       transition: all 0.2s;
     }
-    .btn-plan.primary {
-      background: var(--gold);
-      color: #0A0A0E;
+    .plan-cta-btn.primary {
+      background: var(--primary);
+      color: #fff;
     }
-    .btn-plan.primary:hover { background: var(--gold-light); transform: translateY(-1px); }
-    .btn-plan.outline {
-      border: 1px solid var(--border);
+    .plan-cta-btn.primary:hover { background: var(--primary-dark); box-shadow: var(--shadow-blue); transform: translateY(-1px); }
+    .plan-cta-btn.secondary {
+      background: var(--surface-muted);
       color: var(--text-2);
-    }
-    .btn-plan.outline:hover { border-color: var(--border-hover); color: var(--text); }
-
-    /* ─── FINAL CTA ───────────────────────────────────────── */
-    .cta-section { text-align: center; }
-    .cta-inner {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: clamp(48px, 6vw, 80px);
       border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      background: var(--surface);
+    }
+    .plan-cta-btn.secondary:hover { color: var(--primary); border-color: var(--border-focus); transform: translateY(-1px); }
+
+    /* ─── FINAL CTA ──────────────────────────────────────── */
+    .cta-section { padding: 0 clamp(20px,5vw,48px) clamp(80px,10vw,120px); }
+    .cta-card {
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--text);
+      border-radius: var(--radius-xl);
+      padding: clamp(48px,6vw,72px);
+      text-align: center;
       position: relative;
       overflow: hidden;
     }
-    .cta-inner::before {
+    .cta-card::before {
       content: '';
       position: absolute;
-      top: -1px; left: 20%; right: 20%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--gold), transparent);
-    }
-    .cta-glow {
-      position: absolute;
       inset: 0;
-      background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,136,42,0.08), transparent);
-      pointer-events: none;
+      background: linear-gradient(135deg, rgba(29,78,216,0.5) 0%, rgba(99,102,241,0.4) 100%);
     }
-    .cta-inner h2 {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: clamp(32px, 4vw, 48px);
-      font-weight: 300;
-      margin-bottom: 16px;
+    .cta-inner { position: relative; }
+    .cta-card h2 {
+      font-size: clamp(28px,4vw,40px);
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 14px;
+      letter-spacing: -0.02em;
     }
-    .cta-inner p { font-size: 15px; color: var(--text-2); margin-bottom: 36px; font-weight: 300; }
-    .contact-form { display: flex; flex-direction: column; gap: 12px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 500px) { .form-row { grid-template-columns: 1fr; } }
-    .form-input {
-      padding: 13px 16px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
+    .cta-card p { font-size: 15px; color: rgba(255,255,255,0.7); margin-bottom: 36px; }
+    .cta-form { display: flex; flex-direction: column; gap: 10px; }
+    .cta-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 500px) { .cta-form-row { grid-template-columns: 1fr; } }
+    .cta-input {
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius);
+      color: #fff;
       font-size: 14px;
-      font-family: 'Sora', sans-serif;
-      font-weight: 300;
-      width: 100%;
-      transition: border-color 0.2s;
+      font-family: 'DM Sans', sans-serif;
       outline: none;
-    }
-    .form-input::placeholder { color: var(--text-3); }
-    .form-input:focus { border-color: rgba(201,136,42,0.4); }
-    .form-select {
-      padding: 13px 16px;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-2);
-      font-size: 14px;
-      font-family: 'Sora', sans-serif;
-      font-weight: 300;
+      transition: border-color 0.2s, background 0.2s;
       width: 100%;
+    }
+    .cta-input::placeholder { color: rgba(255,255,255,0.45); }
+    .cta-input:focus { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.15); }
+    .cta-select {
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius);
+      color: rgba(255,255,255,0.7);
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
       appearance: none;
-      outline: none;
-      transition: border-color 0.2s;
       cursor: pointer;
+      width: 100%;
+      outline: none;
     }
-    .form-select:focus { border-color: rgba(201,136,42,0.4); }
-    .form-disclaimer { font-size: 11px; color: var(--text-3); text-align: center; }
+    .cta-select option { background: var(--text); color: #fff; }
+    .cta-submit {
+      width: 100%;
+      padding: 14px;
+      background: #fff;
+      color: var(--primary);
+      font-size: 15px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      border-radius: var(--radius);
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .cta-submit:hover { background: #f0f4ff; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+    .cta-note { font-size: 12px; color: rgba(255,255,255,0.45); text-align: center; }
 
-    /* ─── FOOTER ──────────────────────────────────────────── */
+    /* ─── FOOTER ─────────────────────────────────────────── */
     footer {
-      padding: clamp(40px, 5vw, 64px) clamp(20px, 5vw, 80px);
+      padding: clamp(32px,4vw,48px) clamp(20px,5vw,48px);
       border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .footer-inner {
+      max-width: 1160px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 24px;
       flex-wrap: wrap;
     }
-    .footer-logo {
-      font-family: 'Cormorant Garamond', serif;
-      font-size: 20px;
-      font-weight: 400;
-      letter-spacing: 0.05em;
-    }
-    .footer-logo span { color: var(--gold-light); }
-    .footer-links { display: flex; gap: 24px; }
+    .footer-links { display: flex; gap: 20px; }
     .footer-links a { font-size: 13px; color: var(--text-3); transition: color 0.2s; }
-    .footer-links a:hover { color: var(--text-2); }
+    .footer-links a:hover { color: var(--primary); }
     .footer-copy { font-size: 12px; color: var(--text-3); }
 
-    /* ─── SCROLL ANIMATIONS ───────────────────────────────── */
+    /* ─── SCROLL ANIMATIONS ──────────────────────────────── */
     .fade-up {
       opacity: 0;
-      transform: translateY(24px);
-      transition: opacity 0.7s ease, transform 0.7s ease;
+      transform: translateY(20px);
+      transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1);
     }
-    .fade-up.in-view { opacity: 1; transform: translateY(0); }
-    .fade-up-d1 { transition-delay: 0.1s; }
-    .fade-up-d2 { transition-delay: 0.2s; }
-    .fade-up-d3 { transition-delay: 0.3s; }
-    .fade-up-d4 { transition-delay: 0.4s; }
+    .fade-up.in { opacity: 1; transform: translateY(0); }
+    .d1 { transition-delay: 0.08s; }
+    .d2 { transition-delay: 0.16s; }
+    .d3 { transition-delay: 0.24s; }
   </style>
 </head>
 <body>
 
   <!-- NAV -->
   <nav>
-    <div class="nav-logo">Realia<span>.</span></div>
-    <ul class="nav-links">
-      <li><a href="#funciones">Funciones</a></li>
-      <li><a href="#como-funciona">Cómo funciona</a></li>
-      <li><a href="#pricing">Precios</a></li>
-    </ul>
-    <div class="nav-cta">
-      <a href="#contacto" class="btn-ghost" style="padding:10px 18px;font-size:13px;">Iniciar sesión</a>
-      <a href="#contacto" class="btn-primary" style="padding:10px 20px;font-size:13px;">Pedí una demo →</a>
+    <div class="container nav-inner">
+      <a href="/" class="nav-logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22" style="fill:rgba(255,255,255,0.5)"/></svg>
+        </div>
+        <span class="logo-text">Realia</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#funciones">Funciones</a></li>
+        <li><a href="#como-funciona">Cómo funciona</a></li>
+        <li><a href="#pricing">Precios</a></li>
+      </ul>
+      <div class="nav-cta">
+        <a href="#contacto" class="btn-outline" style="padding:9px 18px;font-size:13px;">Iniciar sesión</a>
+        <a href="#contacto" class="btn-primary" style="padding:9px 18px;font-size:13px;">
+          Pedí una demo
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+      </div>
     </div>
   </nav>
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-grid-bg"></div>
-    <div class="hero-glow"></div>
-    <div class="hero-glow-2"></div>
-
+    <div class="hero-dots"></div>
     <div class="hero-inner">
-      <div class="hero-left">
-        <div class="hero-badge">Inteligencia Artificial · Real Estate</div>
-
-        <h1 class="display-xl hero-title">
-          Cerrá más<br>
-          <em>unidades.</em><br>
-          Sin perder<br>
-          un lead.
-        </h1>
-
-        <p class="body-lg hero-body">
-          El agente de IA para desarrolladoras inmobiliarias que responde leads 24/7, 
-          califica prospectos automáticamente y mantiene informados a tus compradores 
-          sobre el avance de obra — todo desde un solo lugar.
-        </p>
-
-        <div class="hero-actions">
-          <a href="#contacto" class="btn-primary">
-            Pedí una demo
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          </a>
-          <a href="#como-funciona" class="btn-ghost">Ver cómo funciona</a>
+      <div>
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          Plataforma para desarrolladoras inmobiliarias
         </div>
-
-        <div class="hero-social-proof">
-          <div class="proof-item">
-            <div class="proof-num"><span>2</span> min</div>
-            <div class="proof-label">Tiempo de respuesta promedio</div>
-          </div>
-          <div class="proof-divider"></div>
-          <div class="proof-item">
-            <div class="proof-num"><span>24</span>/7</div>
-            <div class="proof-label">Disponibilidad del agente</div>
-          </div>
-          <div class="proof-divider"></div>
-          <div class="proof-item">
-            <div class="proof-num"><span>0</span> setup</div>
-            <div class="proof-label">Leads calificados automáticamente</div>
-          </div>
+        <h1 class="hero-title">
+          Cerrá más<br>
+          <span class="gradient-text">unidades.</span><br>
+          Sin perder<br>un lead.
+        </h1>
+        <p class="hero-body">
+          El copiloto de IA que responde leads 24/7, califica prospectos automáticamente 
+          y mantiene informados a tus compradores sobre el avance de obra — todo desde un solo panel.
+        </p>
+        <div class="hero-actions">
+          <a href="#contacto" class="btn-primary" style="padding:13px 28px;font-size:15px;">
+            Pedí una demo
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <a href="#como-funciona" class="btn-outline" style="padding:13px 24px;font-size:15px;">Ver cómo funciona</a>
+        </div>
+        <div class="hero-trust">
+          <div class="trust-item"><span class="trust-icon">✓</span> Listo en 48 horas</div>
+          <div class="trust-item"><span class="trust-icon">✓</span> Sin contrato anual</div>
+          <div class="trust-item"><span class="trust-icon">✓</span> Soporte en español</div>
         </div>
       </div>
 
-      <div class="mockup-wrapper">
-        <!-- Floating cards -->
-        <div class="mockup-floating">
-          <span class="floating-icon">🔔</span>
-          <div class="floating-text">
-            <div class="floating-label">Nuevo lead caliente</div>
-            <div class="floating-value">Mariana G. · Torre Palermo</div>
+      <div class="mockup-wrap">
+        <!-- Floating card 1 -->
+        <div class="float-card float-card-1">
+          <div class="float-label">Lead calificado</div>
+          <div class="float-value">
+            <span class="status-dot-green"></span>
+            Mariana G. — 🔥 Caliente
           </div>
         </div>
-        <div class="mockup-floating-2">
-          <div style="font-size:11px;color:var(--text-3);margin-bottom:6px;font-weight:400;">Canales activos</div>
-          <div class="channel-row">
-            <span class="channel-dot" style="background:#25D366"></span>
-            <span class="channel-name">WhatsApp</span>
-            <span class="channel-count">12 chats</span>
-          </div>
-          <div class="channel-row">
-            <span class="channel-dot" style="background:#3B82F6"></span>
-            <span class="channel-name">Web Chat</span>
-            <span class="channel-count">4 chats</span>
-          </div>
-          <div class="channel-row">
-            <span class="channel-dot" style="background:#E1306C"></span>
-            <span class="channel-name">Instagram</span>
-            <span class="channel-count">3 chats</span>
+        <!-- Floating card 2 -->
+        <div class="float-card float-card-2">
+          <div class="float-label" style="margin-bottom:6px">Canales activos</div>
+          <div class="channel-list">
+            <div class="channel-item"><span class="ch-dot" style="background:#25D366"></span>WhatsApp<span class="ch-count">12</span></div>
+            <div class="channel-item"><span class="ch-dot" style="background:#1d4ed8"></span>Web Chat<span class="ch-count">4</span></div>
+            <div class="channel-item"><span class="ch-dot" style="background:#E1306C"></span>Instagram<span class="ch-count">3</span></div>
           </div>
         </div>
 
-        <!-- Main chat card -->
+        <!-- Chat mockup -->
         <div class="mockup-card">
-          <div class="mockup-header">
-            <div class="mockup-avatar">R</div>
-            <div class="mockup-header-info">
-              <div class="mockup-name">Agente Realia</div>
-              <div class="mockup-status">En línea · Torre Palermo</div>
+          <div class="mockup-topbar">
+            <div class="topbar-dots">
+              <div class="td td-r"></div>
+              <div class="td td-y"></div>
+              <div class="td td-g"></div>
             </div>
-            <div class="mockup-badge">IA activa</div>
+            <div class="topbar-title">Realia — Agente IA · Torre Palermo</div>
           </div>
-          <div class="mockup-body" id="chatBody">
-            <div class="chat-msg" id="msg1">
-              <span class="chat-sender">Mariana García</span>
-              <div class="chat-bubble lead">Hola! Vi el proyecto en Zonaprop. ¿Tienen unidades disponibles? 👋</div>
+          <div class="mockup-body">
+            <div class="chat-row from-lead" id="m1">
+              <span class="chat-sender-label">Mariana García · WhatsApp</span>
+              <div class="bubble lead">Hola! Vi el proyecto en Zonaprop, ¿tienen unidades disponibles? 👋</div>
             </div>
-            <div id="typingIndicator" class="mockup-typing">
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
-              <div class="typing-dot"></div>
+            <div class="typing-row" id="typing">
+              <div class="tdot"></div><div class="tdot"></div><div class="tdot"></div>
             </div>
-            <div class="chat-msg" id="msg2">
-              <span class="chat-sender right">Agente IA · Realia</span>
-              <div class="chat-bubble ai">¡Hola Mariana! 🏢 Sí, tenemos 3 unidades disponibles en Torre Palermo. ¿Estás buscando para vivir o invertir?</div>
+            <div class="chat-row from-ai" id="m2">
+              <span class="chat-sender-label">Agente IA · Realia</span>
+              <div class="bubble ai">¡Hola Mariana! Sí, tenemos 3 unidades disponibles en Torre Palermo 🏢 ¿Buscás para vivir o invertir?</div>
             </div>
-            <div class="chat-msg" id="msg3">
-              <span class="chat-sender">Mariana García</span>
-              <div class="chat-bubble lead">Para invertir, busco 2 o 3 ambientes</div>
+            <div class="chat-row from-lead" id="m3">
+              <span class="chat-sender-label">Mariana García · WhatsApp</span>
+              <div class="bubble lead">Para invertir, busco 2 o 3 ambientes</div>
             </div>
-            <div class="chat-msg" id="msg4">
-              <span class="chat-sender right">Agente IA · Realia</span>
-              <div class="chat-bubble ai">Perfecto 🎯 Tengo una unidad de 2 amb en piso 8 a USD 128.000 con financiación. ¿Te envío el plano y la memoria descriptiva?</div>
+            <div class="chat-row from-ai" id="m4">
+              <span class="chat-sender-label">Agente IA · Realia</span>
+              <div class="bubble ai">Perfecto 🎯 Tengo un 2 amb en piso 8 a USD 128.000 con financiación. ¿Te mando el plano y la memoria descriptiva?</div>
             </div>
-          </div>
-          <div class="mockup-footer">
-            <div class="mockup-input">Escribí tu mensaje...</div>
-            <div class="mockup-send">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A0A0E" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            <div class="mockup-input-row">
+              <div class="mockup-inp">Escribí tu mensaje...</div>
+              <div class="mockup-send-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              </div>
             </div>
           </div>
         </div>
@@ -1094,184 +1051,178 @@
     </div>
   </section>
 
-  <!-- STATS BAR -->
-  <div class="stats-bar">
-    <div class="stats-inner fade-up">
+  <!-- STATS -->
+  <div class="stats-section fade-up">
+    <div class="stats-grid">
       <div class="stat-item">
-        <div class="stat-number"><span>40</span>%</div>
-        <div class="stat-desc">de los leads contacta fuera del horario laboral. Sin Realia, nadie responde.</div>
+        <div class="stat-num"><span class="gradient-text" id="n40">0</span>%</div>
+        <div class="stat-desc">de los leads escribe fuera del horario laboral. Sin Realia, nadie responde.</div>
       </div>
       <div class="stat-item">
-        <div class="stat-number">USD <span>80K</span></div>
+        <div class="stat-num"><span class="gradient-text">USD 80K</span></div>
         <div class="stat-desc">valor promedio de una unidad en pozo. Cada lead perdido es dinero que se va.</div>
       </div>
       <div class="stat-item">
-        <div class="stat-number"><span>3</span> min</div>
-        <div class="stat-desc">tiempo máximo de respuesta que un lead espera antes de escribirle a la competencia.</div>
+        <div class="stat-num"><span class="gradient-text">3 min</span></div>
+        <div class="stat-desc">tiempo máximo antes de que un lead le escriba a la competencia si no hay respuesta.</div>
       </div>
     </div>
   </div>
 
-  <!-- PROBLEM SECTION -->
-  <section class="problem-section" id="problemas">
-    <div class="problem-header">
-      <div>
-        <div class="label section-label fade-up">El problema</div>
-        <h2 class="display-lg section-heading fade-up fade-up-d1">
-          Tu proyecto vale millones.<br>
-          <em style="font-style:italic;color:var(--gold-light)">Tu proceso de ventas, no.</em>
-        </h2>
+  <!-- PROBLEM -->
+  <section class="main problems-bg" id="problemas">
+    <div class="container">
+      <div class="problems-header">
+        <div>
+          <div class="section-tag fade-up">El problema</div>
+          <h2 class="section-title fade-up d1">Tu proyecto vale millones.<br><span class="gradient-text">Tu proceso de ventas, no.</span></h2>
+        </div>
+        <p class="section-body fade-up d2">Las desarrolladoras pierden entre el 30 y el 60% de sus leads por falta de respuesta rápida. Y sus compradores están en la oscuridad mientras la obra avanza.</p>
       </div>
-      <p class="body-lg fade-up fade-up-d2" style="max-width:420px">
-        Las desarrolladoras pierden entre el 30 y el 60% de sus leads 
-        por falta de respuesta rápida. Y sus compradores están en la oscuridad 
-        mientras la obra avanza.
-      </p>
-    </div>
-
-    <div class="problem-cards fade-up fade-up-d3">
-      <div class="problem-card">
-        <div class="problem-icon">😴</div>
-        <div class="problem-title">Leads que se enfrían de noche</div>
-        <div class="problem-body">El 40% de los mensajes llega fuera del horario laboral. Sin respuesta automática, ese interés se va a la competencia en minutos.</div>
-        <div class="problem-stat">-40% leads<small>perdidos fuera de horario</small></div>
-      </div>
-      <div class="problem-card">
-        <div class="problem-icon">🏗️</div>
-        <div class="problem-title">Compradores desinformados</div>
-        <div class="problem-body">Tus compradores no saben cuánto avanzó la obra. Cada llamada de "¿cómo va todo?" es tiempo del equipo que se podría automatizar.</div>
-        <div class="problem-stat">+80% consultas<small>sobre avance de obra son evitables</small></div>
-      </div>
-      <div class="problem-card">
-        <div class="problem-icon">📊</div>
-        <div class="problem-title">Gestión fragmentada</div>
-        <div class="problem-body">Leads en WhatsApp, actualizaciones por email, reservas en Excel y obra en papel. Nada se conecta, todo se pierde.</div>
-        <div class="problem-stat">4+ herramientas<small>que no se hablan entre sí</small></div>
+      <div class="problems-grid">
+        <div class="problem-card fade-up">
+          <div class="problem-icon-wrap">😴</div>
+          <div class="problem-title">Leads que se enfrían de noche</div>
+          <div class="problem-desc">El 40% de los mensajes llega fuera del horario. Sin respuesta automática, ese interés se va a la competencia en minutos.</div>
+          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">40%</span>leads perdidos fuera de horario</div>
+        </div>
+        <div class="problem-card fade-up d1">
+          <div class="problem-icon-wrap">🏗️</div>
+          <div class="problem-title">Compradores desinformados</div>
+          <div class="problem-desc">Tus compradores no saben cuánto avanzó la obra. Cada "¿cómo va todo?" consume tiempo del equipo que se podría automatizar.</div>
+          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">80%</span>de consultas de obra son evitables</div>
+        </div>
+        <div class="problem-card fade-up d2">
+          <div class="problem-icon-wrap">📊</div>
+          <div class="problem-title">Gestión fragmentada</div>
+          <div class="problem-desc">Leads en WhatsApp, actualizaciones por email, reservas en Excel y obra en papel. Nada se conecta, todo se pierde.</div>
+          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">4+</span>herramientas que no se hablan</div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- FEATURES -->
-  <section id="funciones">
-    <div class="features-header fade-up">
-      <div class="label section-label">Solución</div>
-      <h2 class="display-lg section-heading">Todo lo que necesitás.<br>En un solo lugar.</h2>
-      <p class="body-lg section-body">Dos productos que se complementan: seguimiento de obra para mantener informados a tus compradores, y un agente de IA para no perder un lead más.</p>
-    </div>
+  <section class="main" id="funciones">
+    <div class="container">
+      <div style="text-align:center;max-width:600px;margin:0 auto clamp(60px,8vw,90px)">
+        <div class="section-tag fade-up">Solución</div>
+        <h2 class="section-title fade-up d1">Todo lo que necesitás,<br>en un solo lugar.</h2>
+        <p class="section-body fade-up d2" style="margin:0 auto">Dos productos que se complementan: empezás con el plan que necesitás y escalás cuando estés listo.</p>
+      </div>
 
-    <!-- Feature 1: Obra -->
-    <div class="feature-row fade-up">
-      <div class="feature-content">
-        <div class="label" style="margin-bottom:12px">Plan Obra</div>
-        <h3 class="display-md" style="margin-bottom:16px">Tus compradores, siempre informados.</h3>
-        <p class="body-sm" style="margin-bottom:8px">Actualizá el avance de cada etapa, subí fotos y notificá automáticamente a todos los compradores por WhatsApp. Sin llamadas, sin emails manuales.</p>
-        <div class="feature-list">
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>Etapas con progreso ponderado</strong>Definí las etapas de tu obra y asignales peso relativo. El % de avance se calcula automáticamente.</div>
+      <!-- Feature Obra -->
+      <div class="feature-row fade-up">
+        <div>
+          <div class="feature-plan-tag tag-obra">Plan Obra</div>
+          <h3 class="section-title" style="font-size:clamp(24px,3vw,34px)">Tus compradores, siempre informados.</h3>
+          <p class="section-body" style="font-size:15px">Actualizá el avance de cada etapa, subí fotos y notificá automáticamente a todos los compradores por WhatsApp. Sin llamadas, sin emails manuales.</p>
+          <div class="feature-list">
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Etapas con progreso ponderado</strong><span>Definí las etapas y asignales peso relativo. El % total se calcula solo.</span></div>
+            </div>
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Notificaciones WA con fotos</strong><span>Cada update llega por WhatsApp a los compradores de la unidad, con imagen adjunta.</span></div>
+            </div>
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Panel financiero y de inversores</strong><span>Presupuesto vs ejecutado, flujo de caja y reporte automático para inversores.</span></div>
+            </div>
           </div>
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>Notificaciones automáticas con fotos</strong>Cada actualización llega por WhatsApp a los compradores de esa unidad, con foto adjunta.</div>
+        </div>
+        <div class="obra-card fade-up d2">
+          <div class="obra-card-header">
+            <span class="obra-project-name">Torre Palermo</span>
+            <span class="obra-progress-total">Avance total: <strong>62%</strong></span>
           </div>
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>Panel financiero y de inversores</strong>Presupuesto vs ejecutado, flujo de caja y portal de reporte para inversores.</div>
+          <div class="obra-card-body">
+            <div class="etapa">
+              <div class="etapa-header"><span class="etapa-name">Fundaciones</span><span class="etapa-pct">100%</span></div>
+              <div class="etapa-bar"><div class="etapa-fill" style="width:100%"></div></div>
+            </div>
+            <div class="etapa">
+              <div class="etapa-header"><span class="etapa-name">Estructura</span><span class="etapa-pct">78%</span></div>
+              <div class="etapa-bar"><div class="etapa-fill" style="width:78%"></div></div>
+            </div>
+            <div class="etapa">
+              <div class="etapa-header"><span class="etapa-name">Mampostería</span><span class="etapa-pct">45%</span></div>
+              <div class="etapa-bar"><div class="etapa-fill" style="width:45%"></div></div>
+            </div>
+            <div class="etapa">
+              <div class="etapa-header"><span class="etapa-name">Instalaciones</span><span class="etapa-pct">20%</span></div>
+              <div class="etapa-bar"><div class="etapa-fill" style="width:20%"></div></div>
+            </div>
+            <div class="obra-notif">
+              <span class="notif-icon">✅</span>
+              <div class="notif-text">
+                <div class="t1">Actualización enviada — Estructura piso 8</div>
+                <div class="t2">14 compradores notificados por WhatsApp</div>
+              </div>
+              <span class="notif-badge">Hace 2 hs</span>
+            </div>
           </div>
         </div>
       </div>
-      <div class="feature-visual fade-up fade-up-d2">
-        <div class="feature-visual-inner">
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;font-weight:400;letter-spacing:0.05em;text-transform:uppercase">Torre Palermo — Avance de obra</div>
-          <div class="obra-stages">
-            <div class="stage-item">
-              <div class="stage-header"><span class="stage-name">Fundaciones</span><span class="stage-pct">100%</span></div>
-              <div class="stage-bar"><div class="stage-fill" style="width:100%"></div></div>
-            </div>
-            <div class="stage-item">
-              <div class="stage-header"><span class="stage-name">Estructura</span><span class="stage-pct">78%</span></div>
-              <div class="stage-bar"><div class="stage-fill" style="width:78%"></div></div>
-            </div>
-            <div class="stage-item">
-              <div class="stage-header"><span class="stage-name">Mampostería</span><span class="stage-pct">45%</span></div>
-              <div class="stage-bar"><div class="stage-fill" style="width:45%"></div></div>
-            </div>
-            <div class="stage-item">
-              <div class="stage-header"><span class="stage-name">Instalaciones</span><span class="stage-pct">20%</span></div>
-              <div class="stage-bar"><div class="stage-fill" style="width:20%"></div></div>
-            </div>
-            <div class="stage-item">
-              <div class="stage-header"><span class="stage-name">Terminaciones</span><span class="stage-pct">0%</span></div>
-              <div class="stage-bar"><div class="stage-fill" style="width:2%"></div></div>
-            </div>
-          </div>
-          <div class="obra-update">
-            <div class="update-photo">📸</div>
-            <div class="update-info">
-              <div class="update-title">Actualización — Estructura piso 8</div>
-              <div class="update-meta">Hace 2 horas · 14 compradores notificados</div>
-            </div>
-            <div class="update-badge">✓ Enviado</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
-    <!-- Feature 2: Chatbot -->
-    <div class="feature-row reverse fade-up">
-      <div class="feature-visual fade-up fade-up-d1">
-        <div class="leads-visual">
-          <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;font-weight:400;letter-spacing:0.05em;text-transform:uppercase">Pipeline de leads — Esta semana</div>
-          <div class="leads-funnel">
-            <div class="funnel-row">
-              <span class="funnel-label" style="color:#F87171">Caliente</span>
-              <div class="funnel-bar-wrap"><div class="funnel-bar hot">8 leads</div></div>
-            </div>
-            <div class="funnel-row">
-              <span class="funnel-label" style="color:var(--gold-light)">Tibio</span>
-              <div class="funnel-bar-wrap"><div class="funnel-bar warm">5 leads</div></div>
-            </div>
-            <div class="funnel-row">
-              <span class="funnel-label" style="color:#818CF8">Frío</span>
-              <div class="funnel-bar-wrap"><div class="funnel-bar cold">3 leads</div></div>
-            </div>
+      <!-- Feature Pro -->
+      <div class="feature-row flip fade-up">
+        <div class="leads-card fade-up d1">
+          <div class="leads-header">
+            <span class="leads-title">Pipeline de leads</span>
+            <span class="leads-week">Esta semana · 16 leads</span>
           </div>
-          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
-            <div class="lead-card">
-              <div class="lead-initials">MG</div>
-              <div class="lead-info">
-                <div class="lead-name">Mariana García</div>
-                <div class="lead-detail">2-3 amb · inversión · USD 130K presupuesto</div>
-              </div>
-              <div class="lead-score high">🔥 Caliente</div>
+          <div class="leads-body">
+            <div class="funnel-item">
+              <span class="funnel-lbl" style="color:#ef4444">Caliente</span>
+              <div class="funnel-track"><div class="funnel-fill f-hot">8 leads</div></div>
             </div>
-            <div class="lead-card">
-              <div class="lead-initials">JR</div>
-              <div class="lead-info">
-                <div class="lead-name">Juan Rodríguez</div>
-                <div class="lead-detail">3 amb · vivienda · financiación</div>
+            <div class="funnel-item">
+              <span class="funnel-lbl" style="color:#f97316">Tibio</span>
+              <div class="funnel-track"><div class="funnel-fill f-warm">5 leads</div></div>
+            </div>
+            <div class="funnel-item">
+              <span class="funnel-lbl" style="color:#818cf8">Frío</span>
+              <div class="funnel-track"><div class="funnel-fill f-cold">3 leads</div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+              <div class="lead-row-item">
+                <div class="lead-av">MG</div>
+                <div class="lead-inf">
+                  <div class="lead-nm">Mariana García</div>
+                  <div class="lead-dt">2-3 amb · inversión · USD 130K presupuesto</div>
+                </div>
+                <span class="lead-badge lb-hot">🔥 Caliente</span>
               </div>
-              <div class="lead-score mid">⚡ Tibio</div>
+              <div class="lead-row-item">
+                <div class="lead-av">JR</div>
+                <div class="lead-inf">
+                  <div class="lead-nm">Juan Rodríguez</div>
+                  <div class="lead-dt">3 amb · vivienda · financiación</div>
+                </div>
+                <span class="lead-badge lb-warm">⚡ Tibio</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      <div class="feature-content fade-up fade-up-d2">
-        <div class="label" style="margin-bottom:12px">Plan Pro</div>
-        <h3 class="display-md" style="margin-bottom:16px">Tu agente de ventas que nunca duerme.</h3>
-        <p class="body-sm" style="margin-bottom:8px">Calificá leads automáticamente, respondé preguntas sobre el proyecto con documentos reales y avisale a tu equipo cuando un lead está listo para cerrar.</p>
-        <div class="feature-list">
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>Calificación automática de leads</strong>El agente recopila presupuesto, intención, financiación y preferencias. Tu equipo recibe el lead ya calificado.</div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>RAG sobre documentos del proyecto</strong>Sube tu memoria descriptiva, planos y lista de precios. El agente responde con datos reales, no inventados.</div>
-          </div>
-          <div class="feature-item">
-            <div class="feature-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-            <div class="feature-item-text"><strong>Handoff inteligente al vendedor</strong>Cuando el lead está listo, el agente avisa y el vendedor toma el control desde el inbox omnicanal.</div>
+        <div>
+          <div class="feature-plan-tag tag-pro">Plan Pro</div>
+          <h3 class="section-title" style="font-size:clamp(24px,3vw,34px)">Tu agente de ventas que nunca duerme.</h3>
+          <p class="section-body" style="font-size:15px">Calificá leads automáticamente, respondé preguntas sobre el proyecto con documentos reales y avisale a tu equipo cuando el lead está listo para cerrar.</p>
+          <div class="feature-list">
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Calificación automática 24/7</strong><span>El agente recopila presupuesto, intención y timeline. Tu equipo recibe el lead ya calificado.</span></div>
+            </div>
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Respuestas basadas en tus documentos</strong><span>Subís memoria descriptiva, planos y precios. El agente responde con datos reales, nunca inventados.</span></div>
+            </div>
+            <div class="fi">
+              <div class="fi-check"><svg viewBox="0 0 12 12" fill="none"><polyline points="2,6 5,9 10,3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div class="fi-text"><strong>Handoff inteligente al vendedor</strong><span>Cuando el lead está listo, el agente avisa y el vendedor toma el control con todo el contexto.</span></div>
+            </div>
           </div>
         </div>
       </div>
@@ -1279,255 +1230,228 @@
   </section>
 
   <!-- HOW IT WORKS -->
-  <section class="how-section" id="como-funciona">
-    <div class="how-header fade-up">
-      <div class="label section-label" style="margin-bottom:16px">Cómo funciona</div>
-      <h2 class="display-lg section-heading">En marcha en 48 hs.</h2>
-      <p class="body-lg">Sin integraciones complejas. Sin semanas de setup. Tu agente IA empieza a trabajar casi de inmediato.</p>
-    </div>
-
-    <div class="steps-grid">
-      <div class="step-card fade-up">
-        <div class="step-number">01</div>
-        <div class="step-icon">🏢</div>
-        <div class="step-title">Cargás tu proyecto</div>
-        <div class="step-body">Subís la información del proyecto (unidades, precios, documentos, etapas de obra) via CSV o directamente desde el panel. El agente aprende todo.</div>
+  <section class="main how-bg" id="como-funciona">
+    <div class="container">
+      <div class="how-header fade-up">
+        <div class="section-tag">Cómo funciona</div>
+        <h2 class="section-title" style="margin-top:12px">En marcha en 48 horas.</h2>
+        <p class="section-body">Sin integraciones complejas ni semanas de configuración. Tu agente IA empieza a trabajar casi de inmediato.</p>
       </div>
-      <div class="step-card fade-up fade-up-d2">
-        <div class="step-number">02</div>
-        <div class="step-icon">🤖</div>
-        <div class="step-title">Conectás tu canal de ventas</div>
-        <div class="step-body">Vinculás tu número de WhatsApp y activás el Web Chat para tu sitio. Desde ese momento, el agente IA atiende leads 24/7 en tu nombre.</div>
-      </div>
-      <div class="step-card fade-up fade-up-d3">
-        <div class="step-number">03</div>
-        <div class="step-icon">💰</div>
-        <div class="step-title">Tu equipo cierra deals</div>
-        <div class="step-body">El agente califica, informa y avisa cuando un lead está listo. Tu vendedor recibe un prospecto caliente con todo el contexto. Solo tiene que cerrar.</div>
+      <div class="steps-grid">
+        <div class="step-card fade-up">
+          <div class="step-num-badge">01</div>
+          <div class="step-icon">🏢</div>
+          <div class="step-title">Cargás tu proyecto</div>
+          <div class="step-desc">Subís la información del proyecto vía CSV o desde el panel: unidades, precios, documentos y etapas de obra. El agente lo aprende todo.</div>
+        </div>
+        <div class="step-card fade-up d1">
+          <div class="step-num-badge">02</div>
+          <div class="step-icon">🤖</div>
+          <div class="step-title">Conectás tu canal de ventas</div>
+          <div class="step-desc">Vinculás tu número de WhatsApp y activás el Web Chat para tu sitio. Desde ese momento, el agente atiende leads 24/7 en tu nombre.</div>
+        </div>
+        <div class="step-card fade-up d2">
+          <div class="step-num-badge">03</div>
+          <div class="step-icon">💰</div>
+          <div class="step-title">Tu equipo cierra los deals</div>
+          <div class="step-desc">El agente califica, informa y avisa cuando un lead está listo. Tu vendedor recibe un prospecto caliente con todo el contexto. Solo tiene que cerrar.</div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- PRICING -->
-  <section id="pricing">
-    <div class="pricing-header fade-up">
-      <div class="label section-label" style="margin-bottom:16px">Precios</div>
-      <h2 class="display-lg section-heading">Simples. En USD. Sin sorpresas.</h2>
-      <p class="body-lg">Comenzá con el plan que necesitás y escalá cuando estés listo.</p>
-    </div>
-
-    <div class="toggle-wrapper fade-up">
-      <span class="toggle-label">Mensual</span>
-      <div class="toggle-btn" id="billingToggle" onclick="toggleBilling()"></div>
-      <span class="toggle-label">Anual</span>
-      <span class="savings-badge">2 meses gratis</span>
-    </div>
-
-    <div class="pricing-grid fade-up fade-up-d1">
-      <!-- Obra -->
-      <div class="pricing-card">
-        <div>
-          <div class="plan-name">Obra</div>
-          <div class="plan-price">
-            <span class="price-currency">USD</span>
-            <span class="price-amount" id="price-obra">49</span>
-            <span class="price-period">/mes</span>
-          </div>
-          <p class="plan-desc">Para desarrolladoras que quieren mantener informados a sus compradores y ordenar la gestión de proyectos.</p>
-        </div>
-        <div class="plan-divider"></div>
-        <div class="plan-features">
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Seguimiento de obra con % de avance</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Notificaciones WA a compradores con fotos</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Panel de gestión: proyectos + unidades</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Reservas + plan de pagos</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Panel financiero básico</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span style="color:var(--text-3)">Chatbot IA de ventas</span></div>
-        </div>
-        <div class="plan-cta">
-          <a href="#contacto" class="btn-plan outline">Empezar con Obra</a>
-        </div>
+  <section class="main" id="pricing">
+    <div class="container">
+      <div class="pricing-header fade-up">
+        <div class="section-tag">Precios</div>
+        <h2 class="section-title" style="margin-top:12px">Simples. En USD. Sin sorpresas.</h2>
+        <p class="section-body" style="margin:0 auto">Comenzá con el plan que necesitás y escalá cuando estés listo.</p>
       </div>
-
-      <!-- Pro (featured) -->
-      <div class="pricing-card featured">
-        <div class="featured-tag">Más elegido</div>
-        <div>
-          <div class="plan-name">Pro</div>
-          <div class="plan-price">
-            <span class="price-currency">USD</span>
-            <span class="price-amount" id="price-pro">149</span>
-            <span class="price-period">/mes</span>
-          </div>
-          <p class="plan-desc">Para desarrolladoras que quieren automatizar ventas y nunca perder un lead, además de gestionar su proyecto.</p>
+      <div class="billing-toggle fade-up">
+        <span class="toggle-label-text">Mensual</span>
+        <div class="toggle-track" id="billingToggle" onclick="toggleBilling()">
+          <div class="toggle-thumb"></div>
         </div>
-        <div class="plan-divider"></div>
-        <div class="plan-features">
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Todo el plan Obra</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Agente IA de ventas 24/7</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> WhatsApp + Web Chat + Instagram</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Calificación automática de leads</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> RAG sobre documentos del proyecto</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Handoff a vendedor + inbox omnicanal</div>
-        </div>
-        <div class="plan-cta">
-          <a href="#contacto" class="btn-plan primary">Empezar con Pro</a>
-        </div>
+        <span class="toggle-label-text">Anual</span>
+        <span class="annual-badge">✓ 2 meses gratis</span>
       </div>
-
-      <!-- Enterprise -->
-      <div class="pricing-card">
-        <div>
-          <div class="plan-name">Enterprise</div>
-          <div class="plan-price">
-            <span class="price-amount" style="font-size:clamp(28px,3vw,36px);font-family:'Sora',sans-serif;font-weight:300;color:var(--text-2)">A consultar</span>
+      <div class="pricing-grid fade-up d1">
+        <!-- Obra -->
+        <div class="pricing-card">
+          <div>
+            <div class="plan-name-label">Obra</div>
+            <div class="plan-price-row">
+              <span class="price-curr">USD</span>
+              <span class="price-num" id="p-obra">49</span>
+              <span class="price-per">/mes</span>
+            </div>
+            <p class="plan-desc-text">Para desarrolladoras que quieren mantener informados a sus compradores y ordenar la gestión de proyectos.</p>
           </div>
-          <p class="plan-desc">Para portfolios de múltiples proyectos, inmobiliarias con alta rotación de leads o necesidades específicas de integración.</p>
+          <div class="plan-divider"></div>
+          <div class="plan-feat-list">
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Seguimiento de obra con % de avance</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Notificaciones WA a compradores con fotos</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Panel: proyectos, unidades, reservas</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Plan de pagos y financiero básico</div>
+            <div class="pf disabled"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span style="color:var(--text-3)">Chatbot IA de ventas</span></div>
+          </div>
+          <a href="#contacto" class="plan-cta-btn secondary">Empezar con Obra</a>
         </div>
-        <div class="plan-divider"></div>
-        <div class="plan-features">
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Todo el plan Pro</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Multi-proyecto y multi-organización</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> White label (tu marca, no la nuestra)</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> SLA garantizado + soporte dedicado</div>
-          <div class="plan-feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Integraciones a medida</div>
+        <!-- Pro -->
+        <div class="pricing-card featured">
+          <div class="featured-label">Más elegido</div>
+          <div>
+            <div class="plan-name-label" style="color:var(--primary)">Pro</div>
+            <div class="plan-price-row">
+              <span class="price-curr">USD</span>
+              <span class="price-num gradient-text" id="p-pro">149</span>
+              <span class="price-per">/mes</span>
+            </div>
+            <p class="plan-desc-text">Para desarrolladoras que quieren automatizar ventas y nunca perder un lead, además de gestionar su proyecto.</p>
+          </div>
+          <div class="plan-divider"></div>
+          <div class="plan-feat-list">
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Todo el plan Obra</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Agente IA de ventas 24/7</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>WhatsApp + Web Chat + Instagram</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Calificación automática de leads</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Respuestas desde tus documentos reales</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Inbox omnicanal con HITL</div>
+          </div>
+          <a href="#contacto" class="plan-cta-btn primary">Empezar con Pro</a>
         </div>
-        <div class="plan-cta">
-          <a href="#contacto" class="btn-plan outline">Hablar con ventas</a>
+        <!-- Enterprise -->
+        <div class="pricing-card">
+          <div>
+            <div class="plan-name-label">Enterprise</div>
+            <div class="plan-price-row">
+              <span class="price-num" style="font-family:'DM Sans',sans-serif;font-size:clamp(24px,3vw,30px);font-weight:400;color:var(--text-2)">A consultar</span>
+            </div>
+            <p class="plan-desc-text">Para portfolios de múltiples proyectos o inmobiliarias con alta rotación que necesitan integraciones a medida.</p>
+          </div>
+          <div class="plan-divider"></div>
+          <div class="plan-feat-list">
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Todo el plan Pro</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Multi-proyecto y multi-organización</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>White label (tu marca, no la nuestra)</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>SLA garantizado + soporte dedicado</div>
+          </div>
+          <a href="#contacto" class="plan-cta-btn secondary">Hablar con ventas</a>
         </div>
       </div>
     </div>
   </section>
 
   <!-- FINAL CTA -->
-  <section class="cta-section" id="contacto">
-    <div class="cta-inner fade-up">
-      <div class="cta-glow"></div>
-      <div style="position:relative">
-        <div class="label" style="margin-bottom:16px;display:block">Empezar ahora</div>
+  <div class="cta-section" id="contacto">
+    <div class="cta-card fade-up">
+      <div class="cta-inner">
         <h2>¿Listo para no perder<br>más leads?</h2>
-        <p>Pedí una demo y en 48 horas tu agente de IA está trabajando para vos.</p>
-        <form class="contact-form" onsubmit="handleSubmit(event)">
-          <div class="form-row">
-            <input class="form-input" type="text" placeholder="Tu nombre" required />
-            <input class="form-input" type="email" placeholder="Email de trabajo" required />
+        <p>Pedí una demo y en 48 horas tu agente IA está trabajando para vos.</p>
+        <form class="cta-form" onsubmit="handleSubmit(event)">
+          <div class="cta-form-row">
+            <input class="cta-input" type="text" placeholder="Tu nombre" required />
+            <input class="cta-input" type="email" placeholder="Email de trabajo" required />
           </div>
-          <div class="form-row">
-            <input class="form-input" type="tel" placeholder="WhatsApp / Teléfono" />
-            <select class="form-select">
-              <option value="" disabled selected>¿Cuántos proyectos activos tenés?</option>
-              <option value="1">1 proyecto</option>
-              <option value="2-3">2 a 3 proyectos</option>
-              <option value="4+">4 o más proyectos</option>
-              <option value="inmobiliaria">Soy inmobiliaria</option>
+          <div class="cta-form-row">
+            <input class="cta-input" type="tel" placeholder="WhatsApp / Teléfono" />
+            <select class="cta-select">
+              <option value="" disabled selected>¿Cuántos proyectos activos?</option>
+              <option>1 proyecto</option>
+              <option>2 a 3 proyectos</option>
+              <option>4 o más proyectos</option>
+              <option>Soy inmobiliaria</option>
             </select>
           </div>
-          <button type="submit" class="btn-primary" style="width:100%;justify-content:center;padding:15px">
-            Quiero una demo →
-          </button>
-          <p class="form-disclaimer">Sin spam. Te respondemos en menos de 24hs por WhatsApp o email.</p>
+          <button type="submit" class="cta-submit" id="submitBtn">Quiero una demo →</button>
+          <p class="cta-note">Sin spam. Te respondemos en menos de 24hs por WhatsApp o email.</p>
         </form>
       </div>
     </div>
-  </section>
+  </div>
 
   <!-- FOOTER -->
   <footer>
-    <div class="footer-logo">Realia<span>.</span></div>
-    <div class="footer-links">
-      <a href="#funciones">Funciones</a>
-      <a href="#pricing">Precios</a>
-      <a href="#contacto">Contacto</a>
+    <div class="footer-inner">
+      <a href="/" class="nav-logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22" style="fill:rgba(255,255,255,0.5)"/></svg>
+        </div>
+        <span class="logo-text">Realia</span>
+      </a>
+      <div class="footer-links">
+        <a href="#funciones">Funciones</a>
+        <a href="#pricing">Precios</a>
+        <a href="#contacto">Contacto</a>
+      </div>
+      <div class="footer-copy">© 2026 Realia. Todos los derechos reservados.</div>
     </div>
-    <div class="footer-copy">© 2026 Realia. Todos los derechos reservados.</div>
   </footer>
 
   <script>
     /* ── CHAT ANIMATION ── */
-    const msgs = ['msg1','msg2','msg3','msg4'];
-    const typing = document.getElementById('typingIndicator');
+    const msgs = ['m1','m2','m3','m4'];
+    const typingEl = document.getElementById('typing');
     let step = 0;
-
-    function animateChat() {
-      if (step >= msgs.length) { step = 0; setTimeout(resetChat, 3000); return; }
+    function chat() {
+      if (step >= msgs.length) { step = 0; setTimeout(reset, 3500); return; }
       const el = document.getElementById(msgs[step]);
+      if (!el) { step++; return chat(); }
+      el.style.opacity = '0'; el.style.transform = 'translateY(8px)';
+      el.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
       if (step === 1) {
-        typing.classList.add('visible');
+        typingEl.classList.add('show');
         setTimeout(() => {
-          typing.classList.remove('visible');
-          el.classList.add('visible');
-          step++;
-          setTimeout(animateChat, 1200);
-        }, 1400);
+          typingEl.classList.remove('show');
+          el.style.opacity = '1'; el.style.transform = 'translateY(0)';
+          step++; setTimeout(chat, 1200);
+        }, 1500);
       } else {
-        el.classList.add('visible');
-        step++;
-        setTimeout(animateChat, step <= 2 ? 1000 : 1400);
+        setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; step++; setTimeout(chat, step<=2?1000:1500); }, 50);
       }
     }
-
-    function resetChat() {
-      msgs.forEach(id => document.getElementById(id).classList.remove('visible'));
-      setTimeout(animateChat, 600);
-    }
-
-    setTimeout(animateChat, 800);
+    msgs.forEach(id => { const el = document.getElementById(id); if(el){el.style.opacity='0';} });
+    setTimeout(chat, 700);
+    function reset() { msgs.forEach(id => { const el = document.getElementById(id); if(el){el.style.opacity='0';el.style.transform='translateY(8px)';} }); setTimeout(chat, 600); }
 
     /* ── SCROLL ANIMATIONS ── */
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in-view'); } });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.fade-up').forEach(el => obs.observe(el));
 
-    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+    /* ── COUNTER ── */
+    const cntObs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (!e.isIntersecting) return;
+        const el = document.getElementById('n40');
+        if (!el) return;
+        let c = 0; const t = setInterval(() => { c = Math.min(c+1,40); el.textContent = c; if(c>=40) clearInterval(t); }, 40);
+        cntObs.unobserve(e.target);
+      });
+    }, { threshold: 0.3 });
+    const sg = document.querySelector('.stats-grid');
+    if (sg) cntObs.observe(sg);
 
     /* ── BILLING TOGGLE ── */
     let annual = false;
     function toggleBilling() {
       annual = !annual;
-      document.getElementById('billingToggle').classList.toggle('active', annual);
-      document.getElementById('price-obra').textContent = annual ? '41' : '49';
-      document.getElementById('price-pro').textContent = annual ? '124' : '149';
+      document.getElementById('billingToggle').classList.toggle('on', annual);
+      document.getElementById('p-obra').textContent = annual ? '41' : '49';
+      document.getElementById('p-pro').textContent  = annual ? '124' : '149';
     }
 
     /* ── FORM SUBMIT ── */
     function handleSubmit(e) {
       e.preventDefault();
-      const btn = e.target.querySelector('button[type="submit"]');
+      const btn = document.getElementById('submitBtn');
       btn.textContent = '✓ ¡Recibimos tu solicitud! Te contactamos pronto.';
-      btn.style.background = 'var(--green)';
-      btn.style.color = '#0A0A0E';
+      btn.style.background = '#ecfdf5';
+      btn.style.color = '#059669';
       btn.disabled = true;
     }
-
-    /* ── COUNTER ANIMATION ── */
-    function animateNumber(el, target, suffix='') {
-      let current = 0;
-      const duration = 1800;
-      const step = target / (duration / 16);
-      const timer = setInterval(() => {
-        current = Math.min(current + step, target);
-        el.innerHTML = Math.round(current) + suffix;
-        if (current >= target) clearInterval(timer);
-      }, 16);
-    }
-
-    const statObserver = new IntersectionObserver((entries) => {
-      entries.forEach(e => {
-        if (e.isIntersecting) {
-          const nums = e.target.querySelectorAll('.stat-number');
-          nums[0].innerHTML = '<span>0</span>%';
-          setTimeout(() => {
-            nums[0].innerHTML = `<span id="n40">0</span>%`;
-            animateNumber(document.getElementById('n40'), 40);
-          }, 100);
-          statObserver.unobserve(e.target);
-        }
-      });
-    }, { threshold: 0.3 });
-
-    const statsEl = document.querySelector('.stats-inner');
-    if (statsEl) statObserver.observe(statsEl);
   </script>
-
 </body>
 </html>
