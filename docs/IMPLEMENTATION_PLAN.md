@@ -395,6 +395,43 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS chatwoot_account_id INT;
 
 ### Fase 15: Go-to-Market — Pricing, Dominio y Landing Page ⬜ PENDIENTE
 
+#### Identidad digital del negocio
+
+⚠️ **Todo pendiente** — hoy los proveedores están vinculados a una cuenta personal. Antes de ir a producción hay que migrar todo a cuentas propias de Realia.
+
+**Paso 1 — Email corporativo** (hacer primero, desbloquea todo lo demás)
+- [ ] Decidir el nombre final del producto y el dominio
+- [ ] Registrar dominio elegido (ver sección Dominio más abajo)
+- [ ] Crear cuenta de **Google Workspace** con ese dominio (`hola@realia.lat`, `soporte@realia.lat`, etc.) — ~$6 USD/mes el plan Starter
+  - Alternativa gratuita: usar Zoho Mail (plan free hasta 5 usuarios con dominio propio)
+- [ ] Esta cuenta de Google va a ser la cuenta "madre" de todos los proveedores
+
+**Paso 2 — Migrar / crear cuentas de proveedores con el email de Realia**
+
+| Proveedor | Estado actual | Acción |
+|---|---|---|
+| **Twilio** | Cuenta `AC6817...` vinculada a Gmail personal | Cambiar email de login al email corporativo desde Account Settings → General Settings |
+| **Anthropic (Claude)** | API key personal | Crear organización en [console.anthropic.com](https://console.anthropic.com) con email Realia, generar nueva API key |
+| **Supabase** | Proyecto personal | Crear organización Realia, transferir proyecto o crear uno nuevo |
+| **Neon** | Proyecto personal | Crear organización Realia, transferir base de datos |
+| **Render** | Cuenta personal | Crear equipo Realia, transferir servicios |
+| **OpenAI (Whisper)** | API key personal | Crear organización en [platform.openai.com](https://platform.openai.com) con email Realia |
+| **GitHub** | Repo `real-estate` en cuenta personal | Crear organización `realia-ai` en GitHub, transferir el repo |
+| **Namecheap** | Sin cuenta | Crear cuenta con email Realia al comprar el dominio |
+
+**Paso 3 — Cuentas nuevas que todavía no existen**
+- [ ] **LinkedIn de Realia** — página de empresa (necesaria para credibilidad B2B y outreach)
+- [ ] **Calendly** (o cal.com, gratuito) — para el link "Pedí una demo" de la landing
+- [ ] **Google Analytics / Plausible** — para trackear visitas a la landing cuando esté online
+- [ ] **Facebook Business Manager** con email Realia (necesario para Twilio WhatsApp API en producción)
+
+**Orden recomendado:**
+1. Definir nombre final → comprar dominio → crear Google Workspace
+2. Cambiar email de Twilio (lo más urgente, ya tiene actividad)
+3. Migrar el resto de proveedores antes del primer cliente real
+
+---
+
 #### Dominio
 
 ⚠️ **Pendiente de decisión** — el nombre debe ser catchy y con sentido para el usuario inmobiliario.
