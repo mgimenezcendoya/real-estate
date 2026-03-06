@@ -15,7 +15,6 @@ const navItems = [
   { href: '/proyectos', label: 'Proyectos', icon: Building2 },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/tools', label: 'Tools', icon: Wrench },
-  { href: '/guia', label: 'Guía', icon: BookOpen },
 ];
 
 function NavContent({
@@ -164,14 +163,23 @@ function NavContent({
         )}
       >
         {collapsed ? (
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-            title="Cerrar sesión"
-          >
-            <LogOut size={17} />
-          </button>
+          <div className="flex flex-col items-center gap-1">
+            <Link
+              href="/guia"
+              className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              title="Guía de uso"
+            >
+              <BookOpen size={17} />
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              title="Cerrar sesión"
+            >
+              <LogOut size={17} />
+            </button>
+          </div>
         ) : (
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -193,6 +201,13 @@ function NavContent({
                   <KeyRound size={14} />
                 </button>
               )}
+              <Link
+                href="/guia"
+                className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                title="Guía de uso"
+              >
+                <BookOpen size={14} />
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}

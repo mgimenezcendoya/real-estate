@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, Reservation, PaymentPlan, PaymentInstallment, PaymentRecord } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Plus, Printer, CreditCard, CheckCircle, Clock, AlertTriangle, Pencil, Trash2, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Printer, FileText, CreditCard, CheckCircle, Clock, AlertTriangle, Pencil, Trash2, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -304,6 +304,15 @@ export default function ReservationDetailPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{reservation.buyer_name || reservation.buyer_phone}</p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => window.open(`/proyectos/${projectId}/reservas/${reservationId}/reporte`, '_blank', 'noopener,noreferrer')}
+          className="flex items-center gap-1.5"
+        >
+          <FileText size={14} />
+          Reporte
+        </Button>
         <Button variant="outline" size="sm" className="gap-1.5"
           onClick={() => router.push(`/proyectos/${projectId}/reservas/${reservationId}/print`)}>
           <Printer className="w-3.5 h-3.5" /> Imprimir
