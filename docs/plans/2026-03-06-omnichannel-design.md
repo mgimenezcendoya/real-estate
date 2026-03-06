@@ -33,7 +33,10 @@ Realia hoy opera únicamente sobre WhatsApp con un proveedor global (Twilio sand
 
 El inbox de Realia (`/inbox`) se mantiene en paralelo hasta validar Chatwoot en producción.
 
-**Deploy**: Chatwoot Cloud ($19/mes, 5 agentes) mientras el stack sigue en Render. No soporta Render de forma oficial para self-hosting. Migrar a self-hosted Railway cuando haya clientes reales.
+**Deploy**: Chatwoot Community Edition es **gratuita** (open source, self-hosted). Solo se paga el hosting:
+- **Hetzner VPS CX22** (~$4-6/mes) con Docker Compose — opción más barata, guía oficial de Chatwoot para Linux VM
+- **Railway** (~$15-20/mes) — cuando se migre el stack principal
+- Render free tier NO sirve: hace spin-down y Chatwoot necesita WebSockets permanentes para el inbox en tiempo real
 
 ### Twilio subaccounts
 

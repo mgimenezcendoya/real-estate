@@ -263,7 +263,12 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 
 **Objetivo**: Resolver el problema de agentes que pierden conversaciones cuando no están en el front. El inbox de Realia (`/inbox`) se mantiene en paralelo hasta validar Chatwoot en producción.
 
-**Decisión de deploy**: Usar **Chatwoot Cloud** ($19/mes, 5 agentes) mientras el stack sigue en Render. No requiere ops ni infraestructura adicional. Migrar a self-hosted Railway cuando haya clientes reales.
+**Decisión de deploy**: Chatwoot Community Edition es **gratuita** (open source, self-hosted). Solo se paga el hosting. Opciones por costo:
+- **Hetzner VPS CX22** (~$4-6/mes) con Docker Compose — guía oficial Linux VM, más barato
+- **Railway** (~$15-20/mes estimado) — cuando se migre el resto del stack
+- **Render paid** (~$31/mes) — posible vía Docker pero no documentado oficialmente; el free tier no sirve (hace spin-down y Chatwoot necesita WebSockets permanentes)
+
+**Recomendación para esta etapa**: Hetzner VPS + Docker Compose para Chatwoot. No interfiere con el stack actual en Render.
 
 - [ ] Crear cuenta en Chatwoot Cloud (app.chatwoot.com)
 - [ ] Crear un Inbox de tipo "API" en Chatwoot para WhatsApp (un inbox por org)
@@ -397,5 +402,5 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS chatwoot_account_id INT;
 | OpenAI | Whisper + embeddings | ⬜ Pendiente (Fase 2) |
 | WhatsApp Cloud API (Meta) | Business account | ⬜ Pendiente (Fase 14) |
 | Railway | Deploy completo | ⬜ Pendiente |
-| Chatwoot Cloud | Inbox omnicanal — $19/mes (migrar a self-hosted Railway cuando haya clientes reales) | ⬜ Pendiente (Fase 13A) |
+| Chatwoot Community | Inbox omnicanal self-hosted — **gratis** (software). Hosting: Hetzner VPS ~$6/mes o Railway cuando se migre. No usar Render free tier (spin-down rompe WebSockets) | ⬜ Pendiente (Fase 13A) |
 | ArgentinaDatos API | Cotizaciones ARS/USD (oficial/blue/mep) | ✅ Configurado (proxy en backend) |
