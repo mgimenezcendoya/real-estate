@@ -180,10 +180,8 @@ export default function FinancieroPage() {
   }, [id]);
 
   useEffect(() => {
-    if (cashFlow.length > 0 || loadingCF) {
-      loadCashFlow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (cashFlow.length === 0) return;
+    loadCashFlow(cfDesde, cfHasta);
   }, [cfDesde, cfHasta]);
 
   const loadExpenses = async () => {
@@ -339,10 +337,10 @@ export default function FinancieroPage() {
     finally { setLoadingFacturas(false); }
   };
 
-  const loadCashFlow = async () => {
+  const loadCashFlow = async (desde?: string, hasta?: string) => {
     if (!id) return;
     setLoadingCF(true);
-    try { setCashFlow(await api.getCashFlow(id, cfDesde, cfHasta)); }
+    try { setCashFlow(await api.getCashFlow(id, desde ?? cfDesde, hasta ?? cfHasta)); }
     catch { toast.error('Error cargando flujo de caja'); }
     finally { setLoadingCF(false); }
   };
