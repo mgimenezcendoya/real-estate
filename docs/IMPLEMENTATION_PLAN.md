@@ -259,17 +259,143 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 
 ---
 
+### Fase 13A: Chatwoot — Inbox omnicanal + Notificaciones HITL ⬜ PENDIENTE
+
+**Objetivo**: Resolver el problema de agentes que pierden conversaciones cuando no están en el front. El inbox de Realia (`/inbox`) se mantiene en paralelo hasta validar Chatwoot en producción.
+
+**Decisión de deploy**: Usar **Chatwoot Cloud** ($19/mes, 5 agentes) mientras el stack sigue en Render. No requiere ops ni infraestructura adicional. Migrar a self-hosted Railway cuando haya clientes reales.
+
+- [ ] Crear cuenta en Chatwoot Cloud (app.chatwoot.com)
+- [ ] Crear un Inbox de tipo "API" en Chatwoot para WhatsApp (un inbox por org)
+- [ ] `modules/handoff/chatwoot.py` — implementar API calls reales:
+  - `create_contact(phone, name, org_id)` → crea o busca contacto en Chatwoot
+  - `create_conversation(contact_id, inbox_id, initial_message)` → abre conversación con contexto
+  - `send_message(conversation_id, content)` → reenvía mensajes del lead al agente humano
+  - `close_conversation(conversation_id)` → cierra handoff
+- [ ] Webhook Chatwoot → `POST /chatwoot/webhook`:
+  - `message_created` (agente responde) → reenviar al lead por WhatsApp
+  - `conversation_resolved` → cerrar handoff en Realia, AI Agent retoma
+- [ ] Notificaciones: agentes instalan Chatwoot mobile app (iOS/Android) → push automático al hacer handoff
+- [ ] El inbox de Realia (`/inbox/page.tsx`) se mantiene sin cambios durante esta fase
+
+---
+
+### Fase 13B: Multi-tenant real — `org_channels` ⬜ PENDIENTE
+
+**Objetivo**: Sacar la config de WhatsApp de las env vars globales y moverla a la base de datos por org. Permite que cada cliente tenga su propio número y credenciales aisladas.
+
+- [ ] Migración 027: tabla `org_channels`
+
+```sql
+CREATE TABLE org_channels (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id      UUID NOT NULL REFERENCES organizations(id),
+    channel     TEXT NOT NULL,   -- 'whatsapp' | 'webchat' | 'instagram' | 'email'
+    status      TEXT NOT NULL DEFAULT 'pending',
+                                 -- 'pending' | 'active' | 'suspended'
+    config      JSONB NOT NULL DEFAULT '{}',
+    -- config por canal:
+    -- whatsapp: { provider, phone_number, twilio_subaccount_sid,
+    --             twilio_auth_token, twilio_sender_sid }
+    -- webchat:  { widget_token, allowed_domains }
+    -- instagram:{ page_id, access_token, instagram_account_id }
+    -- email:    { smtp_host, smtp_user, smtp_pass, inbox_email }
+    chatwoot_inbox_id    INT,
+    chatwoot_inbox_token TEXT,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(org_id, channel)
+);
+ALTER TABLE organizations ADD COLUMN IF NOT EXISTS chatwoot_account_id INT;
+```
+
+- [ ] `modules/agent/router.py` — `resolve_developer()` busca org en `org_channels` por `config->>'phone_number'` en lugar de `projects.whatsapp_number`
+- [ ] `modules/whatsapp/webhook.py` — pasar `subaccount_sid` del payload de Twilio para lookup de org
+- [ ] Providers de Twilio/Meta actualizados para usar credenciales por org desde DB (no desde env vars)
+- [ ] Endpoint `POST /admin/channels` — crear/actualizar canal por org
+- [ ] Endpoint `GET /admin/channels` — listar canales activos de la org
+- [ ] **Las env vars actuales de Twilio quedan como fallback** mientras no haya `org_channels` para la org (compatibilidad retroactiva con el org de desarrollo actual)
+
+---
+
+### Fase 13C: Wizard de onboarding de clientes (WhatsApp) ⬜ PENDIENTE
+
+**Objetivo**: Un admin de Realia puede registrar un cliente nuevo y dejarle el canal de WhatsApp configurado sin que el cliente toque Twilio.
+
+**Modelo**: Realia es cuenta maestra de Twilio (`AC6817...`). Cada cliente → subaccount aislado.
+
+- [ ] Backend: `POST /admin/onboarding/whatsapp`
+  1. Crea subaccount en Twilio via API: `POST /2010-04-01/Accounts.json { FriendlyName: org_name }`
+  2. Registra WhatsApp Sender en el subaccount con el número del cliente
+  3. Crea Inbox en Chatwoot para la org via API: `POST /api/v1/accounts/{id}/inboxes`
+  4. Guarda en `org_channels` con `status='pending'`
+- [ ] Webhook Twilio de aprobación de sender → `POST /webhooks/twilio/sender-status`
+  - Cuando Meta aprueba: `UPDATE org_channels SET status='active'`
+  - Notificación al admin de la org: "¡Tu WhatsApp está listo!"
+- [ ] Frontend: página `/admin/onboarding` con wizard de 3 pasos:
+  - Paso 1: Datos del negocio (nombre, logo, descripción del perfil de WhatsApp)
+  - Paso 2: Número de teléfono del cliente (con advertencia: no puede estar en app de WA personal)
+  - Paso 3: Estado de aprobación en tiempo real (polling hasta `status='active'`)
+- [ ] **Restricción por número**: el número debe ser del cliente (no de Twilio) para garantizar portabilidad futura a Meta Cloud API directo
+
+---
+
+### Fase 13D: Web Chat — canal de cero fricción ⬜ PENDIENTE
+
+**Objetivo**: Cada org tiene un widget de chat embeddable en su sitio web. El agente IA responde igual que por WhatsApp. Sin verificación ni setup externo para el cliente.
+
+- [ ] Chatwoot crea automáticamente un Inbox de tipo "Website" al hacer onboarding (Fase 13C)
+- [ ] Webhook Chatwoot → `POST /chatwoot/webhook` ya rutea al agente IA (mismo handler que WhatsApp)
+- [ ] `IncomingMessage` extendido: campo `channel: str = 'whatsapp'` → acepta `'webchat'`
+- [ ] Frontend: sección "Web Chat" en `/admin/channels` con embed snippet generado:
+  ```html
+  <script>
+    window.chatwootSettings = { websiteToken: '<TOKEN>', baseUrl: 'https://app.chatwoot.com' };
+    /* ... sdk loader ... */
+  </script>
+  ```
+- [ ] Respuesta del agente IA por web chat: vía Chatwoot API (no vía WhatsApp sender)
+
+---
+
+### Fase 13E: Instagram DMs ⬜ PENDIENTE
+
+**Objetivo**: Canal adicional para orgs que captan leads por Instagram.
+
+- [ ] En Chatwoot: crear Inbox de tipo "Instagram" por org (requiere OAuth con Facebook del cliente)
+- [ ] El cliente conecta su cuenta de Instagram Business desde el wizard de Realia (redirect OAuth)
+- [ ] Mismo webhook Chatwoot → AI Agent (canal `'instagram'`)
+- [ ] `IncomingMessage` acepta `channel='instagram'`
+- [ ] Respuestas del agente vía Chatwoot API al canal Instagram
+
+---
+
+### Fase 14: Meta Tech Provider — Embedded Signup directo ⬜ PENDIENTE (mediano plazo)
+
+**Objetivo**: Eliminar la dependencia de Twilio para WhatsApp en producción. Cada cliente crea su WABA con Meta directamente desde el wizard de Realia (~10 min, sin cuenta Twilio).
+
+**Pre-requisito**: Realia debe completar Business Verification con Meta + App Review (1-4 semanas, una sola vez).
+
+- [ ] Crear Facebook App con permisos `whatsapp_business_management` + `business_management`
+- [ ] Implementar flujo Embedded Signup: iframe/redirect OAuth en el wizard de onboarding
+- [ ] Al completar OAuth: guardar `waba_id` + `phone_number_id` + `access_token` en `org_channels.config`
+- [ ] Provider Meta ya implementado (`modules/whatsapp/providers/meta.py`) — solo cambiar que las credenciales vengan de `org_channels` en lugar de env vars
+- [ ] **Migración de clientes Twilio → Meta**: cambiar `config.provider` de `'twilio'` a `'meta'` en `org_channels` + registrar número en WABA. El número del cliente no cambia.
+- [ ] Endpoint `PATCH /admin/channels/{id}/migrate-to-meta` para hacer la migración por org
+
+---
+
 ## Dependencias externas
 
 | Servicio | Qué se necesita | Estado |
 |---|---|---|
 | Neon | PostgreSQL + pgvector | ✅ Configurado |
-| Twilio | WhatsApp Sandbox | ✅ Configurado |
+| Twilio | Cuenta maestra (`AC6817...`) — renombrada a "Realia" | ✅ Configurado |
 | ngrok | Tunnel local | ✅ Configurado |
 | Anthropic | API key (Claude Haiku 4.5) | ✅ Configurado |
 | Supabase Storage | S3-compatible storage | ✅ Configurado |
 | OpenAI | Whisper + embeddings | ⬜ Pendiente (Fase 2) |
-| WhatsApp Cloud API (Meta) | Business account | ⬜ Pendiente (prod) |
+| WhatsApp Cloud API (Meta) | Business account | ⬜ Pendiente (Fase 14) |
 | Railway | Deploy completo | ⬜ Pendiente |
-| Chatwoot | Inbox de ventas | ⬜ Pendiente (Fase 4) |
+| Chatwoot Cloud | Inbox omnicanal — $19/mes (migrar a self-hosted Railway cuando haya clientes reales) | ⬜ Pendiente (Fase 13A) |
 | ArgentinaDatos API | Cotizaciones ARS/USD (oficial/blue/mep) | ✅ Configurado (proxy en backend) |
