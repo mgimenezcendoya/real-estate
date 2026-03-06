@@ -393,6 +393,42 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS chatwoot_account_id INT;
 
 ---
 
+### Fase 15: Go-to-Market — Pricing, Dominio y Landing Page ⬜ PENDIENTE
+
+#### Dominio
+
+- [ ] Comprar `realia.lat` en Namecheap (~$5-15/año) — TLD regional, on-brand para Latam
+- [ ] Comprar `userealia.com` como alias/redirect (~$10/año)
+- [ ] Activar WhoisGuard (privacidad WHOIS, gratis en Namecheap)
+- [ ] Configurar DNS en Namecheap apuntando a Render/Railway cuando esté deployado
+- [ ] **Nota**: `realia.com` tomado desde 1995; `realia.ai` tomado hace 3 semanas (feb 2026)
+
+#### Pricing
+
+Modelo de suscripción mensual en USD. Dos planes con upgrade path:
+
+| Plan | Precio | Incluye |
+|---|---|---|
+| **Obra** | $49 USD/mes | Seguimiento de obra + notificaciones a compradores + panel de gestión (proyectos, unidades, documentos, financiero básico) |
+| **Pro** | $149 USD/mes | Todo de Obra + chatbot IA omnicanal (WhatsApp + Web Chat) + CRM leads + HITL + inversores + alertas |
+| **Enterprise** | A consultar | Multi-org, white label, SLA, soporte dedicado |
+
+- Descuento anual: 2 meses gratis (pagás 10, usás 12)
+- Moneda: USD siempre. Aceptar pago en ARS al dólar MEP del día como opción
+- Mercado inicial: Argentina. Expandir a Latam con product-market fit validado
+
+#### Landing page — estructura
+
+- [ ] Hero: "El copiloto de IA para desarrolladoras inmobiliarias" + CTA "Pedí una demo"
+- [ ] Pain points (3 cards): leads perdidos fuera de horario / compradores desinformados / herramientas desconectadas
+- [ ] Demo: video corto o GIF del chatbot + panel de obra + inbox omnicanal
+- [ ] Pricing: cards de los 3 planes con feature comparison
+- [ ] Social proof: logos + quotes de clientes (agregar cuando haya clientes reales)
+- [ ] Stack recomendado: Next.js (ya tenemos el frontend) deployado en Render/Railway
+- [ ] SEO básico: keywords "chatbot inmobiliario", "seguimiento de obra", "CRM pozo Argentina"
+
+---
+
 ## Dependencias externas
 
 | Servicio | Qué se necesita | Estado |
