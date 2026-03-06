@@ -266,9 +266,11 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 **Decisión de deploy**: Chatwoot Community Edition es **gratuita** (open source, self-hosted). Solo se paga el hosting. Opciones por costo:
 - **Hetzner VPS CX22** (~$4-6/mes) con Docker Compose — guía oficial Linux VM, más barato
 - **Railway** (~$15-20/mes estimado) — cuando se migre el resto del stack
-- **Render paid** (~$31/mes) — posible vía Docker pero no documentado oficialmente; el free tier no sirve (hace spin-down y Chatwoot necesita WebSockets permanentes)
+- Render paid (~$31/mes) — posible pero caro; Render free tier NO sirve (spin-down rompe WebSockets)
 
-**Recomendación para esta etapa**: Hetzner VPS + Docker Compose para Chatwoot. No interfiere con el stack actual en Render.
+**Estrategia recomendada**:
+- Mientras se esté en Render free: usar el **trial de Chatwoot Cloud** para desarrollar e integrar el módulo sin costo.
+- Al migrar a Railway (ya previsto en el plan): deployar Chatwoot ahí junto con FastAPI + Postgres. Un solo stack, sin VPS separado.
 
 - [ ] Crear cuenta en Chatwoot Cloud (app.chatwoot.com)
 - [ ] Crear un Inbox de tipo "API" en Chatwoot para WhatsApp (un inbox por org)
