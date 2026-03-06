@@ -2098,7 +2098,12 @@ async def upload_factura_pdf_endpoint(
 # ---------- Cash Flow ----------
 
 @router.get("/cash-flow/{project_id}")
-async def get_cash_flow(project_id: str):
+async def get_cash_flow(
+    project_id: str,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Monthly cash flow: ingresos (payment_records) vs egresos (expenses + obra_payments)."""
     pool = await get_pool()
     # Cobros reales de cuotas (convertidos a USD si es ARS usando tipo_cambio del proyecto)
@@ -2106,48 +2111,54 @@ async def get_cash_flow(project_id: str):
         """SELECT
              to_char(pr.fecha_pago, 'YYYY-MM') AS mes,
              SUM(CASE WHEN pr.moneda='USD' THEN pr.monto_pagado
-                      ELSE pr.monto_pagado / COALESCE(fc.tipo_cambio,1) END) AS total
+                      ELSE pr.monto_pagado / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
            FROM payment_records pr
            JOIN payment_installments pi ON pi.id = pr.installment_id
            JOIN payment_plans pp ON pp.id = pi.plan_id
            JOIN reservations r ON r.id = pp.reservation_id
            LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
            WHERE r.project_id = $1 AND pr.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') <= $3)
            GROUP BY mes
            ORDER BY mes""",
-        project_id,
+        project_id, desde, hasta,
     )
     # Gastos (project_expenses)
     gastos_rows = await pool.fetch(
         """SELECT
              to_char(fecha, 'YYYY-MM') AS mes,
-             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio,1), 0)) AS total
+             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
            FROM project_expenses pe
            LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
            WHERE pe.project_id = $1 AND pe.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(fecha, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(fecha, 'YYYY-MM') <= $3)
            GROUP BY mes
            ORDER BY mes""",
-        project_id,
+        project_id, desde, hasta,
     )
     # Obra payments
     obra_rows = await pool.fetch(
         """SELECT
              to_char(op.fecha_pago, 'YYYY-MM') AS mes,
-             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio,1), 0)) AS total
+             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
            FROM obra_payments op
            JOIN obra_etapas oe ON oe.id = op.etapa_id
            LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
-           WHERE oe.project_id = $1
+           WHERE oe.project_id = $1 AND op.fecha_pago IS NOT NULL
+             AND ($2::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') <= $3)
            GROUP BY mes
            ORDER BY mes""",
-        project_id,
+        project_id, desde, hasta,
     )
     # Proyección: cuotas futuras pendientes/vencidas
     proyeccion_rows = await pool.fetch(
         """SELECT
              to_char(pi.fecha_vencimiento, 'YYYY-MM') AS mes,
              SUM(CASE WHEN pi.moneda='USD' THEN pi.monto
-                      ELSE pi.monto / COALESCE(fc.tipo_cambio,1) END) AS total
+                      ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
            FROM payment_installments pi
            JOIN payment_plans pp ON pp.id = pi.plan_id
            JOIN reservations r ON r.id = pp.reservation_id
@@ -2155,9 +2166,11 @@ async def get_cash_flow(project_id: str):
            WHERE r.project_id = $1
              AND pi.estado IN ('pendiente','vencido')
              AND pi.fecha_vencimiento >= CURRENT_DATE
+             AND ($2::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') <= $3)
            GROUP BY mes
            ORDER BY mes""",
-        project_id,
+        project_id, desde, hasta,
     )
     # Merge into unified month buckets
     meses: dict = {}

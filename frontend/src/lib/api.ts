@@ -728,8 +728,13 @@ export const api = {
     ),
 
   // --- Cash Flow ---
-  getCashFlow: (projectId: string) =>
-    fetcher<CashFlowRow[]>(`/admin/cash-flow/${projectId}`),
+  getCashFlow: (projectId: string, desde?: string, hasta?: string) => {
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const qs = params.toString();
+    return fetcher<CashFlowRow[]>(`/admin/cash-flow/${projectId}${qs ? `?${qs}` : ''}`);
+  },
 
   // --- Users ---
   getUsers: () => fetcher<User[]>('/admin/users'),

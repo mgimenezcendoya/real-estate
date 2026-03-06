@@ -141,6 +141,18 @@ export default function FinancieroPage() {
   // Cash flow
   const [cashFlow, setCashFlow] = useState<CashFlowRow[]>([]);
   const [loadingCF, setLoadingCF] = useState(false);
+  const defaultDesde = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 2);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const defaultHasta = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 12);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const [cfDesde, setCfDesde] = useState<string>(defaultDesde());
+  const [cfHasta, setCfHasta] = useState<string>(defaultHasta());
 
   const load = async () => {
     if (!id) return;
@@ -166,6 +178,11 @@ export default function FinancieroPage() {
     load();
     if (id) api.getObra(id).then((d) => setEtapas(d.etapas)).catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    if (cashFlow.length === 0) return;
+    loadCashFlow(cfDesde, cfHasta);
+  }, [cfDesde, cfHasta]);
 
   const loadExpenses = async () => {
     if (!id) return;
@@ -320,10 +337,10 @@ export default function FinancieroPage() {
     finally { setLoadingFacturas(false); }
   };
 
-  const loadCashFlow = async () => {
+  const loadCashFlow = async (desde?: string, hasta?: string) => {
     if (!id) return;
     setLoadingCF(true);
-    try { setCashFlow(await api.getCashFlow(id)); }
+    try { setCashFlow(await api.getCashFlow(id, desde ?? cfDesde, hasta ?? cfHasta)); }
     catch { toast.error('Error cargando flujo de caja'); }
     finally { setLoadingCF(false); }
   };
@@ -787,6 +804,33 @@ export default function FinancieroPage() {
 
       {/* ─── Tab: Flujo de Caja ─── */}
       <TabsContent value="cashflow" className="space-y-4">
+        {/* Filtros de rango */}
+        <div className="flex items-center gap-3 flex-wrap mb-4">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500">Desde</label>
+            <input
+              type="month"
+              value={cfDesde}
+              onChange={e => setCfDesde(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500">Hasta</label>
+            <input
+              type="month"
+              value={cfHasta}
+              onChange={e => setCfHasta(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <button
+            onClick={() => { setCfDesde(defaultDesde()); setCfHasta(defaultHasta()); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors underline"
+          >
+            Resetear
+          </button>
+        </div>
         {loadingCF ? (
           <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full bg-gray-100" />)}</div>
         ) : cashFlow.length === 0 ? (
