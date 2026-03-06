@@ -397,11 +397,21 @@ ALTER TABLE organizations ADD COLUMN IF NOT EXISTS chatwoot_account_id INT;
 
 #### Dominio
 
-- [ ] Comprar `realia.lat` en Namecheap (~$5-15/año) — TLD regional, on-brand para Latam
-- [ ] Comprar `userealia.com` como alias/redirect (~$10/año)
-- [ ] Activar WhoisGuard (privacidad WHOIS, gratis en Namecheap)
-- [ ] Configurar DNS en Namecheap apuntando a Render/Railway cuando esté deployado
-- [ ] **Nota**: `realia.com` tomado desde 1995; `realia.ai` tomado hace 3 semanas (feb 2026)
+⚠️ **Pendiente de decisión** — el nombre debe ser catchy y con sentido para el usuario inmobiliario.
+
+Opciones disponibles actualmente:
+- `realia.lat` — libre, TLD regional Latam, ~$5-15/año en Namecheap
+- `userealia.com` — libre, patrón clásico SaaS, ~$10/año
+- `realia.com.ar` — tomado hasta nov 2026 (PIÑEL FERNANDO ANTONIO vía NIC Argentina); monitorear para tomarlo al vencer. Requiere CUIT argentino.
+
+Dominios tomados: `realia.com` (desde 1995), `realia.ai` (feb 2026), `realia.app`, `realia.io`, `realia.co`, `realia.com.ar`
+
+- [ ] Definir nombre final del producto (¿"Realia" sigue siendo el nombre correcto?)
+- [ ] Registrar dominio elegido en Namecheap con WhoisGuard activado
+- [ ] Configurar DNS apuntando a Render/Railway cuando esté deployado
+- [ ] Configurar email del negocio (`hola@realia.lat` o equivalente)
+
+**La landing se construye primero en local y se deploya al dominio cuando esté comprado** (ver tarea de landing más abajo).
 
 #### Pricing
 
@@ -419,13 +429,19 @@ Modelo de suscripción mensual en USD. Dos planes con upgrade path:
 
 #### Landing page — estructura
 
-- [ ] Hero: "El copiloto de IA para desarrolladoras inmobiliarias" + CTA "Pedí una demo"
+**Flujo de trabajo**: construir en local primero → validar → deployar al dominio cuando esté comprado.
+
+Stack: Next.js separado del frontend de la app (o ruta `/` en el mismo proyecto si se prefiere mantener un solo repo).
+
+- [ ] Hero: headline + subheadline + CTA "Pedí una demo" (formulario simple o link a Calendly)
 - [ ] Pain points (3 cards): leads perdidos fuera de horario / compradores desinformados / herramientas desconectadas
-- [ ] Demo: video corto o GIF del chatbot + panel de obra + inbox omnicanal
-- [ ] Pricing: cards de los 3 planes con feature comparison
-- [ ] Social proof: logos + quotes de clientes (agregar cuando haya clientes reales)
-- [ ] Stack recomendado: Next.js (ya tenemos el frontend) deployado en Render/Railway
+- [ ] Demo: video corto o GIF del chatbot en acción + panel de obra + inbox omnicanal
+- [ ] Pricing: cards de los 3 planes con feature comparison y toggle mensual/anual
+- [ ] Social proof: logos + quotes de clientes (placeholder hasta tener clientes reales)
+- [ ] Footer: contacto / LinkedIn / blog (cuando haya contenido)
 - [ ] SEO básico: keywords "chatbot inmobiliario", "seguimiento de obra", "CRM pozo Argentina"
+- [ ] Formulario de contacto/waitlist: nombre + email + teléfono + "¿Cuántos proyectos tenés activos?"
+- [ ] Deploy: Vercel (gratis para Next.js, conecta con dominio en 2 clicks) o Render cuando se migre
 
 ---
 
