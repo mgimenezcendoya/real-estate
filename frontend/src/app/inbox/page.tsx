@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
@@ -400,10 +401,12 @@ export default function InboxPage() {
                               {mainLead.score}
                             </Badge>
                           )}
-                          {mainLead.project_name && (
-                            <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 font-semibold truncate max-w-[110px]">
-                              {mainLead.project_name}
-                            </Badge>
+                          {mainLead.project_name && mainLead.project_id && (
+                            <Link href={`/proyectos/${mainLead.project_id}/leads`}>
+                              <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 font-semibold truncate max-w-[110px] hover:bg-blue-100 cursor-pointer transition-colors">
+                                {mainLead.project_name} ↗
+                              </Badge>
+                            </Link>
                           )}
                         </div>
                       </div>
@@ -444,10 +447,12 @@ export default function InboxPage() {
                     <h2 className="text-base font-display font-semibold text-gray-900 leading-tight">
                       {selectedLead.name || 'Usuario desconocido'}
                     </h2>
-                    {selectedLead.project_name && (
-                      <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 uppercase tracking-wider font-bold">
-                        {selectedLead.project_name}
-                      </Badge>
+                    {selectedLead.project_name && selectedLead.project_id && (
+                      <Link href={`/proyectos/${selectedLead.project_id}/leads`}>
+                        <Badge className="text-[10px] bg-blue-50 text-blue-800 border-blue-200 uppercase tracking-wider font-bold hover:bg-blue-100 cursor-pointer transition-colors">
+                          {selectedLead.project_name} ↗
+                        </Badge>
+                      </Link>
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5">{selectedLead.phone}</p>

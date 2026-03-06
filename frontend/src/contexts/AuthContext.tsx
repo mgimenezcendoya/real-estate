@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = useCallback(async () => {
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('realia_token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('realia_token') : null;
     if (!token) {
       setUser(null); setRole(null); setLoading(false);
       return;

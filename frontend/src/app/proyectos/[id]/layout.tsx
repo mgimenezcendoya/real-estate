@@ -4,24 +4,25 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { api, Project } from '@/lib/api';
-import { Building2, BarChart2, MapPin, FileText, Users, HardHat, ChevronLeft, ClipboardList, DollarSign, Briefcase } from 'lucide-react';
+import { Building2, BarChart2, MapPin, FileText, Users, HardHat, ChevronLeft, ClipboardList, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/contexts/AuthContext';
 
 const tabs = [
   { href: '', label: 'Dashboard', icon: BarChart2 },
-  { href: '/unidades', label: 'Unidades', icon: MapPin },
   { href: '/leads', label: 'Leads', icon: Users },
+  { href: '/unidades', label: 'Unidades', icon: MapPin },
   { href: '/reservas', label: 'Reservas', icon: ClipboardList },
   { href: '/documentos', label: 'Documentos', icon: FileText },
   { href: '/obra', label: 'Obra', icon: HardHat },
   { href: '/financiero', label: 'Financiero', icon: DollarSign },
-  { href: '/inversores', label: 'Inversores', icon: Briefcase },
 ];
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   const { id } = useParams<{ id: string }>();
   const pathname = usePathname();
+  const { isAdmin, role } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
 
@@ -73,7 +74,10 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
         {/* Tabs — horizontally scrollable on mobile */}
         <div className="flex gap-0 overflow-x-auto scrollbar-none -mx-4 px-4 md:mx-0 md:px-0">
-          {tabs.map(({ href, label, icon: Icon }) => {
+          {tabs.filter(tab => {
+            if (tab.href === '/financiero') return isAdmin || role === 'gerente';
+            return true;
+          }).map(({ href, label, icon: Icon }) => {
             const fullPath = `/proyectos/${id}${href}`;
             const active = href === '' ? pathname === fullPath : pathname.startsWith(fullPath);
             return (

@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { api, Project, Metrics, Unit, Analytics } from '@/lib/api';
 import { Users, Flame, TrendingUp, Building2, Home, DollarSign, ArrowRight } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -68,6 +69,8 @@ function pct(part: number, total: number) {
 
 export default function ProjectDashboard() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { role } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -75,7 +78,14 @@ export default function ProjectDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!id) return;
+    if (role === 'vendedor') {
+      router.replace(`/proyectos/${id}/leads`);
+      return;
+    }
+  }, [role, id, router]);
+
+  useEffect(() => {
+    if (!id || role === 'vendedor') return;
     Promise.all([
       api.getProject(id).then(setProject),
       api.getMetrics(id).then(setMetrics),

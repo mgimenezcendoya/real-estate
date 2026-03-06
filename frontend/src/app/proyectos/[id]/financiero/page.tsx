@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import InversoresContent from '../inversores/InversoresContent';
 
 function formatUSD(v: number) {
   if (Math.abs(v) >= 1_000_000) return `USD ${(v / 1_000_000).toFixed(1)}M`;
@@ -98,7 +99,7 @@ function fmtMes(mes: string) {
 
 export default function FinancieroPage() {
   const { id } = useParams<{ id: string }>();
-  const { isReader } = useAuth();
+  const { isReader, isAdmin, role } = useAuth();
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [budget, setBudget] = useState<BudgetItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -470,6 +471,9 @@ export default function FinancieroPage() {
         <TabsTrigger value="resumen">Resumen</TabsTrigger>
         <TabsTrigger value="facturas">Facturas</TabsTrigger>
         <TabsTrigger value="cashflow">Flujo de Caja</TabsTrigger>
+        {(isAdmin || role === 'gerente') && (
+          <TabsTrigger value="inversores">Inversores</TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="resumen" className="space-y-8">
@@ -924,6 +928,12 @@ export default function FinancieroPage() {
           </>
         )}
       </TabsContent>
+
+      {(isAdmin || role === 'gerente') && (
+        <TabsContent value="inversores">
+          <InversoresContent projectId={id} />
+        </TabsContent>
+      )}
 
       </Tabs>
 
