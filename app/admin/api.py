@@ -126,12 +126,21 @@ async def auth_login(body: LoginBody):
     # 2. Fallback: env-var auth (legacy)
     env_user = authenticate_user_env(body.username, body.password)
     if env_user:
-        token = create_token(sub=env_user["sub"], role=env_user["role"], nombre=env_user["nombre"])
+        # Try to include an org_id so the SSE endpoint works for env-var users
+        env_org_row = await pool.fetchrow("SELECT id FROM organizations LIMIT 1")
+        env_org_id = str(env_org_row["id"]) if env_org_row else None
+        token = create_token(
+            sub=env_user["sub"],
+            role=env_user["role"],
+            nombre=env_user["nombre"],
+            organization_id=env_org_id,
+        )
         return {
             "token": token,
             "user": env_user["sub"],
             "role": env_user["role"],
             "nombre": env_user["nombre"],
+            "organization_id": env_org_id,
         }
 
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
@@ -2364,6 +2373,209 @@ async def get_cash_flow(
         row["ingresos"] = round(row["ingresos"], 2)
         row["egresos"] = round(row["egresos"], 2)
         row["proyeccion"] = round(row["proyeccion"], 2)
+    return result
+
+
+@router.get("/cash-flow-consolidated")
+async def get_cash_flow_consolidated(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Consolidated monthly cash flow across all projects for the user's organization."""
+    pool = await get_pool()
+
+    # Determine effective org (same pattern as list_projects)
+    effective_org_id = None
+    if credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
+        project_rows = await pool.fetch(
+            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+        )
+    else:
+        project_rows = await pool.fetch("SELECT id FROM projects")
+
+    project_ids = [str(r["id"]) for r in project_rows]
+    if not project_ids:
+        return []
+
+    ingresos_rows = await pool.fetch(
+        """SELECT
+             to_char(pr.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pr.moneda='USD' THEN pr.monto_pagado
+                      ELSE pr.monto_pagado / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
+           FROM payment_records pr
+           JOIN payment_installments pi ON pi.id = pr.installment_id
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = ANY($1::uuid[]) AND pr.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    gastos_rows = await pool.fetch(
+        """SELECT
+             to_char(fecha, 'YYYY-MM') AS mes,
+             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
+           FROM project_expenses pe
+           LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
+           WHERE pe.project_id = ANY($1::uuid[]) AND pe.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(fecha, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(fecha, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    obra_rows = await pool.fetch(
+        """SELECT
+             to_char(op.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
+           FROM obra_payments op
+           JOIN obra_etapas oe ON oe.id = op.etapa_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
+           WHERE oe.project_id = ANY($1::uuid[]) AND op.fecha_pago IS NOT NULL
+             AND ($2::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    proyeccion_rows = await pool.fetch(
+        """SELECT
+             to_char(pi.fecha_vencimiento, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pi.moneda='USD' THEN pi.monto
+                      ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
+           FROM payment_installments pi
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = ANY($1::uuid[])
+             AND pi.estado IN ('pendiente','vencido')
+             AND pi.fecha_vencimiento >= CURRENT_DATE
+             AND ($2::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+
+    meses: dict = {}
+    for r in ingresos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["ingresos"] += float(r["total"] or 0)
+    for r in gastos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in obra_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in proyeccion_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["proyeccion"] += float(r["total"] or 0)
+
+    result = sorted(meses.values(), key=lambda x: x["mes"])
+    acumulado = 0.0
+    for row in result:
+        row["saldo"] = round(row["ingresos"] - row["egresos"], 2)
+        acumulado += row["saldo"]
+        row["acumulado"] = round(acumulado, 2)
+        row["ingresos"] = round(row["ingresos"], 2)
+        row["egresos"] = round(row["egresos"], 2)
+        row["proyeccion"] = round(row["proyeccion"], 2)
+    return result
+
+
+# ---------- Cobranza ----------
+
+@router.get("/cobranza")
+async def get_cobranza(
+    proyecto: Optional[str] = None,
+    estado: Optional[str] = None,  # "vencida" | "proxima" | "todas"
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Cross-project pending/overdue installments for collections follow-up."""
+    pool = await get_pool()
+
+    # Org scoping (same pattern as list_projects)
+    effective_org_id = None
+    if credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
+        project_rows = await pool.fetch(
+            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+        )
+    else:
+        project_rows = await pool.fetch("SELECT id FROM projects")
+
+    project_ids = [str(r["id"]) for r in project_rows]
+    if not project_ids:
+        return []
+
+    # Optional single-project filter
+    if proyecto and proyecto in project_ids:
+        project_ids = [proyecto]
+
+    rows = await pool.fetch(
+        """SELECT
+             pi.id AS installment_id,
+             COALESCE(l.name, l.phone) AS buyer_name,
+             l.phone AS buyer_phone,
+             p.name AS project_name,
+             p.id::text AS project_id,
+             r.id::text AS reservation_id,
+             pi.numero_cuota,
+             pi.monto,
+             pi.moneda,
+             CASE WHEN pi.moneda = 'USD' THEN pi.monto
+                  ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars, 1) END AS monto_usd,
+             pi.fecha_vencimiento,
+             pi.estado,
+             (CURRENT_DATE - pi.fecha_vencimiento::date) AS dias
+           FROM payment_installments pi
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           JOIN leads l ON l.id = r.lead_id
+           JOIN projects p ON p.id = r.project_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = p.id
+           WHERE pi.estado IN ('pendiente', 'vencido')
+             AND p.id = ANY($1::uuid[])
+           ORDER BY pi.fecha_vencimiento ASC""",
+        project_ids,
+    )
+
+    result = []
+    for r in rows:
+        dias = int(r["dias"])
+        # Apply estado filter
+        if estado == "vencida" and dias < 0:
+            continue
+        if estado == "proxima" and dias >= 0:
+            continue
+        result.append({
+            "installment_id": str(r["installment_id"]),
+            "buyer_name": r["buyer_name"],
+            "buyer_phone": r["buyer_phone"],
+            "project_name": r["project_name"],
+            "project_id": r["project_id"],
+            "reservation_id": r["reservation_id"],
+            "numero_cuota": r["numero_cuota"],
+            "monto": float(r["monto"]),
+            "moneda": r["moneda"],
+            "monto_usd": round(float(r["monto_usd"] or 0), 2),
+            "fecha_vencimiento": r["fecha_vencimiento"].isoformat(),
+            "estado": r["estado"],
+            "dias": dias,
+        })
     return result
 
 
