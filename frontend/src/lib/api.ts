@@ -352,6 +352,22 @@ export interface CashFlowRow {
   acumulado: number;
 }
 
+export interface CobranzaItem {
+  installment_id: string;
+  buyer_name: string;
+  buyer_phone: string;
+  project_name: string;
+  project_id: string;
+  reservation_id: string;
+  numero_cuota: number;
+  monto: number;
+  moneda: 'USD' | 'ARS';
+  monto_usd: number;
+  fecha_vencimiento: string; // ISO date string
+  estado: 'pendiente' | 'vencido';
+  dias: number; // positive = overdue by N days, negative = due in N days
+}
+
 // --- Financial types ---
 export interface BudgetItem {
   id: string;
@@ -734,6 +750,21 @@ export const api = {
     if (hasta) params.set('hasta', hasta);
     const qs = params.toString();
     return fetcher<CashFlowRow[]>(`/admin/cash-flow/${projectId}${qs ? `?${qs}` : ''}`);
+  },
+  getConsolidatedCashFlow: (desde?: string, hasta?: string) => {
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const qs = params.toString();
+    return fetcher<CashFlowRow[]>(`/admin/cash-flow-consolidated${qs ? `?${qs}` : ''}`);
+  },
+
+  getCobranza: (params?: { proyecto?: string; estado?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.proyecto) p.set('proyecto', params.proyecto);
+    if (params?.estado) p.set('estado', params.estado);
+    const qs = p.toString();
+    return fetcher<CobranzaItem[]>(`/admin/cobranza${qs ? `?${qs}` : ''}`);
   },
 
   // --- Users ---
