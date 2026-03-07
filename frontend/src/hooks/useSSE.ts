@@ -31,6 +31,10 @@ export interface SSEHandoffUpdateEvent {
   lead_id: string;
   handoff_active: boolean;
   taken_by: string | null;
+  lead_name?: string;
+  lead_phone?: string;
+  project_name?: string;
+  trigger?: string;
 }
 
 interface UseSSEOptions {
