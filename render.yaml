@@ -64,3 +64,15 @@ services:
         value: "20"
       - key: NEXT_PUBLIC_API_URL
         sync: false
+
+  # --- Cron: close stale handoffs every 30 minutes ---
+  - type: cron
+    name: close-stale-handoffs
+    runtime: image
+    image:
+      url: docker.io/curlimages/curl:latest
+    schedule: "*/30 * * * *"
+    startCommand: curl -s -X POST $BACKEND_URL/admin/jobs/close-stale-handoffs
+    envVars:
+      - key: BACKEND_URL
+        sync: false

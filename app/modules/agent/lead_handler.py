@@ -48,6 +48,19 @@ logger = logging.getLogger(__name__)
 DOC_MARKER_RE = re.compile(r"\[ENVIAR_DOC:(\w+):(\w+)(?::([a-zA-Z0-9_-]+))?\]")
 HANDOFF_MARKER_RE = re.compile(r"\[HANDOFF:([^\]]+)\]")
 
+async def _safe_task(coro, label: str) -> None:
+    """Run a coroutine as a background task and log any exception."""
+    try:
+        await coro
+    except Exception as e:
+        logger.error("Background task '%s' failed: %s", label, e, exc_info=True)
+
+# Phrases that indicate the agent intends to hand off even without the explicit marker
+_HANDOFF_PHRASES = re.compile(
+    r"(te paso con un asesor|te comunico con|paso con un asesor|un asesor (se va a |te va a |va a )?(comunicar|contactar|ayudar|confirmar)|pasarte con (un asesor|el equipo)|te pongo en contacto)",
+    re.IGNORECASE,
+)
+
 
 async def handle_lead_message(
     developer: dict,
@@ -94,9 +107,9 @@ async def handle_lead_message(
                     last_at = last_user["created_at"]
                     if last_at.tzinfo is None:
                         last_at = last_at.replace(tzinfo=timezone.utc)
-                    if (datetime.now(timezone.utc) - last_at).total_seconds() > 30 * 60:
-                        logger.info("Handoff timeout (30 min) for lead %s, returning to agent", active_handoff["lead_id"])
-                        await close_handoff(str(active_handoff["id"]), lead_note="timeout_30min", send_goodbye=False)
+                    if (datetime.now(timezone.utc) - last_at).total_seconds() > 2 * 3600:
+                        logger.info("Handoff timeout (2h) for lead %s, returning to agent", active_handoff["lead_id"])
+                        await close_handoff(str(active_handoff["id"]), lead_note="timeout_2h", send_goodbye=False)
                         active_handoff = None
             if active_handoff:
                 lead_id = str(active_handoff["lead_id"])
@@ -176,6 +189,11 @@ async def handle_lead_message(
     clean_text, doc_request = _extract_doc_marker(response_text)
     clean_text, handoff_trigger = _extract_handoff_marker(clean_text)
 
+    # Fallback: if the agent said "te paso con un asesor" but forgot the marker, trigger anyway
+    if not handoff_trigger and _HANDOFF_PHRASES.search(clean_text):
+        logger.info("Handoff phrase detected without marker for lead %s — auto-triggering handoff", lead_id)
+        handoff_trigger = "auto_detected"
+
     await save_conversation_message(
         lead_id=lead_id,
         role="assistant",
@@ -211,18 +229,26 @@ async def handle_lead_message(
         qual_summary, full_history = _build_handoff_context(
             qualification, history, text, clean_text,
         )
+        # Use qualification project_id as fallback if default_project_id is None
+        effective_project_id = default_project_id or qualification.get("project_id")
         asyncio.create_task(
-            initiate_handoff(
-                lead_id=lead_id,
-                project_id=default_project_id,
-                trigger=handoff_trigger,
-                context_summary=qual_summary,
-                conversation_history=full_history,
+            _safe_task(
+                initiate_handoff(
+                    lead_id=lead_id,
+                    project_id=effective_project_id,
+                    trigger=handoff_trigger,
+                    context_summary=qual_summary,
+                    conversation_history=full_history,
+                ),
+                label=f"initiate_handoff lead={lead_id}",
             )
         )
 
     asyncio.create_task(
-        _update_qualification(lead_id, history, text, clean_text, qualification.get("project_id"), developer_projects)
+        _safe_task(
+            _update_qualification(lead_id, history, text, clean_text, qualification.get("project_id"), developer_projects),
+            label=f"update_qualification lead={lead_id}",
+        )
     )
 
 
