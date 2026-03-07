@@ -4,10 +4,12 @@ and cron-triggered background jobs.
 """
 
 import asyncio
+import json
 import logging
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.admin.auth import (
@@ -19,6 +21,7 @@ from app.admin.auth import (
     verify_token,
 )
 from app.config import get_settings
+from app.core.sse import connection_manager
 from app.database import get_pool
 from app.modules.handoff.manager import (
     close_handoff_by_lead_id,
@@ -953,24 +956,93 @@ async def get_lead_handoff(lead_id: str):
 
 
 @router.post("/leads/{lead_id}/handoff/start")
-async def start_lead_handoff(lead_id: str):
-    """Start human-in-the-loop (takeover) for this lead from the frontend."""
-    try:
-        handoff = await ensure_handoff_for_human_reply(lead_id)
-        return {"ok": True, "handoff_id": str(handoff["id"])}
-    except ValueError as e:
-        return {"error": str(e)}
+async def start_lead_handoff(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Start human-in-the-loop (takeover) for this lead from the frontend.
+
+    Uses SELECT FOR UPDATE to prevent two admins from simultaneously taking
+    the same conversation (returns 409 if already taken).
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Lock the handoffs row for this lead atomically so concurrent
+            # requests from different admins cannot both succeed.
+            existing = await conn.fetchrow(
+                """
+                SELECT id FROM handoffs
+                WHERE lead_id = $1 AND status = 'active'
+                FOR UPDATE
+                """,
+                lead_id,
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Esta conversación ya fue tomada por otro agente.",
+                )
+            lead = await conn.fetchrow("SELECT project_id FROM leads WHERE id = $1", lead_id)
+            if not lead:
+                raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
+            handoff = await conn.fetchrow(
+                """
+                INSERT INTO handoffs (lead_id, project_id, trigger, context_summary, status, started_at, last_activity_at)
+                VALUES ($1, $2, 'frontend', 'Intervención humana desde el panel', 'active', NOW(), NOW())
+                RETURNING *
+                """,
+                lead_id,
+                str(lead["project_id"]),
+            )
+
+    handoff_dict = dict(handoff)
+    logger.info("Handoff started (atomic) for lead %s", lead_id)
+
+    # Broadcast to all connected admins of this tenant
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "handoff_update",
+                {"lead_id": lead_id, "handoff_active": True, "taken_by": payload.get("nombre", "admin")},
+            )
+        )
+
+    return {"ok": True, "handoff_id": str(handoff_dict["id"])}
 
 
 @router.post("/leads/{lead_id}/handoff/close")
-async def close_lead_handoff(lead_id: str):
+async def close_lead_handoff(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """End human takeover and return control to the agent."""
     closed = await close_handoff_by_lead_id(lead_id)
+
+    # Broadcast handoff closure to all connected admins of this tenant
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "handoff_update",
+                {"lead_id": lead_id, "handoff_active": False, "taken_by": None},
+            )
+        )
+
     return {"ok": True, "closed": closed}
 
 
 @router.post("/leads/{lead_id}/message")
-async def send_lead_message(lead_id: str, request: SendMessageRequest):
+async def send_lead_message(
+    lead_id: str,
+    request: SendMessageRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Send a message to a lead as a human agent. Activates HITL if not already active."""
     pool = await get_pool()
     lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
@@ -980,17 +1052,25 @@ async def send_lead_message(lead_id: str, request: SendMessageRequest):
     await ensure_handoff_for_human_reply(lead_id)
 
     # Guardamos en bd
-    await pool.execute(
+    conv = await pool.fetchrow(
         """
         INSERT INTO conversations (lead_id, role, sender_type, content)
         VALUES ($1, 'assistant', 'human', $2)
+        RETURNING id, created_at
         """,
         lead_id, request.content
     )
 
-    # Actualizamos el ultimo contacto
+    # Actualizamos el ultimo contacto y la actividad del handoff (para el timeout de 4h)
     await pool.execute(
         "UPDATE leads SET last_contact = NOW() WHERE id = $1", lead_id
+    )
+    await pool.execute(
+        """
+        UPDATE handoffs SET last_activity_at = NOW()
+        WHERE lead_id = $1 AND status = 'active'
+        """,
+        lead_id,
     )
 
     # Enviamos via WhatsApp
@@ -1000,7 +1080,91 @@ async def send_lead_message(lead_id: str, request: SendMessageRequest):
         logger.error(f"Error sending message to {lead['phone']}: {e}")
         return {"error": "Failed to dispatch message to WhatsApp provider"}
 
+    # Broadcast the new message to all connected admins of this tenant so the
+    # inbox updates instantly without waiting for SSE polling
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "message",
+                {
+                    "lead_id": lead_id,
+                    "content": request.content,
+                    "sender_type": "human",
+                    "timestamp": conv["created_at"].isoformat() if conv else None,
+                    "handoff_active": True,
+                },
+            )
+        )
+
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Server-Sent Events — real-time inbox updates
+# ---------------------------------------------------------------------------
+
+async def _sse_generator(tenant_id: str) -> AsyncGenerator[str, None]:
+    """Async generator that yields SSE-formatted strings for a single connection.
+
+    Keeps the connection alive with a ping every 20 seconds. Render's idle
+    connection timeout is ~55s, so 20s gives a comfortable margin.
+
+    If the client disconnects (browser tab closed, network drop), FastAPI will
+    cancel this generator; we clean up in the finally block.
+    """
+    queue = connection_manager.connect(tenant_id)
+    try:
+        while True:
+            try:
+                # Wait up to 20s for an event; if none arrives, send a ping
+                message = await asyncio.wait_for(queue.get(), timeout=20.0)
+                yield message
+            except asyncio.TimeoutError:
+                yield "event: ping\ndata: {}\n\n"
+    except (asyncio.CancelledError, GeneratorExit):
+        pass
+    finally:
+        connection_manager.disconnect(tenant_id, queue)
+
+
+@router.get("/inbox/stream")
+async def inbox_stream(
+    token: Optional[str] = Query(default=None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """SSE endpoint — streams real-time inbox events to connected admins.
+
+    Accepts JWT either as:
+    - Authorization: Bearer <token>  header  (standard fetch)
+    - ?token=<token>                 query param (EventSource browser API, which
+      does not support custom headers natively)
+
+    Events emitted:
+    - event: message       — new WhatsApp message received or sent
+    - event: handoff_update — HITL state changed for a lead
+    - event: ping          — keepalive (every 20s, ignore in client)
+    """
+    raw_token = token or (credentials.credentials if credentials else None)
+    payload = verify_token(raw_token) if raw_token else None
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    tenant_id = payload.get("organization_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Token sin organization_id")
+
+    return StreamingResponse(
+        _sse_generator(tenant_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable Nginx buffering if behind a proxy
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/metrics/{project_id}")

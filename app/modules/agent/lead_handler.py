@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from anthropic import AsyncAnthropic
 
 from app.config import get_settings
+from app.core.sse import connection_manager
 from app.database import get_pool
 from app.modules.agent.prompts import LEAD_SYSTEM_PROMPT
 from app.modules.agent.session import (
@@ -62,27 +63,44 @@ async def handle_lead_message(
     active_handoff = await check_active_handoff_by_phone(sender_phone)
     if active_handoff:
         if message.text:
-            # If lead didn't reply in 30 min, return control to agent
             pool = await get_pool()
-            last_user = await pool.fetchrow(
-                """
-                SELECT created_at FROM conversations
-                WHERE lead_id = $1 AND role = 'user'
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                active_handoff["lead_id"],
-            )
-            if last_user:
-                last_at = last_user["created_at"]
-                if last_at.tzinfo is None:
-                    last_at = last_at.replace(tzinfo=timezone.utc)
-                if (datetime.now(timezone.utc) - last_at).total_seconds() > 30 * 60:
-                    logger.info("Handoff timeout (30 min) for lead %s, returning to agent", active_handoff["lead_id"])
-                    await close_handoff(str(active_handoff["id"]), lead_note="timeout_30min", send_goodbye=False)
+
+            # --- Timeout checks ---
+            # 1. If there has been no ADMIN activity for 4 hours, close and resume agent.
+            #    This covers abandoned handoffs where the admin stopped responding.
+            last_activity = active_handoff.get("last_activity_at") or active_handoff.get("started_at")
+            if last_activity:
+                if last_activity.tzinfo is None:
+                    last_activity = last_activity.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - last_activity).total_seconds() > 4 * 3600:
+                    logger.info(
+                        "Handoff 4h inactivity timeout for lead %s, returning to agent",
+                        active_handoff["lead_id"],
+                    )
+                    await close_handoff(str(active_handoff["id"]), lead_note="timeout_4h", send_goodbye=False)
                     active_handoff = None
+
+            # 2. If lead didn't reply in 30 min (original logic), return control to agent.
+            if active_handoff:
+                last_user = await pool.fetchrow(
+                    """
+                    SELECT created_at FROM conversations
+                    WHERE lead_id = $1 AND role = 'user'
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    active_handoff["lead_id"],
+                )
+                if last_user:
+                    last_at = last_user["created_at"]
+                    if last_at.tzinfo is None:
+                        last_at = last_at.replace(tzinfo=timezone.utc)
+                    if (datetime.now(timezone.utc) - last_at).total_seconds() > 30 * 60:
+                        logger.info("Handoff timeout (30 min) for lead %s, returning to agent", active_handoff["lead_id"])
+                        await close_handoff(str(active_handoff["id"]), lead_note="timeout_30min", send_goodbye=False)
+                        active_handoff = None
             if active_handoff:
                 lead_id = str(active_handoff["lead_id"])
-                await save_conversation_message(
+                conv = await save_conversation_message(
                     lead_id=lead_id,
                     wa_message_id=message_id,
                     role="user",
@@ -91,6 +109,22 @@ async def handle_lead_message(
                 )
                 await pool.execute("UPDATE leads SET last_contact = NOW() WHERE id = $1", lead_id)
                 await handle_lead_message_during_handoff(active_handoff, message.text)
+
+                # Broadcast to the admin inbox so the new message appears instantly
+                asyncio.create_task(
+                    connection_manager.broadcast(
+                        developer_id,
+                        "message",
+                        {
+                            "lead_id": lead_id,
+                            "phone": sender_phone,
+                            "content": message.text,
+                            "sender_type": "lead",
+                            "timestamp": conv["created_at"].isoformat() if conv else None,
+                            "handoff_active": True,
+                        },
+                    )
+                )
                 return
 
     session = await get_or_create_session(sender_phone, default_project_id)
@@ -106,6 +140,23 @@ async def handle_lead_message(
         role="user",
         sender_type="lead",
         content=text,
+    )
+
+    # Broadcast the incoming lead message immediately so the admin inbox updates
+    # before the AI finishes generating a response (which can take a few seconds)
+    asyncio.create_task(
+        connection_manager.broadcast(
+            developer_id,
+            "message",
+            {
+                "lead_id": lead_id,
+                "phone": sender_phone,
+                "content": text,
+                "sender_type": "lead",
+                "timestamp": None,
+                "handoff_active": False,
+            },
+        )
     )
 
     qualification = await get_lead_qualification(lead_id)
@@ -134,6 +185,22 @@ async def handle_lead_message(
 
     logger.info("Replying to %s: %s", sender_phone, clean_text[:80])
     await send_text_message(to=sender_phone, text=clean_text)
+
+    # Broadcast AI response to the admin inbox — non-blocking
+    asyncio.create_task(
+        connection_manager.broadcast(
+            developer_id,
+            "message",
+            {
+                "lead_id": lead_id,
+                "phone": sender_phone,
+                "content": clean_text,
+                "sender_type": "agent",
+                "timestamp": None,
+                "handoff_active": False,
+            },
+        )
+    )
 
     if doc_request:
         asyncio.create_task(
