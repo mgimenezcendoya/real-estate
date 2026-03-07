@@ -2503,6 +2503,10 @@ async def get_cobranza(
     """Cross-project pending/overdue installments for collections follow-up."""
     pool = await get_pool()
 
+    # Reject unauthenticated requests
+    if not credentials or credentials.scheme != "Bearer":
+        raise HTTPException(status_code=401, detail="No autenticado")
+
     # Org scoping (same pattern as list_projects)
     effective_org_id = None
     if credentials and credentials.scheme == "Bearer":
@@ -2521,9 +2525,12 @@ async def get_cobranza(
     if not project_ids:
         return []
 
-    # Optional single-project filter
-    if proyecto and proyecto in project_ids:
-        project_ids = [proyecto]
+    # Optional single-project filter — return empty if proyecto is outside caller's scope
+    if proyecto:
+        if proyecto in project_ids:
+            project_ids = [proyecto]
+        else:
+            return []
 
     rows = await pool.fetch(
         """SELECT
@@ -2540,7 +2547,7 @@ async def get_cobranza(
                   ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars, 1) END AS monto_usd,
              pi.fecha_vencimiento,
              pi.estado,
-             (CURRENT_DATE - pi.fecha_vencimiento::date) AS dias
+             (CURRENT_DATE - pi.fecha_vencimiento::date)::int AS dias
            FROM payment_installments pi
            JOIN payment_plans pp ON pp.id = pi.plan_id
            JOIN reservations r ON r.id = pp.reservation_id
