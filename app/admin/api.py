@@ -4,10 +4,12 @@ and cron-triggered background jobs.
 """
 
 import asyncio
+import json
 import logging
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.admin.auth import (
@@ -19,6 +21,7 @@ from app.admin.auth import (
     verify_token,
 )
 from app.config import get_settings
+from app.core.sse import connection_manager
 from app.database import get_pool
 from app.modules.handoff.manager import (
     close_handoff_by_lead_id,
@@ -123,12 +126,21 @@ async def auth_login(body: LoginBody):
     # 2. Fallback: env-var auth (legacy)
     env_user = authenticate_user_env(body.username, body.password)
     if env_user:
-        token = create_token(sub=env_user["sub"], role=env_user["role"], nombre=env_user["nombre"])
+        # Try to include an org_id so the SSE endpoint works for env-var users
+        env_org_row = await pool.fetchrow("SELECT id FROM organizations LIMIT 1")
+        env_org_id = str(env_org_row["id"]) if env_org_row else None
+        token = create_token(
+            sub=env_user["sub"],
+            role=env_user["role"],
+            nombre=env_user["nombre"],
+            organization_id=env_org_id,
+        )
         return {
             "token": token,
             "user": env_user["sub"],
             "role": env_user["role"],
             "nombre": env_user["nombre"],
+            "organization_id": env_org_id,
         }
 
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
@@ -953,24 +965,93 @@ async def get_lead_handoff(lead_id: str):
 
 
 @router.post("/leads/{lead_id}/handoff/start")
-async def start_lead_handoff(lead_id: str):
-    """Start human-in-the-loop (takeover) for this lead from the frontend."""
-    try:
-        handoff = await ensure_handoff_for_human_reply(lead_id)
-        return {"ok": True, "handoff_id": str(handoff["id"])}
-    except ValueError as e:
-        return {"error": str(e)}
+async def start_lead_handoff(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Start human-in-the-loop (takeover) for this lead from the frontend.
+
+    Uses SELECT FOR UPDATE to prevent two admins from simultaneously taking
+    the same conversation (returns 409 if already taken).
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Lock the handoffs row for this lead atomically so concurrent
+            # requests from different admins cannot both succeed.
+            existing = await conn.fetchrow(
+                """
+                SELECT id FROM handoffs
+                WHERE lead_id = $1 AND status = 'active'
+                FOR UPDATE
+                """,
+                lead_id,
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Esta conversación ya fue tomada por otro agente.",
+                )
+            lead = await conn.fetchrow("SELECT project_id FROM leads WHERE id = $1", lead_id)
+            if not lead:
+                raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
+            handoff = await conn.fetchrow(
+                """
+                INSERT INTO handoffs (lead_id, project_id, trigger, context_summary, status, started_at, last_activity_at)
+                VALUES ($1, $2, 'frontend', 'Intervención humana desde el panel', 'active', NOW(), NOW())
+                RETURNING *
+                """,
+                lead_id,
+                str(lead["project_id"]),
+            )
+
+    handoff_dict = dict(handoff)
+    logger.info("Handoff started (atomic) for lead %s", lead_id)
+
+    # Broadcast to all connected admins of this tenant
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "handoff_update",
+                {"lead_id": lead_id, "handoff_active": True, "taken_by": payload.get("nombre", "admin")},
+            )
+        )
+
+    return {"ok": True, "handoff_id": str(handoff_dict["id"])}
 
 
 @router.post("/leads/{lead_id}/handoff/close")
-async def close_lead_handoff(lead_id: str):
+async def close_lead_handoff(
+    lead_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """End human takeover and return control to the agent."""
     closed = await close_handoff_by_lead_id(lead_id)
+
+    # Broadcast handoff closure to all connected admins of this tenant
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "handoff_update",
+                {"lead_id": lead_id, "handoff_active": False, "taken_by": None},
+            )
+        )
+
     return {"ok": True, "closed": closed}
 
 
 @router.post("/leads/{lead_id}/message")
-async def send_lead_message(lead_id: str, request: SendMessageRequest):
+async def send_lead_message(
+    lead_id: str,
+    request: SendMessageRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Send a message to a lead as a human agent. Activates HITL if not already active."""
     pool = await get_pool()
     lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
@@ -980,17 +1061,25 @@ async def send_lead_message(lead_id: str, request: SendMessageRequest):
     await ensure_handoff_for_human_reply(lead_id)
 
     # Guardamos en bd
-    await pool.execute(
+    conv = await pool.fetchrow(
         """
         INSERT INTO conversations (lead_id, role, sender_type, content)
         VALUES ($1, 'assistant', 'human', $2)
+        RETURNING id, created_at
         """,
         lead_id, request.content
     )
 
-    # Actualizamos el ultimo contacto
+    # Actualizamos el ultimo contacto y la actividad del handoff (para el timeout de 4h)
     await pool.execute(
         "UPDATE leads SET last_contact = NOW() WHERE id = $1", lead_id
+    )
+    await pool.execute(
+        """
+        UPDATE handoffs SET last_activity_at = NOW()
+        WHERE lead_id = $1 AND status = 'active'
+        """,
+        lead_id,
     )
 
     # Enviamos via WhatsApp
@@ -1000,7 +1089,91 @@ async def send_lead_message(lead_id: str, request: SendMessageRequest):
         logger.error(f"Error sending message to {lead['phone']}: {e}")
         return {"error": "Failed to dispatch message to WhatsApp provider"}
 
+    # Broadcast the new message to all connected admins of this tenant so the
+    # inbox updates instantly without waiting for SSE polling
+    payload = verify_token(credentials.credentials) if credentials else None
+    tenant_id = payload.get("organization_id") if payload else None
+    if tenant_id:
+        asyncio.create_task(
+            connection_manager.broadcast(
+                tenant_id,
+                "message",
+                {
+                    "lead_id": lead_id,
+                    "content": request.content,
+                    "sender_type": "human",
+                    "timestamp": conv["created_at"].isoformat() if conv else None,
+                    "handoff_active": True,
+                },
+            )
+        )
+
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Server-Sent Events — real-time inbox updates
+# ---------------------------------------------------------------------------
+
+async def _sse_generator(tenant_id: str) -> AsyncGenerator[str, None]:
+    """Async generator that yields SSE-formatted strings for a single connection.
+
+    Keeps the connection alive with a ping every 20 seconds. Render's idle
+    connection timeout is ~55s, so 20s gives a comfortable margin.
+
+    If the client disconnects (browser tab closed, network drop), FastAPI will
+    cancel this generator; we clean up in the finally block.
+    """
+    queue = connection_manager.connect(tenant_id)
+    try:
+        while True:
+            try:
+                # Wait up to 20s for an event; if none arrives, send a ping
+                message = await asyncio.wait_for(queue.get(), timeout=20.0)
+                yield message
+            except asyncio.TimeoutError:
+                yield "event: ping\ndata: {}\n\n"
+    except (asyncio.CancelledError, GeneratorExit):
+        pass
+    finally:
+        connection_manager.disconnect(tenant_id, queue)
+
+
+@router.get("/inbox/stream")
+async def inbox_stream(
+    token: Optional[str] = Query(default=None),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """SSE endpoint — streams real-time inbox events to connected admins.
+
+    Accepts JWT either as:
+    - Authorization: Bearer <token>  header  (standard fetch)
+    - ?token=<token>                 query param (EventSource browser API, which
+      does not support custom headers natively)
+
+    Events emitted:
+    - event: message       — new WhatsApp message received or sent
+    - event: handoff_update — HITL state changed for a lead
+    - event: ping          — keepalive (every 20s, ignore in client)
+    """
+    raw_token = token or (credentials.credentials if credentials else None)
+    payload = verify_token(raw_token) if raw_token else None
+    if not payload:
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
+
+    tenant_id = payload.get("organization_id")
+    if not tenant_id:
+        raise HTTPException(status_code=403, detail="Token sin organization_id")
+
+    return StreamingResponse(
+        _sse_generator(tenant_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable Nginx buffering if behind a proxy
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/metrics/{project_id}")
@@ -2200,6 +2373,215 @@ async def get_cash_flow(
         row["ingresos"] = round(row["ingresos"], 2)
         row["egresos"] = round(row["egresos"], 2)
         row["proyeccion"] = round(row["proyeccion"], 2)
+    return result
+
+
+@router.get("/cash-flow-consolidated")
+async def get_cash_flow_consolidated(
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Consolidated monthly cash flow across all projects for the user's organization."""
+    pool = await get_pool()
+
+    # Determine effective org (same pattern as list_projects)
+    effective_org_id = None
+    if credentials and credentials.scheme == "Bearer":
+        payload = verify_token(credentials.credentials)
+        if payload and payload.get("role") != "superadmin":
+            effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
+        project_rows = await pool.fetch(
+            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+        )
+    else:
+        project_rows = await pool.fetch("SELECT id FROM projects")
+
+    project_ids = [str(r["id"]) for r in project_rows]
+    if not project_ids:
+        return []
+
+    ingresos_rows = await pool.fetch(
+        """SELECT
+             to_char(pr.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pr.moneda='USD' THEN pr.monto_pagado
+                      ELSE pr.monto_pagado / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
+           FROM payment_records pr
+           JOIN payment_installments pi ON pi.id = pr.installment_id
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = ANY($1::uuid[]) AND pr.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pr.fecha_pago, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    gastos_rows = await pool.fetch(
+        """SELECT
+             to_char(fecha, 'YYYY-MM') AS mes,
+             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
+           FROM project_expenses pe
+           LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
+           WHERE pe.project_id = ANY($1::uuid[]) AND pe.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(fecha, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(fecha, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    obra_rows = await pool.fetch(
+        """SELECT
+             to_char(op.fecha_pago, 'YYYY-MM') AS mes,
+             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
+           FROM obra_payments op
+           JOIN obra_etapas oe ON oe.id = op.etapa_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
+           WHERE oe.project_id = ANY($1::uuid[]) AND op.fecha_pago IS NOT NULL
+             AND ($2::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+    proyeccion_rows = await pool.fetch(
+        """SELECT
+             to_char(pi.fecha_vencimiento, 'YYYY-MM') AS mes,
+             SUM(CASE WHEN pi.moneda='USD' THEN pi.monto
+                      ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars,1) END) AS total
+           FROM payment_installments pi
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = r.project_id
+           WHERE r.project_id = ANY($1::uuid[])
+             AND pi.estado IN ('pendiente','vencido')
+             AND pi.fecha_vencimiento >= CURRENT_DATE
+             AND ($2::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(pi.fecha_vencimiento, 'YYYY-MM') <= $3)
+           GROUP BY mes ORDER BY mes""",
+        project_ids, desde, hasta,
+    )
+
+    meses: dict = {}
+    for r in ingresos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["ingresos"] += float(r["total"] or 0)
+    for r in gastos_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in obra_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["egresos"] += float(r["total"] or 0)
+    for r in proyeccion_rows:
+        mes = r["mes"]
+        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
+        meses[mes]["proyeccion"] += float(r["total"] or 0)
+
+    result = sorted(meses.values(), key=lambda x: x["mes"])
+    acumulado = 0.0
+    for row in result:
+        row["saldo"] = round(row["ingresos"] - row["egresos"], 2)
+        acumulado += row["saldo"]
+        row["acumulado"] = round(acumulado, 2)
+        row["ingresos"] = round(row["ingresos"], 2)
+        row["egresos"] = round(row["egresos"], 2)
+        row["proyeccion"] = round(row["proyeccion"], 2)
+    return result
+
+
+# ---------- Cobranza ----------
+
+@router.get("/cobranza")
+async def get_cobranza(
+    proyecto: Optional[str] = None,
+    estado: Optional[str] = None,  # "vencida" | "proxima" | "todas"
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Cross-project pending/overdue installments for collections follow-up."""
+    pool = await get_pool()
+
+    # Reject unauthenticated requests
+    if not credentials or credentials.scheme != "Bearer":
+        raise HTTPException(status_code=401, detail="No autenticado")
+
+    # Org scoping (same pattern as list_projects)
+    effective_org_id = None
+    payload = verify_token(credentials.credentials)
+    if payload and payload.get("role") != "superadmin":
+        effective_org_id = payload.get("organization_id")
+
+    if effective_org_id:
+        project_rows = await pool.fetch(
+            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+        )
+    else:
+        project_rows = await pool.fetch("SELECT id FROM projects")
+
+    project_ids = [str(r["id"]) for r in project_rows]
+    if not project_ids:
+        return []
+
+    # Optional single-project filter — return empty if proyecto is outside caller's scope
+    if proyecto:
+        if proyecto in project_ids:
+            project_ids = [proyecto]
+        else:
+            return []
+
+    rows = await pool.fetch(
+        """SELECT
+             pi.id AS installment_id,
+             COALESCE(l.name, l.phone) AS buyer_name,
+             l.phone AS buyer_phone,
+             p.name AS project_name,
+             p.id::text AS project_id,
+             r.id::text AS reservation_id,
+             pi.numero_cuota,
+             pi.monto,
+             pi.moneda,
+             CASE WHEN pi.moneda = 'USD' THEN pi.monto
+                  ELSE pi.monto / COALESCE(fc.tipo_cambio_usd_ars, 1) END AS monto_usd,
+             pi.fecha_vencimiento,
+             pi.estado,
+             (CURRENT_DATE - pi.fecha_vencimiento::date)::int AS dias
+           FROM payment_installments pi
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           JOIN leads l ON l.id = r.lead_id
+           JOIN projects p ON p.id = r.project_id
+           LEFT JOIN project_financials_config fc ON fc.project_id = p.id
+           WHERE pi.estado IN ('pendiente', 'vencido')
+             AND p.id = ANY($1::uuid[])
+           ORDER BY pi.fecha_vencimiento ASC""",
+        project_ids,
+    )
+
+    result = []
+    for r in rows:
+        dias = int(r["dias"])
+        # Apply estado filter
+        if estado == "vencida" and dias < 0:
+            continue
+        if estado == "proxima" and dias >= 0:
+            continue
+        result.append({
+            "installment_id": str(r["installment_id"]),
+            "buyer_name": r["buyer_name"],
+            "buyer_phone": r["buyer_phone"],
+            "project_name": r["project_name"],
+            "project_id": r["project_id"],
+            "reservation_id": r["reservation_id"],
+            "numero_cuota": r["numero_cuota"],
+            "monto": float(r["monto"]),
+            "moneda": r["moneda"],
+            "monto_usd": round(float(r["monto_usd"] or 0), 2),
+            "fecha_vencimiento": r["fecha_vencimiento"].isoformat(),
+            "estado": r["estado"],
+            "dias": dias,
+        })
     return result
 
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen } from 'lucide-react';
+import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import ChangePasswordModal from '@/components/ChangePasswordModal';
 
 const navItems = [
   { href: '/proyectos', label: 'Proyectos', icon: Building2 },
+  { href: '/cobranza', label: 'Cobranza', icon: CreditCard },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/tools', label: 'Tools', icon: Wrench },
 ];

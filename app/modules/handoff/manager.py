@@ -2,6 +2,7 @@
 Handoff Manager: orchestrates the handoff flow between leads and sales team via Telegram.
 """
 
+import asyncio
 import logging
 
 from app.database import get_pool
@@ -139,6 +140,9 @@ async def close_handoff(handoff_id: str, lead_note: str | None = None, send_good
     """Close a handoff and resume the agent. Set send_goodbye=False when closing due to timeout."""
     pool = await get_pool()
 
+    # Fetch before update to get lead_id and project_id for SSE broadcast
+    handoff = await pool.fetchrow("SELECT * FROM handoffs WHERE id = $1", handoff_id)
+
     await pool.execute(
         """
         UPDATE handoffs
@@ -149,7 +153,6 @@ async def close_handoff(handoff_id: str, lead_note: str | None = None, send_good
         lead_note,
     )
 
-    handoff = await pool.fetchrow("SELECT * FROM handoffs WHERE id = $1", handoff_id)
     if handoff and send_goodbye:
         lead = await pool.fetchrow("SELECT phone FROM leads WHERE id = $1", handoff["lead_id"])
         if lead:
@@ -157,4 +160,24 @@ async def close_handoff(handoff_id: str, lead_note: str | None = None, send_good
                 lead["phone"],
                 "Gracias por hablar con nuestro equipo. Si necesitás algo más, seguí escribiéndome.",
             )
+
+    # Broadcast handoff closure to all connected admins of this tenant
+    if handoff:
+        lead_project = await pool.fetchrow(
+            "SELECT organization_id FROM projects WHERE id = $1", handoff["project_id"]
+        )
+        if lead_project:
+            from app.core.sse import connection_manager
+            asyncio.create_task(
+                connection_manager.broadcast(
+                    str(lead_project["organization_id"]),
+                    "handoff_update",
+                    {
+                        "lead_id": str(handoff["lead_id"]),
+                        "handoff_active": False,
+                        "taken_by": None,
+                    },
+                )
+            )
+
     logger.info("Handoff %s closed", handoff_id)

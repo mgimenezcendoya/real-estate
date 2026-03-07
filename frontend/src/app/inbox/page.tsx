@@ -6,11 +6,12 @@ import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Search, FileText, Send, UserCircle2, MessageSquare, Sparkles, Loader2, ArrowLeft } from 'lucide-react';
+import { Search, FileText, Send, UserCircle2, MessageSquare, Sparkles, Loader2, ArrowLeft, Wifi, WifiOff } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSSE, SSEStatus, SSEMessageEvent, SSEHandoffUpdateEvent } from '@/hooks/useSSE';
 
 type LeadGroup = { phone: string; mainLead: Lead; allLeadIds: string[] };
 
@@ -139,6 +140,12 @@ export default function InboxPage() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to selectedLeadIdsForMerge so SSE callbacks can access the
+  // current value without triggering re-renders or recreating the hook
+  const selectedLeadIdsForMergeRef = useRef(selectedLeadIdsForMerge);
+  useEffect(() => { selectedLeadIdsForMergeRef.current = selectedLeadIdsForMerge; }, [selectedLeadIdsForMerge]);
+  const selectedLeadIdRef = useRef(selectedLeadId);
+  useEffect(() => { selectedLeadIdRef.current = selectedLeadId; }, [selectedLeadId]);
 
   const leadGroups = useMemo(() => groupLeadsByPhone(leads), [leads]);
 
@@ -184,24 +191,53 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation]);
 
-  // Poll messages every 1.5s for fast AI response updates
-  useEffect(() => {
-    if (selectedLeadIdsForMerge.length === 0 || !selectedLeadId) return;
-    const interval = setInterval(async () => {
-      try {
-        const [merged, handoff] = await Promise.all([
-          loadMergedConversations(selectedLeadIdsForMerge),
-          api.getLeadHandoff(selectedLeadId),
-        ]);
-        setActiveConversation((prev) => (merged.length !== prev.length ? merged : prev));
-        setHandoffActive(handoff.active);
-      } catch { /* silent */ }
-    }, 1500);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLeadIdsForMerge.join(','), selectedLeadId]);
+  // ---- SSE: real-time updates replacing polling ----
 
-  // Poll lead list every 15s
+  const handleSSEMessage = useCallback((data: SSEMessageEvent) => {
+    const currentLeadIds = selectedLeadIdsForMergeRef.current;
+    const currentLeadId = selectedLeadIdRef.current;
+
+    if (!currentLeadId || !currentLeadIds.includes(data.lead_id)) return;
+
+    // Idempotent: only reload if the incoming message is not already in state
+    // (handles the case where the same admin has the inbox open in two tabs)
+    setActiveConversation((prev) => {
+      const alreadyExists = prev.some(
+        (m) => m.content === data.content && m.sender_type === data.sender_type
+      );
+      if (alreadyExists) return prev;
+      // Trigger a full reload to get server-assigned IDs and timestamps
+      loadMergedConversations(currentLeadIds).then(setActiveConversation).catch(() => {});
+      return prev;
+    });
+  }, []);
+
+  const handleSSEHandoffUpdate = useCallback((data: SSEHandoffUpdateEvent) => {
+    const currentLeadId = selectedLeadIdRef.current;
+    if (data.lead_id === currentLeadId) {
+      setHandoffActive(data.handoff_active);
+    }
+  }, []);
+
+  const handleSSEReconnect = useCallback(() => {
+    // Reload everything that may have changed while disconnected
+    api.getLeads().then(setLeads).catch(() => {});
+    const ids = selectedLeadIdsForMergeRef.current;
+    const leadId = selectedLeadIdRef.current;
+    if (ids.length > 0 && leadId) {
+      loadMergedConversations(ids).then(setActiveConversation).catch(() => {});
+      api.getLeadHandoff(leadId).then((h) => setHandoffActive(h.active)).catch(() => {});
+    }
+  }, []);
+
+  const { status: sseStatus } = useSSE({
+    onMessage: handleSSEMessage,
+    onHandoffUpdate: handleSSEHandoffUpdate,
+    onReconnect: handleSSEReconnect,
+  });
+
+  // Keep lead list fresh every 15s as a lightweight fallback (new leads may
+  // arrive from channels that don't trigger a "message" SSE event yet)
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -310,7 +346,20 @@ export default function InboxPage() {
           <MessageSquare size={12} />
           Conversaciones
         </div>
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-gray-900 tracking-tight mb-1">Inbox</h1>
+        <div className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-gray-900 tracking-tight mb-1">Inbox</h1>
+          {/* SSE connection status indicator */}
+          <div className={cn(
+            'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+            sseStatus === 'connected' && 'bg-emerald-50 border-emerald-200 text-emerald-700',
+            sseStatus === 'connecting' && 'bg-amber-50 border-amber-200 text-amber-700',
+            sseStatus === 'disconnected' && 'bg-red-50 border-red-200 text-red-700',
+          )}>
+            {sseStatus === 'connected' && <><div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /><Wifi size={11} />En vivo</>}
+            {sseStatus === 'connecting' && <><div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /><Loader2 size={11} className="animate-spin" />Conectando</>}
+            {sseStatus === 'disconnected' && <><div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /><WifiOff size={11} />Reconectando...</>}
+          </div>
+        </div>
         <p className="text-gray-500 text-sm md:text-base max-w-xl">
           Todas las conversaciones con leads en un solo lugar.
         </p>
