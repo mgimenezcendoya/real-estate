@@ -124,6 +124,7 @@ export interface Lead {
   created_at: string;
   last_contact?: string;
   project_name?: string;
+  handoff_active?: boolean;
 }
 
 export interface Conversation {

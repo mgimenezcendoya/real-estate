@@ -766,7 +766,11 @@ async def list_leads(
             l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
             l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
             l.created_at, l.last_contact,
-            p.name as project_name
+            p.name as project_name,
+            EXISTS(
+                SELECT 1 FROM handoffs h
+                WHERE h.lead_id = l.id AND h.status = 'active'
+            ) as handoff_active
         FROM leads l
         LEFT JOIN projects p ON l.project_id = p.id
         {where_clause}
@@ -3539,6 +3543,34 @@ async def get_exchange_rate_history(tipo: str, days: int = 30):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Error fetching history: {e}")
     return history
+
+
+@router.post("/jobs/close-stale-handoffs")
+async def close_stale_handoffs():
+    """Close handoffs where the lead hasn't replied in 2 hours (called by cron every 30 min)."""
+    from app.modules.handoff.manager import close_handoff
+    pool = await get_pool()
+    cutoff = "NOW() - INTERVAL '2 hours'"
+    stale = await pool.fetch(
+        f"""
+        SELECT h.id, h.lead_id FROM handoffs h
+        WHERE h.status = 'active'
+          AND (
+            SELECT MAX(c.created_at) FROM conversations c
+            WHERE c.lead_id = h.lead_id AND c.role = 'user'
+          ) < {cutoff}
+          AND h.started_at < {cutoff}
+        """
+    )
+    closed = 0
+    for row in stale:
+        try:
+            await close_handoff(str(row["id"]), lead_note="timeout_2h_cron", send_goodbye=False)
+            closed += 1
+        except Exception as e:
+            logger.warning("Failed to close stale handoff %s: %s", row["id"], e)
+    logger.info("close-stale-handoffs: closed %d handoffs", closed)
+    return {"closed": closed}
 
 
 @router.post("/jobs/update-payment-states")

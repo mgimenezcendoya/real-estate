@@ -217,6 +217,10 @@ export default function InboxPage() {
     if (data.lead_id === currentLeadId) {
       setHandoffActive(data.handoff_active);
     }
+    // Update handoff_active on the lead in the list so the sidebar indicator stays in sync
+    setLeads((prev) =>
+      prev.map((l) => l.id === data.lead_id ? { ...l, handoff_active: data.handoff_active } : l)
+    );
   }, []);
 
   const handleSSEReconnect = useCallback(() => {
@@ -456,6 +460,17 @@ export default function InboxPage() {
                                 {mainLead.project_name} ↗
                               </Badge>
                             </Link>
+                          )}
+                          {mainLead.handoff_active ? (
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-1.5 py-0">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500 inline-block" />
+                              Humano
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-medium text-gray-400">
+                              <span className="w-1 h-1 rounded-full bg-gray-300 inline-block" />
+                              Agente
+                            </span>
                           )}
                         </div>
                       </div>

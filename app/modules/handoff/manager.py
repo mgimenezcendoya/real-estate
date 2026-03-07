@@ -83,7 +83,7 @@ async def close_handoff_by_lead_id(lead_id: str) -> bool:
 
 async def initiate_handoff(
     lead_id: str,
-    project_id: str,
+    project_id: str | None,
     trigger: str,
     context_summary: str,
     conversation_history: list[dict] | None = None,
@@ -91,9 +91,17 @@ async def initiate_handoff(
     """Start a handoff: create record, send Telegram alert, message the lead."""
     pool = await get_pool()
 
+    # Resolve project_id from lead if not provided
+    if not project_id:
+        lead_row = await pool.fetchrow("SELECT project_id FROM leads WHERE id = $1", lead_id)
+        project_id = str(lead_row["project_id"]) if lead_row and lead_row["project_id"] else None
+    if not project_id:
+        logger.error("initiate_handoff: cannot create handoff, no project_id for lead %s", lead_id)
+        return {}
+
     existing = await pool.fetchrow(
-        "SELECT id FROM handoffs WHERE lead_id = $1 AND project_id = $2 AND status = 'active'",
-        lead_id, project_id,
+        "SELECT id FROM handoffs WHERE lead_id = $1 AND status = 'active'",
+        lead_id,
     )
     if existing:
         logger.info("Handoff already active for lead %s", lead_id)
@@ -101,8 +109,8 @@ async def initiate_handoff(
 
     handoff = await pool.fetchrow(
         """
-        INSERT INTO handoffs (lead_id, project_id, trigger, context_summary, status)
-        VALUES ($1, $2, $3, $4, 'pending')
+        INSERT INTO handoffs (lead_id, project_id, trigger, context_summary, status, started_at)
+        VALUES ($1, $2, $3, $4, 'active', NOW())
         RETURNING *
         """,
         lead_id, project_id, trigger, context_summary,
