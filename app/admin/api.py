@@ -2509,10 +2509,9 @@ async def get_cobranza(
 
     # Org scoping (same pattern as list_projects)
     effective_org_id = None
-    if credentials and credentials.scheme == "Bearer":
-        payload = verify_token(credentials.credentials)
-        if payload and payload.get("role") != "superadmin":
-            effective_org_id = payload.get("organization_id")
+    payload = verify_token(credentials.credentials)
+    if payload and payload.get("role") != "superadmin":
+        effective_org_id = payload.get("organization_id")
 
     if effective_org_id:
         project_rows = await pool.fetch(
