@@ -123,6 +123,10 @@ export default function InboxPage() {
 
   useEffect(() => {
     markInboxAsRead();
+    // Request browser notification permission so we can alert even when the tab is in background
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -221,6 +225,25 @@ export default function InboxPage() {
     setLeads((prev) =>
       prev.map((l) => l.id === data.lead_id ? { ...l, handoff_active: data.handoff_active } : l)
     );
+
+    // Notify admins when a new handoff is activated
+    if (data.handoff_active) {
+      const leadLabel = data.lead_name || data.lead_phone || 'Un lead';
+      const projectLabel = data.project_name ? ` — ${data.project_name}` : '';
+      const body = `${leadLabel}${projectLabel} necesita atención de un asesor.`;
+
+      // In-app toast (always shown when tab is open)
+      toast(body, { duration: 8000, icon: '🔔' });
+
+      // Browser notification — works even with the tab in background, and on mobile
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification('Nuevo handoff — Realia', {
+          body,
+          icon: '/favicon.ico',
+          tag: `handoff-${data.lead_id}`,
+        });
+      }
+    }
   }, []);
 
   const handleSSEReconnect = useCallback(() => {

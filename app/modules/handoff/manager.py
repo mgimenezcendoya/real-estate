@@ -136,6 +136,27 @@ async def initiate_handoff(
             "Te paso con un asesor comercial. Ya le compartí el contexto de nuestra conversación para que no tengas que repetir nada.",
         )
 
+    # Broadcast handoff activation to all connected admins of this org
+    project_org = await pool.fetchrow(
+        "SELECT organization_id FROM projects WHERE id = $1", project_id
+    )
+    if project_org:
+        from app.core.sse import connection_manager
+        asyncio.create_task(
+            connection_manager.broadcast(
+                str(project_org["organization_id"]),
+                "handoff_update",
+                {
+                    "lead_id": lead_id,
+                    "handoff_active": True,
+                    "lead_name": lead["name"] or lead["phone"] if lead else "Lead",
+                    "lead_phone": lead["phone"] if lead else "",
+                    "project_name": project["name"] if project else "",
+                    "trigger": trigger,
+                },
+            )
+        )
+
     return dict(handoff)
 
 
