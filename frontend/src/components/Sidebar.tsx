@@ -124,7 +124,7 @@ function NavContent({
               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-blue-700 rounded-r-full" />
             )}
             <Users size={17} className="flex-shrink-0 transition-colors duration-150" />
-            {!collapsed && <span className="text-sm font-medium">Usuarios</span>}
+            {!collapsed && <span className="text-sm font-medium">Administración</span>}
           </Link>
         </div>
       )}
