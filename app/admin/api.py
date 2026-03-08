@@ -1772,6 +1772,13 @@ async def create_direct_sale(project_id: str, body: ReservationBody):
     if unit["status"] == "sold":
         raise HTTPException(status_code=409, detail="La unidad ya está vendida")
 
+    existing_active = await pool.fetchval(
+        "SELECT id FROM reservations WHERE unit_id = $1 AND status = 'active'",
+        body.unit_id,
+    )
+    if existing_active:
+        raise HTTPException(status_code=409, detail=f"La unidad {unit['identifier']} ya tiene una reserva activa. Cancelala o convertila antes de registrar una venta directa.")
+
     signed = datetime.strptime(body.signed_at, "%Y-%m-%d").date() if body.signed_at else None
 
     async with pool.acquire() as conn:
