@@ -380,6 +380,7 @@ async def _generate_response(
     response = await client.messages.create(
         model=agent_config.model,
         max_tokens=agent_config.max_tokens,
+        temperature=agent_config.temperature,
         system=system,
         messages=messages,
     )
