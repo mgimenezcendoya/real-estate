@@ -411,6 +411,15 @@ class TenantChannelUpdate(BaseModel):
     activo: Optional[bool] = None
 
 
+class AgentConfigUpdate(BaseModel):
+    agent_name: Optional[str] = None
+    system_prompt_override: Optional[str] = None
+    system_prompt_append: Optional[str] = None
+    model: Optional[str] = None
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+
+
 @router.post("/organizations")
 async def create_organization(
     body: OrganizationBody,
@@ -610,6 +619,80 @@ async def delete_tenant_channel(
     )
     logger.info("Tenant channel deactivated id=%s", channel_id)
     return {"status": "ok"}
+
+
+# --- Agent Configs ---
+
+@router.get("/agent-config")
+async def get_agent_config_endpoint(
+    org_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Get agent config for org. Superadmin can pass ?org_id=. Others get own org."""
+    payload = _require_admin(credentials)
+    pool = await get_pool()
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    target_org = org_id if (caller_role == "superadmin" and org_id) else caller_org
+
+    row = await pool.fetchrow(
+        "SELECT * FROM agent_configs WHERE organization_id = $1", target_org
+    )
+    if not row:
+        # Return defaults (no row yet — config_loader handles this in runtime too)
+        return {
+            "organization_id": target_org,
+            "agent_name": "Asistente",
+            "system_prompt_override": None,
+            "system_prompt_append": None,
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 800,
+            "temperature": 0.7,
+        }
+    return dict(row)
+
+
+@router.patch("/agent-config")
+async def update_agent_config_endpoint(
+    body: AgentConfigUpdate,
+    org_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Upsert agent config for org."""
+    payload = _require_admin(credentials)
+    pool = await get_pool()
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    if caller_role not in ("superadmin", "admin"):
+        raise HTTPException(403)
+
+    target_org = org_id if (caller_role == "superadmin" and org_id) else caller_org
+
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+
+    if not updates:
+        raise HTTPException(400, "No hay campos para actualizar")
+
+    # Validate temperature if provided
+    if "temperature" in updates and not (0.0 <= updates["temperature"] <= 2.0):
+        raise HTTPException(400, "temperature debe estar entre 0.0 y 2.0")
+
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+
+    row = await pool.fetchrow(
+        f"""INSERT INTO agent_configs (organization_id, {', '.join(updates.keys())})
+            VALUES ($1, {', '.join(f'${i+2}' for i in range(len(updates)))})
+            ON CONFLICT (organization_id) DO UPDATE SET {set_clause}, updated_at = NOW()
+            RETURNING *""",
+        target_org, *values
+    )
+    logger.info("Agent config updated org=%s fields=%s", target_org, list(updates.keys()))
+    return dict(row)
 
 
 @router.post("/upload-document")
