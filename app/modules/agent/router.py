@@ -9,7 +9,7 @@ import logging
 from app.database import get_pool
 from app.modules.agent.session import get_test_mode, set_test_mode
 from app.modules.handoff.manager import check_active_handoff_by_phone
-from app.modules.whatsapp.providers.base import IncomingMessage
+from app.modules.whatsapp.providers.base import IncomingMessage, TenantChannel
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +31,18 @@ async def get_authorized_number(phone: str, developer_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-async def resolve_developer(phone_number_id: str) -> dict | None:
-    """Resolve the developer from an incoming WhatsApp number.
+async def resolve_tenant_channel(phone_hint: str, provider: str) -> TenantChannel | None:
+    """
+    Resolve the TenantChannel for an incoming message.
 
-    In dev (Twilio sandbox), ACTIVE_DEVELOPER_ID overrides lookup.
-    In production, we find the project by whatsapp_number then get its developer.
-    Returns: {developer_id, developer_name, default_project_id, default_project_name}
+    For production: looks up tenant_channels by phone_number (Twilio) or phone_number_id (Meta).
+    For dev: if ACTIVE_DEVELOPER_ID is set, returns a synthetic TenantChannel from env vars.
     """
     from app.config import get_settings
     settings = get_settings()
     pool = await get_pool()
 
+    # Dev shortcut: single-tenant mode via ACTIVE_DEVELOPER_ID env var
     if settings.active_developer_id:
         dev = await pool.fetchrow(
             "SELECT id, name FROM organizations WHERE id = $1",
@@ -49,35 +50,61 @@ async def resolve_developer(phone_number_id: str) -> dict | None:
         )
         if not dev:
             return None
-        proj = await pool.fetchrow(
-            "SELECT id, name FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 1",
-            str(dev["id"]),
-        )
-        return {
-            "developer_id": str(dev["id"]),
-            "developer_name": dev["name"],
-            "default_project_id": str(proj["id"]) if proj else None,
-            "default_project_name": proj["name"] if proj else None,
-        }
+        # Build synthetic TenantChannel from env vars (for local dev only)
+        if provider == "twilio":
+            return TenantChannel(
+                id="dev-synthetic",
+                organization_id=str(dev["id"]),
+                provider="twilio",
+                phone_number=settings.twilio_whatsapp_number or phone_hint,
+                account_sid=settings.twilio_account_sid,
+                auth_token=settings.twilio_auth_token,
+            )
+        else:
+            return TenantChannel(
+                id="dev-synthetic",
+                organization_id=str(dev["id"]),
+                provider="meta",
+                phone_number=settings.whatsapp_phone_number_id or phone_hint,
+                phone_number_id=settings.whatsapp_phone_number_id,
+                access_token=settings.whatsapp_token,
+                verify_token=settings.whatsapp_verify_token,
+            )
 
-    proj = await pool.fetchrow(
-        "SELECT id, name, organization_id FROM projects WHERE whatsapp_number = $1 AND status = 'active'",
-        phone_number_id,
-    )
-    if not proj:
+    # Production: lookup from tenant_channels table
+    if provider == "meta":
+        row = await pool.fetchrow(
+            """SELECT * FROM tenant_channels
+               WHERE phone_number_id = $1 AND provider = 'meta' AND activo = true""",
+            phone_hint,
+        )
+    else:
+        row = await pool.fetchrow(
+            """SELECT * FROM tenant_channels
+               WHERE phone_number = $1 AND provider = 'twilio' AND activo = true""",
+            phone_hint,
+        )
+
+    if not row:
         return None
 
-    dev = await pool.fetchrow("SELECT id, name FROM organizations WHERE id = $1", str(proj["organization_id"]))
-    return {
-        "developer_id": str(dev["id"]),
-        "developer_name": dev["name"],
-        "default_project_id": str(proj["id"]),
-        "default_project_name": proj["name"],
-    }
+    return TenantChannel(
+        id=str(row["id"]),
+        organization_id=str(row["organization_id"]),
+        provider=row["provider"],
+        phone_number=row["phone_number"],
+        display_name=row.get("display_name"),
+        account_sid=row.get("account_sid"),
+        auth_token=row.get("auth_token_enc"),       # stored as plaintext for now
+        access_token=row.get("access_token_enc"),   # stored as plaintext for now
+        phone_number_id=row.get("phone_number_id"),
+        verify_token=row.get("verify_token"),
+        waba_id=row.get("waba_id"),
+    )
 
 
 async def route_message(
-    phone_number_id: str,
+    channel: TenantChannel,
     sender_phone: str,
     message_id: str,
     message_type: str,
@@ -91,12 +118,29 @@ async def route_message(
     """
     from app.config import get_settings
     settings = get_settings()
+    pool = await get_pool()
 
-    developer = await resolve_developer(phone_number_id)
-    if not developer:
+    developer_id = channel.organization_id
+
+    # Fetch org name and default project to build the developer dict
+    dev = await pool.fetchrow(
+        "SELECT id, name FROM organizations WHERE id = $1",
+        developer_id,
+    )
+    if not dev:
         return
 
-    developer_id = developer["developer_id"]
+    proj = await pool.fetchrow(
+        "SELECT id, name FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 1",
+        developer_id,
+    )
+
+    developer = {
+        "developer_id": developer_id,
+        "developer_name": dev["name"],
+        "default_project_id": str(proj["id"]) if proj else None,
+        "default_project_name": proj["name"] if proj else None,
+    }
 
     is_dev = False
     auth = None
