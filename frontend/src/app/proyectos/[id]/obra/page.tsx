@@ -47,6 +47,7 @@ function EtapaCard({
   onDeleteUpdate,
   onNotify,
   onEditEtapa,
+  onDeleteEtapa,
   readOnly,
 }: {
   etapa: ObraEtapa;
@@ -54,6 +55,7 @@ function EtapaCard({
   onDeleteUpdate: (updateId: string, etapaId: string) => void;
   onNotify: (updateId: string) => void;
   onEditEtapa: (etapa: ObraEtapa) => void;
+  onDeleteEtapa: (etapa: ObraEtapa) => void;
   readOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -111,6 +113,16 @@ function EtapaCard({
               >
                 <Settings2 size={14} />
               </button>
+              {!etapa.es_standard && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteEtapa(etapa)}
+                  className="p-1.5 rounded-lg text-gray-300 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  title="Eliminar etapa"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onAddUpdate(etapa)}
@@ -1030,6 +1042,8 @@ export default function ObraPage() {
   const [updateSheetOpen, setUpdateSheetOpen] = useState(false);
   const [activeEtapaId, setActiveEtapaId] = useState<string | null>(null);
   const [editingEtapa, setEditingEtapa] = useState<ObraEtapa | null>(null);
+  const [deletingEtapa, setDeletingEtapa] = useState<ObraEtapa | null>(null);
+  const [confirmingDeleteEtapa, setConfirmingDeleteEtapa] = useState(false);
   const [pesosSheetOpen, setPesosSheetOpen] = useState(false);
   const [addingEtapa, setAddingEtapa] = useState(false);
 
@@ -1118,6 +1132,25 @@ export default function ObraPage() {
       return { etapas, progress: calcProgress(etapas) };
     });
     toast.success('Etapa actualizada');
+  };
+
+  const handleDeleteEtapa = async () => {
+    if (!deletingEtapa) return;
+    setConfirmingDeleteEtapa(true);
+    try {
+      await api.deleteEtapa(deletingEtapa.id);
+      setObra((prev) => {
+        if (!prev) return prev;
+        const etapas = prev.etapas.filter((e) => e.id !== deletingEtapa.id);
+        return { etapas, progress: calcProgress(etapas) };
+      });
+      toast.success(`Etapa "${deletingEtapa.nombre}" eliminada`);
+      setDeletingEtapa(null);
+    } catch {
+      toast.error('No se pudo eliminar la etapa');
+    } finally {
+      setConfirmingDeleteEtapa(false);
+    }
   };
 
   const handleUpdatePesos = async (pesos: Array<{ id: string; peso_pct: number }>) => {
@@ -1258,6 +1291,7 @@ export default function ObraPage() {
                 onDeleteUpdate={handleDeleteUpdate}
                 onNotify={handleNotify}
                 onEditEtapa={setEditingEtapa}
+                onDeleteEtapa={setDeletingEtapa}
                 readOnly={isReader}
               />
             ))}
@@ -1334,6 +1368,35 @@ export default function ObraPage() {
         onClose={() => setEditingEtapa(null)}
         onSave={handleEditEtapa}
       />
+
+      <Dialog open={!!deletingEtapa} onOpenChange={(v) => !v && setDeletingEtapa(null)}>
+        <DialogContent className="sm:max-w-[360px] bg-white border border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900">Eliminar etapa</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            ¿Eliminar la etapa <span className="font-semibold">"{deletingEtapa?.nombre}"</span>? Esta acción no se puede deshacer.
+          </p>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={handleDeleteEtapa}
+              disabled={confirmingDeleteEtapa}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50 transition-colors"
+            >
+              {confirmingDeleteEtapa && <Loader2 size={14} className="animate-spin" />}
+              Eliminar
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeletingEtapa(null)}
+              className="flex-1 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <PesosSheet
         open={pesosSheetOpen}

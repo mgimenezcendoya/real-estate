@@ -630,6 +630,8 @@ export const api = {
     fetcher<{ ok: boolean }>(`/admin/obra/${projectId}/pesos`, { method: 'PUT', body: JSON.stringify(pesos) }),
   addEtapa: (projectId: string, data: { nombre: string; peso_pct: number }) =>
     fetcher<ObraEtapa>(`/admin/obra/${projectId}/etapas`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteEtapa: (etapaId: string) =>
+    fetcher<{ deleted: boolean }>(`/admin/obra/etapas/${etapaId}`, { method: 'DELETE' }),
   createObraUpdate: (projectId: string, formData: FormData) => {
     const headers: Record<string, string> = {};
     if (getAuthToken()) headers['Authorization'] = `Bearer ${getAuthToken()}`;

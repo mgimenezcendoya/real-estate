@@ -209,6 +209,15 @@ export default function ReservasPage() {
                       </button>
                     </>
                   )}
+                  {r.status === 'converted' && !isReader && (
+                    <button
+                      title="Cancelar venta"
+                      onClick={() => setPendingAction({ reservation: r, action: 'cancelled' })}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <XCircle size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -221,12 +230,18 @@ export default function ReservasPage() {
         <DialogContent className="sm:max-w-[380px] bg-white">
           <DialogHeader>
             <DialogTitle className="text-gray-900">
-              {pendingAction?.action === 'converted' ? 'Convertir en venta' : 'Cancelar reserva'}
+              {pendingAction?.action === 'converted'
+                ? 'Convertir en venta'
+                : pendingAction?.reservation.status === 'converted'
+                ? 'Cancelar venta'
+                : 'Cancelar reserva'}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-gray-600">
             {pendingAction?.action === 'converted'
               ? `¿Confirmar la venta de la Unidad ${pendingAction?.reservation.unit_identifier}? La unidad pasará a estado "Vendida" y se registrará el comprador.`
+              : pendingAction?.reservation.status === 'converted'
+              ? `¿Cancelar la venta de la Unidad ${pendingAction?.reservation.unit_identifier}? La unidad volverá a estar disponible.`
               : `¿Cancelar la reserva de la Unidad ${pendingAction?.reservation.unit_identifier}? La unidad volverá a estar disponible.`}
           </p>
           <DialogFooter className="gap-2">

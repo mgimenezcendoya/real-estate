@@ -1662,6 +1662,21 @@ async def add_etapa(project_id: str, request: Request):
     return dict(row)
 
 
+@router.delete("/obra/etapas/{etapa_id}")
+async def delete_etapa(etapa_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Delete a custom (non-standard) etapa."""
+    pool = await get_pool()
+    etapa = await pool.fetchrow(
+        "SELECT id, es_standard FROM obra_etapas WHERE id = $1", etapa_id
+    )
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa no encontrada")
+    if etapa["es_standard"]:
+        raise HTTPException(status_code=400, detail="No se pueden eliminar etapas estándar")
+    await pool.execute("DELETE FROM obra_etapas WHERE id = $1", etapa_id)
+    return {"deleted": True}
+
+
 @router.post("/obra/{project_id}/updates")
 async def create_obra_update(
     project_id: str,
@@ -1982,8 +1997,11 @@ async def patch_reservation(
     if not reservation:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
 
-    if reservation["status"] != "active":
+    if reservation["status"] not in ("active", "converted"):
         raise HTTPException(status_code=409, detail=f"La reserva ya está en estado '{reservation['status']}'")
+
+    if reservation["status"] == "converted" and body.status != "cancelled":
+        raise HTTPException(status_code=409, detail="Una venta ya convertida solo puede cancelarse")
 
     unit_id = reservation["unit_id"]
 
