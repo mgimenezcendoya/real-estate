@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -696,8 +695,8 @@ export default function UsuariosPage() {
 
             <div>
               <Label>Instrucciones adicionales (append)</Label>
-              <Textarea
-                className="min-h-[120px] resize-y"
+              <textarea
+                className="w-full min-h-[120px] rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-ring"
                 placeholder="Ejemplo: Siempre mencionar que los precios son en USD. Nunca ofrecer descuentos sin consultar al asesor."
                 value={agentForm.system_prompt_append}
                 onChange={e => setAgentForm(f => ({ ...f, system_prompt_append: e.target.value }))}
