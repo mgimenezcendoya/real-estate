@@ -498,6 +498,48 @@ export interface ObraPayment {
   etapa_nombre?: string | null;
 }
 
+// --- Tenant Channel types ---
+export interface TenantChannel {
+  id: string;
+  organization_id: string;
+  org_name?: string;
+  provider: 'twilio' | 'meta';
+  phone_number: string;
+  display_name?: string;
+  account_sid?: string;
+  auth_token?: string;
+  access_token?: string;
+  phone_number_id?: string;
+  verify_token?: string;
+  waba_id?: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantChannelCreate {
+  organization_id?: string;
+  provider: 'twilio' | 'meta';
+  phone_number: string;
+  display_name?: string;
+  account_sid?: string;
+  auth_token?: string;
+  access_token?: string;
+  phone_number_id?: string;
+  verify_token?: string;
+  waba_id?: string;
+}
+
+export interface AgentConfig {
+  organization_id: string;
+  agent_name: string;
+  system_prompt_override?: string;
+  system_prompt_append?: string;
+  model: string;
+  max_tokens: number;
+  temperature: number;
+}
+
 // --- API calls ---
 export const api = {
   getProjects: () => fetcher<Project[]>('/admin/projects'),
@@ -788,6 +830,25 @@ export const api = {
     fetcher<Organization>(`/admin/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   toggleOrganizationActive: (id: string) =>
     fetcher<{ id: string; name: string; activa: boolean }>(`/admin/organizations/${id}/toggle-active`, { method: 'PATCH' }),
+
+  // --- Tenant Channels ---
+  getTenantChannels: () => fetcher<TenantChannel[]>('/admin/tenant-channels'),
+  createTenantChannel: (data: TenantChannelCreate) =>
+    fetcher<TenantChannel>('/admin/tenant-channels', { method: 'POST', body: JSON.stringify(data) }),
+  updateTenantChannel: (id: string, data: Partial<TenantChannelCreate & { activo: boolean }>) =>
+    fetcher<TenantChannel>(`/admin/tenant-channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTenantChannel: (id: string) =>
+    fetcher<void>(`/admin/tenant-channels/${id}`, { method: 'DELETE' }),
+
+  // --- Agent Config ---
+  getAgentConfig: (orgId?: string) => {
+    const qs = orgId ? `?org_id=${orgId}` : '';
+    return fetcher<AgentConfig>(`/admin/agent-config${qs}`);
+  },
+  updateAgentConfig: (data: Partial<AgentConfig>, orgId?: string) => {
+    const qs = orgId ? `?org_id=${orgId}` : '';
+    return fetcher<AgentConfig>(`/admin/agent-config${qs}`, { method: 'PATCH', body: JSON.stringify(data) });
+  },
 
   // --- Audit log ---
   getAuditLog: (params?: { project_id?: string; table_name?: string; record_id?: string; user_id?: string; limit?: number; offset?: number }) => {
