@@ -168,3 +168,37 @@ Intenciones posibles: precio, financiamiento, disponibilidad, ubicacion, ameniti
 
 Responde SOLO con un JSON array de las intenciones detectadas.
 """
+
+
+def build_lead_system_prompt(
+    agent_config,
+    developer_name: str,
+    qualification_status: str,
+    missing_fields: str,
+) -> str:
+    """
+    Build the system prompt for the lead agent.
+    Uses agent_config.system_prompt_override if set (full custom prompt).
+    Otherwise uses the base LEAD_SYSTEM_PROMPT template with optional append.
+    """
+    if agent_config.system_prompt_override:
+        # Tenant has a fully custom prompt — try to format it, fall back to raw
+        try:
+            base = agent_config.system_prompt_override.format(
+                developer_name=developer_name,
+                qualification_status=qualification_status,
+                missing_fields=missing_fields,
+            )
+        except (KeyError, ValueError):
+            base = agent_config.system_prompt_override
+    else:
+        base = LEAD_SYSTEM_PROMPT.format(
+            developer_name=developer_name,
+            qualification_status=qualification_status,
+            missing_fields=missing_fields,
+        )
+
+    if agent_config.system_prompt_append:
+        base = base + "\n\n" + agent_config.system_prompt_append
+
+    return base

@@ -14,7 +14,7 @@ from anthropic import AsyncAnthropic
 from app.config import get_settings
 from app.core.sse import connection_manager
 from app.database import get_pool
-from app.modules.agent.prompts import LEAD_SYSTEM_PROMPT
+from app.modules.agent.prompts import build_lead_system_prompt
 from app.modules.agent.session import (
     get_or_create_session,
     get_conversation_history,
@@ -341,10 +341,14 @@ async def _generate_response(
     user_message: str,
 ) -> str:
     """Call Claude to generate a response, with project PDFs as native attachments."""
+    from app.modules.agent.config_loader import get_agent_config
     settings = get_settings()
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    system = LEAD_SYSTEM_PROMPT.format(
+    agent_config = await get_agent_config(developer_id)
+
+    system = build_lead_system_prompt(
+        agent_config=agent_config,
         developer_name=developer_name,
         qualification_status=build_qualification_status(qualification),
         missing_fields=build_missing_fields(qualification),
@@ -374,8 +378,8 @@ async def _generate_response(
     messages.append({"role": "user", "content": user_message})
 
     response = await client.messages.create(
-        model=settings.anthropic_model,
-        max_tokens=800,
+        model=agent_config.model,
+        max_tokens=agent_config.max_tokens,
         system=system,
         messages=messages,
     )
