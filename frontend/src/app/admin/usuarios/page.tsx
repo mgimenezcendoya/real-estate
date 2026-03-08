@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { api, User, Organization } from '@/lib/api';
+import { useCallback, useEffect, useState } from 'react';
+import { api, User, Organization, TenantChannel, TenantChannelCreate, AgentConfig } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Plus, Pencil, KeyRound, UserX, UserCheck, Users, Building2, PowerOff, Power } from 'lucide-react';
+import { Plus, Pencil, KeyRound, UserX, UserCheck, Users, Building2, PowerOff, Power, WifiOff, Phone, Bot } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
@@ -37,7 +37,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 type ModalMode = 'create' | 'edit' | 'reset-password' | null;
-type Tab = 'usuarios' | 'organizaciones';
+type Tab = 'usuarios' | 'organizaciones' | 'canales' | 'agente';
 
 export default function UsuariosPage() {
   const { isAdmin, role } = useAuth();
@@ -63,6 +63,68 @@ export default function UsuariosPage() {
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
   const [savingOrg, setSavingOrg] = useState(false);
   const [orgForm, setOrgForm] = useState({ name: '', tipo: 'ambas', cuit: '' });
+
+  // --- Canales state ---
+  const [channels, setChannels] = useState<TenantChannel[]>([]);
+  const [channelModal, setChannelModal] = useState<'create' | 'edit' | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<TenantChannel | null>(null);
+  const [channelForm, setChannelForm] = useState<TenantChannelCreate>({
+    organization_id: '',
+    provider: 'meta',
+    phone_number: '',
+    display_name: '',
+    account_sid: '',
+    auth_token: '',
+    access_token: '',
+    phone_number_id: '',
+    verify_token: '',
+    waba_id: '',
+  });
+
+  const loadChannels = useCallback(async () => {
+    try {
+      const data = await api.getTenantChannels();
+      setChannels(data);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'canales') loadChannels();
+  }, [activeTab, loadChannels]);
+
+  // --- Agente state ---
+  const [, setAgentConfig] = useState<AgentConfig | null>(null);
+  const [agentForm, setAgentForm] = useState({
+    agent_name: '',
+    system_prompt_append: '',
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 800,
+    temperature: 0.7,
+  });
+  const [savingAgent, setSavingAgent] = useState(false);
+  const [selectedAgentOrg, setSelectedAgentOrg] = useState('');
+
+  const loadAgentConfig = useCallback(async (orgId?: string) => {
+    try {
+      const data = await api.getAgentConfig(orgId);
+      setAgentConfig(data);
+      setAgentForm({
+        agent_name: data.agent_name,
+        system_prompt_append: data.system_prompt_append || '',
+        model: data.model,
+        max_tokens: data.max_tokens,
+        temperature: data.temperature,
+      });
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'agente') loadAgentConfig(isSuperAdmin ? selectedAgentOrg || undefined : undefined);
+  }, [activeTab, selectedAgentOrg, loadAgentConfig, isSuperAdmin]);
 
   useEffect(() => { load(); }, []);
 
@@ -303,6 +365,32 @@ export default function UsuariosPage() {
             {orgs.length}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('canales')}
+          className={cn(
+            'flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-all',
+            activeTab === 'canales'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-muted-foreground hover:text-gray-700'
+          )}
+        >
+          <Phone size={14} />
+          Canales WhatsApp
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('agente')}
+          className={cn(
+            'flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg transition-all',
+            activeTab === 'agente'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-muted-foreground hover:text-gray-700'
+          )}
+        >
+          <Bot size={14} />
+          Agente IA
+        </button>
       </div>
 
       {/* ── USUARIOS TAB ── */}
@@ -476,6 +564,210 @@ export default function UsuariosPage() {
         </div>
       )}
 
+      {/* ===== CANALES ===== */}
+      {activeTab === 'canales' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display font-semibold text-gray-900">Canales WhatsApp</h2>
+              <p className="text-sm text-muted-foreground">Números de WhatsApp registrados por organización</p>
+            </div>
+            <Button onClick={() => {
+              setChannelForm({ organization_id: '', provider: 'meta', phone_number: '', display_name: '', account_sid: '', auth_token: '', access_token: '', phone_number_id: '', verify_token: '', waba_id: '' });
+              setSelectedChannel(null);
+              setChannelModal('create');
+            }}>
+              <Plus size={14} className="mr-1.5" /> Nuevo canal
+            </Button>
+          </div>
+
+          {channels.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <Phone size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No hay canales registrados</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {channels.map((ch) => (
+                <div key={ch.id} className="glass flex items-center gap-4 px-4 py-3 rounded-xl">
+                  <div className={cn(
+                    'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0',
+                    ch.provider === 'meta' ? 'bg-green-100' : 'bg-blue-100'
+                  )}>
+                    <Phone size={14} className={ch.provider === 'meta' ? 'text-green-700' : 'text-blue-700'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-gray-900">{ch.phone_number}</span>
+                      {ch.display_name && <span className="text-xs text-muted-foreground">— {ch.display_name}</span>}
+                      <Badge variant="outline" className="text-[10px] uppercase">
+                        {ch.provider}
+                      </Badge>
+                    </div>
+                    {isSuperAdmin && ch.org_name && (
+                      <p className="text-xs text-muted-foreground">{ch.org_name}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={cn(
+                      'text-[10px]',
+                      ch.activo ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-500'
+                    )}>
+                      {ch.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedChannel(ch);
+                        setChannelForm({
+                          organization_id: ch.organization_id,
+                          provider: ch.provider,
+                          phone_number: ch.phone_number,
+                          display_name: ch.display_name || '',
+                          account_sid: ch.account_sid || '',
+                          auth_token: ch.auth_token || '',
+                          access_token: ch.access_token || '',
+                          phone_number_id: ch.phone_number_id || '',
+                          verify_token: ch.verify_token || '',
+                          waba_id: ch.waba_id || '',
+                        });
+                        setChannelModal('edit');
+                      }}
+                    >
+                      <Pencil size={13} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      onClick={async () => {
+                        if (!confirm('¿Desactivar este canal?')) return;
+                        await api.deleteTenantChannel(ch.id);
+                        toast.success('Canal desactivado');
+                        loadChannels();
+                      }}
+                    >
+                      <WifiOff size={13} />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== AGENTE IA ===== */}
+      {activeTab === 'agente' && (
+        <div className="max-w-2xl space-y-6">
+          <div>
+            <h2 className="font-display font-semibold text-gray-900">Configuración del Agente IA</h2>
+            <p className="text-sm text-muted-foreground">Personalizar el nombre, tono y comportamiento del agente para esta organización.</p>
+          </div>
+
+          {/* Superadmin: org selector */}
+          {isSuperAdmin && (
+            <div>
+              <Label>Organización</Label>
+              <Select
+                value={selectedAgentOrg}
+                onValueChange={setSelectedAgentOrg}
+              >
+                <SelectTrigger><SelectValue placeholder="Mi organización" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Mi organización</SelectItem>
+                  {orgs.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="glass p-5 rounded-xl space-y-4">
+            <div>
+              <Label>Nombre del agente</Label>
+              <Input
+                placeholder="Asistente"
+                value={agentForm.agent_name}
+                onChange={e => setAgentForm(f => ({ ...f, agent_name: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground mt-1">El nombre que usa el agente para identificarse internamente</p>
+            </div>
+
+            <div>
+              <Label>Instrucciones adicionales (append)</Label>
+              <textarea
+                className="w-full min-h-[120px] rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder="Ejemplo: Siempre mencionar que los precios son en USD. Nunca ofrecer descuentos sin consultar al asesor."
+                value={agentForm.system_prompt_append}
+                onChange={e => setAgentForm(f => ({ ...f, system_prompt_append: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Se agrega al final del prompt base. Ideal para reglas específicas del negocio.</p>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>Modelo</Label>
+                <Select
+                  value={agentForm.model}
+                  onValueChange={v => setAgentForm(f => ({ ...f, model: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="claude-haiku-4-5-20251001">Haiku 4.5 (rápido)</SelectItem>
+                    <SelectItem value="claude-sonnet-4-6">Sonnet 4.6 (mejor)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Max tokens</Label>
+                <Input
+                  type="number"
+                  min={100}
+                  max={4096}
+                  value={agentForm.max_tokens}
+                  onChange={e => setAgentForm(f => ({ ...f, max_tokens: Number(e.target.value) }))}
+                />
+              </div>
+              <div>
+                <Label>Temperature (0–2)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={agentForm.temperature}
+                  onChange={e => setAgentForm(f => ({ ...f, temperature: Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              disabled={savingAgent}
+              onClick={async () => {
+                setSavingAgent(true);
+                try {
+                  await api.updateAgentConfig(
+                    agentForm,
+                    isSuperAdmin && selectedAgentOrg ? selectedAgentOrg : undefined
+                  );
+                  toast.success('Configuración del agente guardada');
+                  loadAgentConfig(isSuperAdmin ? selectedAgentOrg || undefined : undefined);
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : 'Error al guardar');
+                } finally {
+                  setSavingAgent(false);
+                }
+              }}
+            >
+              {savingAgent ? 'Guardando...' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal crear / editar usuario ── */}
       <Dialog open={modalMode === 'create' || modalMode === 'edit'} onOpenChange={open => !open && setModalMode(null)}>
         <DialogContent className="max-w-md">
@@ -564,6 +856,147 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setModalMode(null)}>Cancelar</Button>
             <Button onClick={handleResetPassword} disabled={saving || !newPassword}>
               {saving ? 'Guardando...' : 'Actualizar contraseña'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Modal crear / editar canal WhatsApp ── */}
+      <Dialog open={channelModal !== null} onOpenChange={(o) => !o && setChannelModal(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{channelModal === 'create' ? 'Nuevo canal WhatsApp' : 'Editar canal'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Provider */}
+            <div>
+              <Label>Provider</Label>
+              <Select
+                value={channelForm.provider}
+                onValueChange={(v: 'twilio' | 'meta') => setChannelForm(f => ({ ...f, provider: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="meta">Meta Cloud API</SelectItem>
+                  <SelectItem value="twilio">Twilio Sandbox</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Org — superadmin only */}
+            {isSuperAdmin && (
+              <div>
+                <Label>Organización</Label>
+                <Select
+                  value={channelForm.organization_id}
+                  onValueChange={(v) => setChannelForm(f => ({ ...f, organization_id: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar org..." /></SelectTrigger>
+                  <SelectContent>
+                    {orgs.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {/* Phone number */}
+            <div>
+              <Label>Número de teléfono (E.164)</Label>
+              <Input
+                placeholder="+5491112345678"
+                value={channelForm.phone_number}
+                onChange={e => setChannelForm(f => ({ ...f, phone_number: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Nombre descriptivo (opcional)</Label>
+              <Input
+                placeholder="Canal principal"
+                value={channelForm.display_name || ''}
+                onChange={e => setChannelForm(f => ({ ...f, display_name: e.target.value }))}
+              />
+            </div>
+
+            {/* Meta fields */}
+            {channelForm.provider === 'meta' && (<>
+              <div>
+                <Label>Access Token</Label>
+                <Input
+                  type="password"
+                  placeholder="EAA..."
+                  value={channelForm.access_token || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, access_token: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Phone Number ID</Label>
+                <Input
+                  placeholder="123456789012345"
+                  value={channelForm.phone_number_id || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, phone_number_id: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Verify Token (para webhook)</Label>
+                <Input
+                  placeholder="mi_verify_token_secreto"
+                  value={channelForm.verify_token || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, verify_token: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>WABA ID (opcional)</Label>
+                <Input
+                  placeholder="123456789"
+                  value={channelForm.waba_id || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, waba_id: e.target.value }))}
+                />
+              </div>
+            </>)}
+
+            {/* Twilio fields */}
+            {channelForm.provider === 'twilio' && (<>
+              <div>
+                <Label>Account SID</Label>
+                <Input
+                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  value={channelForm.account_sid || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, account_sid: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>Auth Token</Label>
+                <Input
+                  type="password"
+                  placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  value={channelForm.auth_token || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, auth_token: e.target.value }))}
+                />
+              </div>
+            </>)}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChannelModal(null)}>Cancelar</Button>
+            <Button
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                try {
+                  if (channelModal === 'create') {
+                    await api.createTenantChannel(channelForm);
+                    toast.success('Canal creado');
+                  } else if (selectedChannel) {
+                    await api.updateTenantChannel(selectedChannel.id, channelForm);
+                    toast.success('Canal actualizado');
+                  }
+                  setChannelModal(null);
+                  loadChannels();
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : 'Error al guardar');
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            >
+              {saving ? 'Guardando...' : 'Guardar'}
             </Button>
           </DialogFooter>
         </DialogContent>
