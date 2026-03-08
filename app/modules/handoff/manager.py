@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 from app.database import get_pool
-from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message
+# from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message  # TODO: re-enable per-tenant
 from app.modules.whatsapp.sender import send_text_message
 
 logger = logging.getLogger(__name__)
@@ -120,15 +120,16 @@ async def initiate_handoff(
     project = await pool.fetchrow("SELECT name FROM projects WHERE id = $1", project_id)
     score = await pool.fetchval("SELECT score FROM leads WHERE id = $1", lead_id)
 
-    await send_handoff_alert(
-        handoff_id=str(handoff["id"]),
-        lead_name=lead["name"] or "Sin nombre",
-        lead_phone=lead["phone"],
-        project_name=project["name"] if project else "?",
-        score=score or "?",
-        context_summary=context_summary,
-        conversation_history=conversation_history,
-    )
+    # TODO: re-enable per-tenant when tenant_channels includes telegram_chat_id
+    # await send_handoff_alert(
+    #     handoff_id=str(handoff["id"]),
+    #     lead_name=lead["name"] or "Sin nombre",
+    #     lead_phone=lead["phone"],
+    #     project_name=project["name"] if project else "?",
+    #     score=score or "?",
+    #     context_summary=context_summary,
+    #     conversation_history=conversation_history,
+    # )
 
     if lead:
         await send_text_message(
@@ -161,8 +162,10 @@ async def initiate_handoff(
 
 
 async def handle_lead_message_during_handoff(handoff: dict, text: str) -> None:
-    """Forward a lead message to the active Telegram handoff thread."""
-    await forward_lead_message(str(handoff["id"]), text)
+    """Forward a lead message to the active handoff thread (Telegram disabled, uses SSE only)."""
+    # TODO: re-enable per-tenant when tenant_channels includes telegram_chat_id
+    # await forward_lead_message(str(handoff["id"]), text)
+    pass
 
 
 async def close_handoff(handoff_id: str, lead_note: str | None = None, send_goodbye: bool = True) -> None:
