@@ -28,7 +28,7 @@ from app.modules.handoff.manager import (
     ensure_handoff_for_human_reply,
     get_active_handoff_by_lead_id,
 )
-from app.modules.handoff.telegram import _handle_update as handle_telegram_update
+# from app.modules.handoff.telegram import _handle_update as handle_telegram_update  # TODO: re-enable per-tenant
 from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.obra.notifier import notify_buyers_of_update
 from datetime import datetime, timezone, date as date_type
@@ -386,6 +386,31 @@ class OrganizationBody(BaseModel):
     cuit: Optional[str] = None
 
 
+class TenantChannelCreate(BaseModel):
+    organization_id: Optional[str] = None   # required if superadmin
+    provider: str  # 'twilio' | 'meta'
+    phone_number: str
+    display_name: Optional[str] = None
+    account_sid: Optional[str] = None
+    auth_token: Optional[str] = None
+    access_token: Optional[str] = None
+    phone_number_id: Optional[str] = None
+    verify_token: Optional[str] = None
+    waba_id: Optional[str] = None
+
+
+class TenantChannelUpdate(BaseModel):
+    display_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    account_sid: Optional[str] = None
+    auth_token: Optional[str] = None
+    access_token: Optional[str] = None
+    phone_number_id: Optional[str] = None
+    verify_token: Optional[str] = None
+    waba_id: Optional[str] = None
+    activo: Optional[bool] = None
+
+
 @router.post("/organizations")
 async def create_organization(
     body: OrganizationBody,
@@ -450,6 +475,143 @@ async def toggle_organization_active(
         raise HTTPException(status_code=404, detail="Organización no encontrada")
     logger.info("Organization %s toggled active=%s", org_id, row["activa"])
     return dict(row)
+
+
+# --- Tenant Channels ---
+
+@router.get("/tenant-channels")
+async def list_tenant_channels(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """List tenant channels. Superadmin sees all, admin sees own org."""
+    pool = await get_pool()
+    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
+    if not payload:
+        raise HTTPException(401)
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    if caller_role == "superadmin":
+        rows = await pool.fetch(
+            """SELECT tc.id, tc.organization_id, tc.provider, tc.phone_number,
+                      tc.display_name, tc.account_sid, tc.auth_token, tc.access_token,
+                      tc.phone_number_id, tc.verify_token, tc.waba_id, tc.activo,
+                      tc.created_at, tc.updated_at, o.name as org_name
+               FROM tenant_channels tc
+               JOIN organizations o ON o.id = tc.organization_id
+               ORDER BY o.name, tc.provider"""
+        )
+    else:
+        rows = await pool.fetch(
+            """SELECT tc.id, tc.organization_id, tc.provider, tc.phone_number,
+                      tc.display_name, tc.account_sid, tc.auth_token, tc.access_token,
+                      tc.phone_number_id, tc.verify_token, tc.waba_id, tc.activo,
+                      tc.created_at, tc.updated_at, o.name as org_name
+               FROM tenant_channels tc
+               JOIN organizations o ON o.id = tc.organization_id
+               WHERE tc.organization_id = $1
+               ORDER BY tc.provider""",
+            caller_org
+        )
+    return [dict(r) for r in rows]
+
+
+@router.post("/tenant-channels")
+async def create_tenant_channel(
+    body: TenantChannelCreate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Create a tenant channel. Superadmin can set any org_id; admin creates for own org."""
+    pool = await get_pool()
+    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
+    if not payload:
+        raise HTTPException(401)
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    if caller_role not in ("superadmin", "admin"):
+        raise HTTPException(403, detail="Solo admin o superadmin pueden crear canales")
+
+    target_org = body.organization_id if caller_role == "superadmin" else caller_org
+    if not target_org:
+        raise HTTPException(400, detail="organization_id requerido")
+
+    if body.provider not in ("twilio", "meta"):
+        raise HTTPException(400, detail="provider debe ser 'twilio' o 'meta'")
+
+    row = await pool.fetchrow(
+        """INSERT INTO tenant_channels
+           (organization_id, provider, phone_number, display_name,
+            account_sid, auth_token, access_token, phone_number_id, verify_token, waba_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           RETURNING *""",
+        target_org, body.provider, body.phone_number, body.display_name,
+        body.account_sid, body.auth_token, body.access_token,
+        body.phone_number_id, body.verify_token, body.waba_id
+    )
+    return dict(row)
+
+
+@router.patch("/tenant-channels/{channel_id}")
+async def update_tenant_channel(
+    channel_id: str,
+    body: TenantChannelUpdate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Update a tenant channel."""
+    pool = await get_pool()
+    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
+    if not payload:
+        raise HTTPException(401)
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    channel = await pool.fetchrow("SELECT * FROM tenant_channels WHERE id = $1", channel_id)
+    if not channel:
+        raise HTTPException(404)
+    if caller_role != "superadmin" and str(channel["organization_id"]) != caller_org:
+        raise HTTPException(403)
+
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return dict(channel)
+
+    set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    row = await pool.fetchrow(
+        f"UPDATE tenant_channels SET {set_clause}, updated_at = NOW() WHERE id = $1 RETURNING *",
+        channel_id, *values
+    )
+    return dict(row)
+
+
+@router.delete("/tenant-channels/{channel_id}")
+async def delete_tenant_channel(
+    channel_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Soft-delete (deactivate) a tenant channel."""
+    pool = await get_pool()
+    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
+    if not payload:
+        raise HTTPException(401)
+
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+
+    channel = await pool.fetchrow("SELECT organization_id FROM tenant_channels WHERE id = $1", channel_id)
+    if not channel:
+        raise HTTPException(404)
+    if caller_role != "superadmin" and str(channel["organization_id"]) != caller_org:
+        raise HTTPException(403)
+
+    await pool.execute(
+        "UPDATE tenant_channels SET activo = false, updated_at = NOW() WHERE id = $1",
+        channel_id
+    )
+    return {"status": "ok"}
+
 
 @router.post("/upload-document")
 async def upload_document(
@@ -706,14 +868,14 @@ async def bulk_update_unit_status(request: Request):
     return {"updated": results}
 
 
-# --- Telegram webhook (admin fallback) ---
+# --- Telegram webhook (disabled — TODO: re-enable per-tenant) ---
 
-@router.post("/telegram/webhook")
-async def telegram_webhook_admin(request: Request):
-    """Receive webhook events from Telegram (admin fallback route)."""
-    body = await request.json()
-    await handle_telegram_update(body)
-    return {"status": "ok"}
+# @router.post("/telegram/webhook")
+# async def telegram_webhook_admin(request: Request):
+#     """Receive webhook events from Telegram (admin fallback route)."""
+#     body = await request.json()
+#     await handle_telegram_update(body)
+#     return {"status": "ok"}
 
 
 # --- Cron-triggered jobs ---
