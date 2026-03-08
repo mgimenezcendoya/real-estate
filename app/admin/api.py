@@ -544,7 +544,10 @@ async def create_tenant_channel(
         body.phone_number_id, body.verify_token, body.waba_id
     )
     logger.info("Tenant channel created id=%s provider=%s org=%s", row["id"], row["provider"], target_org)
-    return dict(row)
+    result = dict(row)
+    result.pop("auth_token", None)
+    result.pop("access_token", None)
+    return result
 
 
 @router.patch("/tenant-channels/{channel_id}")
@@ -577,7 +580,10 @@ async def update_tenant_channel(
         channel_id, *values
     )
     logger.info("Tenant channel updated id=%s fields=%s", channel_id, list(updates.keys()))
-    return dict(row)
+    result = dict(row)
+    result.pop("auth_token", None)
+    result.pop("access_token", None)
+    return result
 
 
 @router.delete("/tenant-channels/{channel_id}")
