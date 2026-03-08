@@ -43,8 +43,10 @@ async def get_developer_document_blocks(developer_id: str) -> list[dict[str, Any
         doc_id = str(doc["id"])
 
         try:
-            if doc_id in _pdf_cache:
-                data_b64 = _pdf_cache[doc_id]["data_b64"]
+            cache_key = f"{developer_id}:{doc_id}"
+
+            if cache_key in _pdf_cache:
+                data_b64 = _pdf_cache[cache_key]["data_b64"]
             else:
                 pdf_bytes = await download_file(doc["file_url"])
 
@@ -56,7 +58,7 @@ async def get_developer_document_blocks(developer_id: str) -> list[dict[str, Any
                     continue
 
                 data_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
-                _pdf_cache[doc_id] = {"data_b64": data_b64}
+                _pdf_cache[cache_key] = {"data_b64": data_b64}
 
             unit_info = f" - Unidad {doc['unit_identifier']}" if doc["unit_identifier"] else ""
             title = f"{doc['project_name']} | {doc['doc_type']}{unit_info}: {doc['filename']}"
@@ -81,9 +83,15 @@ async def get_developer_document_blocks(developer_id: str) -> list[dict[str, Any
     return blocks
 
 
-def invalidate_document_cache(document_id: str) -> None:
+def invalidate_document_cache(document_id: str, organization_id: str | None = None) -> None:
     """Remove a document from the in-memory cache (call after update/delete)."""
-    _pdf_cache.pop(document_id, None)
+    if organization_id:
+        _pdf_cache.pop(f"{organization_id}:{document_id}", None)
+    else:
+        # Fallback: scan all keys (for callers that don't have org_id)
+        keys_to_remove = [k for k in _pdf_cache if k.endswith(f":{document_id}")]
+        for k in keys_to_remove:
+            _pdf_cache.pop(k, None)
 
 
 def clear_document_cache() -> None:
