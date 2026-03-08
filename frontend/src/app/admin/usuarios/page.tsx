@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { api, User, Organization, TenantChannel, TenantChannelCreate, AgentConfig } from '@/lib/api';
+import { api, User, Organization, TenantChannel, TenantChannelCreate } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -68,6 +69,7 @@ export default function UsuariosPage() {
   const [channels, setChannels] = useState<TenantChannel[]>([]);
   const [channelModal, setChannelModal] = useState<'create' | 'edit' | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<TenantChannel | null>(null);
+  const [savingChannel, setSavingChannel] = useState(false);
   const [channelForm, setChannelForm] = useState<TenantChannelCreate>({
     organization_id: '',
     provider: 'meta',
@@ -95,7 +97,6 @@ export default function UsuariosPage() {
   }, [activeTab, loadChannels]);
 
   // --- Agente state ---
-  const [, setAgentConfig] = useState<AgentConfig | null>(null);
   const [agentForm, setAgentForm] = useState({
     agent_name: '',
     system_prompt_append: '',
@@ -109,7 +110,6 @@ export default function UsuariosPage() {
   const loadAgentConfig = useCallback(async (orgId?: string) => {
     try {
       const data = await api.getAgentConfig(orgId);
-      setAgentConfig(data);
       setAgentForm({
         agent_name: data.agent_name,
         system_prompt_append: data.system_prompt_append || '',
@@ -696,8 +696,8 @@ export default function UsuariosPage() {
 
             <div>
               <Label>Instrucciones adicionales (append)</Label>
-              <textarea
-                className="w-full min-h-[120px] rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+              <Textarea
+                className="min-h-[120px] resize-y"
                 placeholder="Ejemplo: Siempre mencionar que los precios son en USD. Nunca ofrecer descuentos sin consultar al asesor."
                 value={agentForm.system_prompt_append}
                 onChange={e => setAgentForm(f => ({ ...f, system_prompt_append: e.target.value }))}
@@ -976,9 +976,9 @@ export default function UsuariosPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setChannelModal(null)}>Cancelar</Button>
             <Button
-              disabled={saving}
+              disabled={savingChannel}
               onClick={async () => {
-                setSaving(true);
+                setSavingChannel(true);
                 try {
                   if (channelModal === 'create') {
                     await api.createTenantChannel(channelForm);
@@ -992,11 +992,11 @@ export default function UsuariosPage() {
                 } catch (e: unknown) {
                   toast.error(e instanceof Error ? e.message : 'Error al guardar');
                 } finally {
-                  setSaving(false);
+                  setSavingChannel(false);
                 }
               }}
             >
-              {saving ? 'Guardando...' : 'Guardar'}
+              {savingChannel ? 'Guardando...' : 'Guardar'}
             </Button>
           </DialogFooter>
         </DialogContent>
