@@ -76,8 +76,23 @@ async def receive_message(request: Request):
 
     provider_instance = get_provider(channel)
     messages = await provider_instance.parse_webhook(request)
+    pool = await get_pool()
 
     for msg in messages:
+        # Idempotency: skip if already processed
+        inserted = await pool.fetchval(
+            """
+            INSERT INTO processed_messages (message_id, provider, organization_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (message_id, provider) DO NOTHING
+            RETURNING message_id
+            """,
+            msg.message_id, channel.provider, channel.organization_id,
+        )
+        if not inserted:
+            logger.info("Duplicate message %s from %s — skipping", msg.message_id, channel.provider)
+            continue
+
         logger.info(
             "Incoming [%s/%s] from %s: type=%s text=%s",
             provider, channel.organization_id[:8],

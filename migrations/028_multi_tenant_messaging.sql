@@ -27,9 +27,9 @@ CREATE TABLE tenant_channels (
     display_name     TEXT,                        -- optional human label
     -- Twilio credentials
     account_sid      TEXT,
-    auth_token_enc   TEXT,                        -- store as-is for now (encryption in later phase)
+    auth_token       TEXT,                        -- stored as plaintext
     -- Meta credentials
-    access_token_enc TEXT,                        -- store as-is for now
+    access_token     TEXT,                        -- stored as plaintext
     phone_number_id  TEXT,                        -- Meta phone_number_id
     verify_token     TEXT,
     waba_id          TEXT,
@@ -55,7 +55,7 @@ CREATE TABLE agent_configs (
     system_prompt_append   TEXT,       -- appended to base template (more common)
     model                  TEXT        NOT NULL DEFAULT 'claude-haiku-4-5-20251001',
     max_tokens             INT         NOT NULL DEFAULT 800,
-    temperature            FLOAT       NOT NULL DEFAULT 0.7,
+    temperature            FLOAT       NOT NULL DEFAULT 0.7 CHECK (temperature >= 0.0 AND temperature <= 2.0),
     created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -78,7 +78,7 @@ CREATE INDEX idx_processed_messages_cleanup ON processed_messages (processed_at)
 -- AFTER RUNNING THIS MIGRATION:
 --
 -- Insert your first tenant channel (replace values with actual env var values):
--- INSERT INTO tenant_channels (organization_id, provider, phone_number, account_sid, auth_token_enc, activo)
+-- INSERT INTO tenant_channels (organization_id, provider, phone_number, account_sid, auth_token, activo)
 -- SELECT id, 'twilio', '+14155238886', 'ACxxxxxxx', 'your_auth_token', true
 -- FROM organizations LIMIT 1;
 --

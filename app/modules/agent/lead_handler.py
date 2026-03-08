@@ -40,8 +40,8 @@ from app.modules.leads.qualification import (
 )
 from app.modules.rag.ingestion import find_document_for_sharing
 from app.modules.rag.retrieval import get_developer_document_blocks
-from app.modules.whatsapp.providers.base import IncomingMessage
-from app.modules.whatsapp.sender import send_document_message, send_text_message
+from app.modules.whatsapp.providers.base import IncomingMessage, TenantChannel
+from app.modules.whatsapp.providers.factory import get_provider as _get_provider
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,7 @@ async def handle_lead_message(
     message_id: str,
     message_type: str,
     message: IncomingMessage,
+    channel: TenantChannel | None = None,
 ) -> None:
     """Process an incoming message from a lead."""
     developer_id = developer["developer_id"]
@@ -202,7 +203,12 @@ async def handle_lead_message(
     )
 
     logger.info("Replying to %s: %s", sender_phone, clean_text[:80])
-    await send_text_message(to=sender_phone, text=clean_text)
+    if channel:
+        provider = _get_provider(channel)
+        await provider.send_text(sender_phone, clean_text)
+    else:
+        from app.modules.whatsapp.sender import send_text_message
+        await send_text_message(to=sender_phone, text=clean_text)
 
     # Broadcast AI response to the admin inbox — non-blocking
     asyncio.create_task(
@@ -222,7 +228,7 @@ async def handle_lead_message(
 
     if doc_request:
         asyncio.create_task(
-            _send_document(developer_id, sender_phone, doc_request)
+            _send_document(developer_id, sender_phone, doc_request, channel)
         )
 
     if handoff_trigger:
@@ -305,7 +311,12 @@ def _build_handoff_context(
     return qualification_summary, full_history
 
 
-async def _send_document(developer_id: str, to_phone: str, doc_request: dict) -> None:
+async def _send_document(
+    developer_id: str,
+    to_phone: str,
+    doc_request: dict,
+    channel: TenantChannel | None = None,
+) -> None:
     """Find and send a document via WhatsApp (searches across all developer projects)."""
     try:
         doc = await find_document_for_sharing(
@@ -321,13 +332,23 @@ async def _send_document(developer_id: str, to_phone: str, doc_request: dict) ->
         document_url = doc["file_url"]
         logger.info("Sending doc to %s: type=%s url=%s", to_phone, doc_request["doc_type"], document_url)
 
-        result = await send_document_message(
-            to=to_phone,
-            document_url=document_url,
-            filename=doc["filename"],
-            caption=doc["filename"],
-        )
-        logger.info("Twilio response for doc send: %s", result)
+        if channel:
+            provider = _get_provider(channel)
+            result = await provider.send_document(
+                to=to_phone,
+                document_url=document_url,
+                filename=doc["filename"],
+                caption=doc["filename"],
+            )
+        else:
+            from app.modules.whatsapp.sender import send_document_message
+            result = await send_document_message(
+                to=to_phone,
+                document_url=document_url,
+                filename=doc["filename"],
+                caption=doc["filename"],
+            )
+        logger.info("Provider response for doc send: %s", result)
     except Exception as e:
         logger.error("Failed to send document to %s: %s", to_phone, e)
 

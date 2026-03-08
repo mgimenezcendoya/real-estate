@@ -74,13 +74,17 @@ async def resolve_tenant_channel(phone_hint: str, provider: str) -> TenantChanne
     # Production: lookup from tenant_channels table
     if provider == "meta":
         row = await pool.fetchrow(
-            """SELECT * FROM tenant_channels
+            """SELECT id, organization_id, provider, phone_number, display_name,
+                      account_sid, auth_token, access_token, phone_number_id, verify_token, waba_id
+               FROM tenant_channels
                WHERE phone_number_id = $1 AND provider = 'meta' AND activo = true""",
             phone_hint,
         )
     else:
         row = await pool.fetchrow(
-            """SELECT * FROM tenant_channels
+            """SELECT id, organization_id, provider, phone_number, display_name,
+                      account_sid, auth_token, access_token, phone_number_id, verify_token, waba_id
+               FROM tenant_channels
                WHERE phone_number = $1 AND provider = 'twilio' AND activo = true""",
             phone_hint,
         )
@@ -95,8 +99,8 @@ async def resolve_tenant_channel(phone_hint: str, provider: str) -> TenantChanne
         phone_number=row["phone_number"],
         display_name=row.get("display_name"),
         account_sid=row.get("account_sid"),
-        auth_token=row.get("auth_token_enc"),       # stored as plaintext for now
-        access_token=row.get("access_token_enc"),   # stored as plaintext for now
+        auth_token=row.get("auth_token"),
+        access_token=row.get("access_token"),
         phone_number_id=row.get("phone_number_id"),
         verify_token=row.get("verify_token"),
         waba_id=row.get("waba_id"),
@@ -209,6 +213,7 @@ async def route_message(
             message_id=message_id,
             message_type=message_type,
             message=message,
+            channel=channel,
         )
 
 
