@@ -680,6 +680,11 @@ async def update_agent_config_endpoint(
     # Validate temperature if provided
     if "temperature" in updates and not (0.0 <= updates["temperature"] <= 2.0):
         raise HTTPException(400, "temperature debe estar entre 0.0 y 2.0")
+    _ALLOWED_MODELS = {"claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-6"}
+    if "model" in updates and updates["model"] not in _ALLOWED_MODELS:
+        raise HTTPException(400, f"model no válido. Opciones: {', '.join(sorted(_ALLOWED_MODELS))}")
+    if "max_tokens" in updates and not (100 <= updates["max_tokens"] <= 4096):
+        raise HTTPException(400, "max_tokens debe estar entre 100 y 4096")
 
     set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
     values = list(updates.values())
