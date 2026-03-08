@@ -104,7 +104,7 @@ export default function UsuariosPage() {
     temperature: 0.7,
   });
   const [savingAgent, setSavingAgent] = useState(false);
-  const [selectedAgentOrg, setSelectedAgentOrg] = useState('');
+  const [selectedAgentOrg, setSelectedAgentOrg] = useState('__own__');
 
   const loadAgentConfig = useCallback(async (orgId?: string) => {
     try {
@@ -122,7 +122,7 @@ export default function UsuariosPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'agente') loadAgentConfig(isSuperAdmin ? selectedAgentOrg || undefined : undefined);
+    if (activeTab === 'agente') loadAgentConfig(isSuperAdmin && selectedAgentOrg !== '__own__' ? selectedAgentOrg : undefined);
   }, [activeTab, selectedAgentOrg, loadAgentConfig, isSuperAdmin]);
 
   useEffect(() => { load(); }, []);
@@ -675,7 +675,7 @@ export default function UsuariosPage() {
               >
                 <SelectTrigger><SelectValue placeholder="Mi organización" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Mi organización</SelectItem>
+                  <SelectItem value="__own__">Mi organización</SelectItem>
                   {orgs.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -750,10 +750,10 @@ export default function UsuariosPage() {
                 try {
                   await api.updateAgentConfig(
                     agentForm,
-                    isSuperAdmin && selectedAgentOrg ? selectedAgentOrg : undefined
+                    isSuperAdmin && selectedAgentOrg !== '__own__' ? selectedAgentOrg : undefined
                   );
                   toast.success('Configuración del agente guardada');
-                  loadAgentConfig(isSuperAdmin ? selectedAgentOrg || undefined : undefined);
+                  loadAgentConfig(isSuperAdmin && selectedAgentOrg !== '__own__' ? selectedAgentOrg : undefined);
                 } catch (e: unknown) {
                   toast.error(e instanceof Error ? e.message : 'Error al guardar');
                 } finally {
