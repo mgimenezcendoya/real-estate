@@ -5,7 +5,7 @@ The rest of the app works with IncomingMessage — never touches provider-specif
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Optional, Protocol
 
 
 @dataclass
@@ -22,6 +22,24 @@ class IncomingMessage:
     latitude: float | None = None
     longitude: float | None = None
     raw: dict = field(default_factory=dict)
+
+
+@dataclass
+class TenantChannel:
+    """Credentials and metadata for one tenant's messaging channel."""
+    id: str                          # UUID from tenant_channels table
+    organization_id: str             # UUID of the tenant
+    provider: str                    # 'twilio' | 'meta'
+    phone_number: str                # E.164, e.g. '+14155238886'
+    display_name: Optional[str] = None
+    # Twilio
+    account_sid: Optional[str] = None
+    auth_token: Optional[str] = None  # decrypted value (not _enc)
+    # Meta
+    access_token: Optional[str] = None
+    phone_number_id: Optional[str] = None
+    verify_token: Optional[str] = None
+    waba_id: Optional[str] = None
 
 
 class WhatsAppProvider(Protocol):
