@@ -482,10 +482,8 @@ async def toggle_organization_active(
 @router.get("/tenant-channels")
 async def list_tenant_channels(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """List tenant channels. Superadmin sees all, admin sees own org."""
+    payload = _require_admin(credentials)
     pool = await get_pool()
-    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
-    if not payload:
-        raise HTTPException(401)
 
     caller_role = payload.get("role")
     caller_org = payload.get("organization_id")
@@ -493,9 +491,8 @@ async def list_tenant_channels(credentials: Optional[HTTPAuthorizationCredential
     if caller_role == "superadmin":
         rows = await pool.fetch(
             """SELECT tc.id, tc.organization_id, tc.provider, tc.phone_number,
-                      tc.display_name, tc.account_sid, tc.auth_token, tc.access_token,
-                      tc.phone_number_id, tc.verify_token, tc.waba_id, tc.activo,
-                      tc.created_at, tc.updated_at, o.name as org_name
+                      tc.display_name, tc.phone_number_id, tc.verify_token, tc.waba_id,
+                      tc.activo, tc.created_at, tc.updated_at, o.name as org_name
                FROM tenant_channels tc
                JOIN organizations o ON o.id = tc.organization_id
                ORDER BY o.name, tc.provider"""
@@ -503,9 +500,8 @@ async def list_tenant_channels(credentials: Optional[HTTPAuthorizationCredential
     else:
         rows = await pool.fetch(
             """SELECT tc.id, tc.organization_id, tc.provider, tc.phone_number,
-                      tc.display_name, tc.account_sid, tc.auth_token, tc.access_token,
-                      tc.phone_number_id, tc.verify_token, tc.waba_id, tc.activo,
-                      tc.created_at, tc.updated_at, o.name as org_name
+                      tc.display_name, tc.phone_number_id, tc.verify_token, tc.waba_id,
+                      tc.activo, tc.created_at, tc.updated_at, o.name as org_name
                FROM tenant_channels tc
                JOIN organizations o ON o.id = tc.organization_id
                WHERE tc.organization_id = $1
@@ -521,10 +517,8 @@ async def create_tenant_channel(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Create a tenant channel. Superadmin can set any org_id; admin creates for own org."""
+    payload = _require_admin(credentials)
     pool = await get_pool()
-    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
-    if not payload:
-        raise HTTPException(401)
 
     caller_role = payload.get("role")
     caller_org = payload.get("organization_id")
@@ -549,6 +543,7 @@ async def create_tenant_channel(
         body.account_sid, body.auth_token, body.access_token,
         body.phone_number_id, body.verify_token, body.waba_id
     )
+    logger.info("Tenant channel created id=%s provider=%s org=%s", row["id"], row["provider"], target_org)
     return dict(row)
 
 
@@ -559,10 +554,8 @@ async def update_tenant_channel(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Update a tenant channel."""
+    payload = _require_admin(credentials)
     pool = await get_pool()
-    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
-    if not payload:
-        raise HTTPException(401)
 
     caller_role = payload.get("role")
     caller_org = payload.get("organization_id")
@@ -575,7 +568,7 @@ async def update_tenant_channel(
 
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
-        return dict(channel)
+        raise HTTPException(400, "No hay campos para actualizar")
 
     set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
     values = list(updates.values())
@@ -583,6 +576,7 @@ async def update_tenant_channel(
         f"UPDATE tenant_channels SET {set_clause}, updated_at = NOW() WHERE id = $1 RETURNING *",
         channel_id, *values
     )
+    logger.info("Tenant channel updated id=%s fields=%s", channel_id, list(updates.keys()))
     return dict(row)
 
 
@@ -592,10 +586,8 @@ async def delete_tenant_channel(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """Soft-delete (deactivate) a tenant channel."""
+    payload = _require_admin(credentials)
     pool = await get_pool()
-    payload = verify_token(credentials.credentials) if credentials and credentials.scheme == "Bearer" else None
-    if not payload:
-        raise HTTPException(401)
 
     caller_role = payload.get("role")
     caller_org = payload.get("organization_id")
@@ -610,6 +602,7 @@ async def delete_tenant_channel(
         "UPDATE tenant_channels SET activo = false, updated_at = NOW() WHERE id = $1",
         channel_id
     )
+    logger.info("Tenant channel deactivated id=%s", channel_id)
     return {"status": "ok"}
 
 
