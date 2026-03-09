@@ -38,36 +38,42 @@ Cada unidad no vendida representa **$60.000–$100.000 USD** de inventario inmov
 
 ## 3. Stack Técnico
 
-| Capa | Tecnologia | Dev (gratis) | Producción |
+> Detalle completo de costos, planes y análisis de migración en [STACK.md](./STACK.md)
+
+| Capa | Tecnología | Dev (actual) | Producción (objetivo) |
 |---|---|---|---|
-| Backend | Python + FastAPI | Render free tier | Railway (servicio) |
-| Base de datos app | PostgreSQL + pgvector | Neon free tier | Railway (plugin) — compartida con NocoDB |
-| Base de datos Chatwoot | PostgreSQL | — (Fase 4+) | Railway (plugin) — instancia separada |
+| Backend | Python + FastAPI | Render free → migrar a Railway | Railway Hobby/Pro |
+| Panel admin | Next.js 16 + shadcn/ui v3 | Render free → migrar a Railway | Railway (o Vercel Pro si necesita CDN) |
+| Landing page | HTML estático | Vercel free | Vercel (CDN global, se mantiene) |
+| Base de datos | PostgreSQL + pgvector | Neon free → migrar a Railway | Railway (plugin con pgvector) |
 | File storage | S3-compatible (Supabase Storage) | Supabase free tier | Supabase / Cloudflare R2 |
-| AI / LLM | Claude Haiku 4.5 (Anthropic) | API externa | API externa |
-| Audio transcription | OpenAI Whisper API | API externa | API externa |
-| Embeddings | OpenAI text-embedding-3-small (1536 dims) | API externa | API externa |
-| WhatsApp | Twilio Sandbox (dev) / Meta Cloud API (prod) | Twilio sandbox (gratis) | Meta Cloud API |
-| Panel web | Next.js 16 + shadcn/ui v3 | localhost:3000 | Render / Railway |
-| Handoff / Inbox ventas | Chatwoot (open source) | — (Fase 4+) | Railway (servicio) |
-| Panel de gestión legacy | NocoDB (open source) | — (descartado, reemplazado por Next.js) | — |
-| Background jobs | Cron → endpoints internos | Render cron (free) | Railway cron |
+| AI / LLM | Claude Haiku 4.5 (Anthropic) | API pay-per-use | API pay-per-use |
+| Audio transcription | OpenAI Whisper API | API pay-per-use | API pay-per-use |
+| WhatsApp | Twilio Sandbox (dev) / Meta Cloud API (prod) | Twilio sandbox | Meta Cloud API |
+| Notificaciones handoff | Telegram Bot API | Free | Free |
+| Background jobs | Cron → endpoints internos | Render cron → Railway cron | Railway cron |
 
 ### Estrategia de deploy
 
-La app se configura 100% por variables de entorno (`DATABASE_URL`, API keys, etc.). No tiene dependencias en la plataforma de hosting. **Migrar = cambiar env vars + redeploy.** Se mantiene `Dockerfile` + `railway.toml` + `render.yaml` para que funcione en cualquier plataforma sin cambios.
+La app se configura 100% por variables de entorno (`DATABASE_URL`, API keys, etc.). No tiene dependencias en la plataforma de hosting. **Migrar = cambiar env vars + redeploy.**
 
-**Entorno de desarrollo (gratis — Fases 0 a 3):**
-- **Neon** para PostgreSQL — pgvector incluido, 0.5GB storage, always-on, `pg_dump`/`pg_restore` estándar
+**Entorno de desarrollo actual (gratis):**
+- **Render free** para backend FastAPI + panel admin Next.js (spin-down a los 15min, cold start ~60s)
+- **Neon free** para PostgreSQL + pgvector (0.5GB, auto-suspend a los 5min)
+- **Vercel free** para landing page (HTML estático, CDN global)
 - **ngrok** + FastAPI local para desarrollo rápido (iteración sin deploys)
-- **Render** para testing estable cuando el código esté listo (free tier, spin-down tras 15min)
-- **Twilio WhatsApp Sandbox** para mensajería — setup en 5min, sin verificación Meta
-- **Supabase Storage** para S3 — 1GB gratis, API compatible con S3
+- **Twilio WhatsApp Sandbox** para mensajería
+- **Supabase Storage** para S3 — 1GB gratis
 
-**Entorno de producción (pago — cuando hay cliente validado):**
-- **Railway** para todo (FastAPI, NocoDB, Chatwoot, 2x PostgreSQL) — networking interno, deploy simple
-- Migración de DB: `pg_dump` desde Neon → `pg_restore` en Railway PG
-- Migración de app: `git push` al proyecto Railway, copiar env vars
+**Entorno objetivo (Railway + Vercel, $5/mes):**
+- **Railway Hobby** para backend + panel admin + PostgreSQL con pgvector — always-on, sin cold starts, networking interno
+- **Vercel free** se mantiene para landing page (no hay razón para moverla)
+- Migración: `pg_dump` desde Neon → `pg_restore` en Railway, redeploy back + panel admin
+
+**Entorno de producción (cuando hay cliente validado):**
+- **Railway Hobby/Pro** para back, panel admin, DB, workers
+- **Vercel** para landing page
+- **Meta Cloud API** para WhatsApp producción
 
 ---
 
