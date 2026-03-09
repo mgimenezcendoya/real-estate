@@ -357,7 +357,7 @@ export default function ProyectosPage() {
                     className="group block animate-fade-in-up"
                     style={{ animationDelay: `${idx * 45}ms`, animationFillMode: 'both' }}
                   >
-                    <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-blue-200 group-hover:shadow-lg group-hover:shadow-blue-500/[0.06] transition-all duration-200 flex flex-col overflow-hidden">
+                    <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-blue-200 group-hover:shadow-lg group-hover:shadow-blue-500/[0.06] transition-all duration-200 flex flex-col">
                       <div className="p-5 flex flex-col flex-1">
                         <div className="flex items-start justify-between mb-5">
                           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/70 flex items-center justify-center shadow-sm">

@@ -107,18 +107,7 @@ export default function ProjectDashboard() {
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-8">
-      {/* Lead metrics */}
-      <section>
-        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Resumen de leads</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total leads" value={metrics?.total_leads ?? '—'} icon={Users} colorClass="bg-blue-50 text-blue-700" loading={loading} />
-          <StatCard label="Hot 🔥" value={metrics?.hot ?? '—'} icon={Flame} colorClass="bg-red-50 text-red-600" loading={loading} />
-          <StatCard label="Warm 🌡" value={metrics?.warm ?? '—'} icon={TrendingUp} colorClass="bg-amber-50 text-amber-600" loading={loading} />
-          <StatCard label="Cold 🧊" value={metrics?.cold ?? '—'} icon={Users} colorClass="bg-sky-50 text-sky-600" loading={loading} />
-        </div>
-      </section>
-
-      {/* Unit metrics */}
+      {/* 1. Estado de unidades — ¿qué inventario tengo? */}
       <section>
         <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Estado de unidades</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -129,7 +118,111 @@ export default function ProjectDashboard() {
         </div>
       </section>
 
-      {/* Analytics: Funnel */}
+      {/* 2. Revenue — ¿cuánto dinero representa? */}
+      {(loading || analytics) && (
+        <section>
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Revenue</h2>
+          {loading ? (
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full bg-gray-100 rounded-xl" />)}
+            </div>
+          ) : analytics ? (
+            <div className="bg-white border border-gray-200 rounded-2xl p-6">
+              <div className="space-y-5">
+                <div>
+                  <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-sm font-medium text-gray-500">Potencial total</span>
+                    <span className="text-sm font-bold text-gray-800 tabular">{formatUSD(analytics.revenue.potential_usd)}</span>
+                  </div>
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gray-200 rounded-full w-full" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-sm font-medium text-gray-500">Reservado</span>
+                    <span className="text-sm font-bold text-amber-700 tabular">
+                      {formatUSD(analytics.revenue.reserved_usd)}
+                      <span className="font-normal text-gray-400 text-xs ml-1.5">
+                        ({pct(analytics.revenue.reserved_usd, analytics.revenue.potential_usd)}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-amber-50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                      style={{ width: `${pct(analytics.revenue.reserved_usd, analytics.revenue.potential_usd)}%` }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-baseline mb-2">
+                    <span className="text-sm font-medium text-gray-500">Vendido</span>
+                    <span className="text-sm font-bold text-emerald-700 tabular">
+                      {formatUSD(analytics.revenue.sold_usd)}
+                      <span className="font-normal text-gray-400 text-xs ml-1.5">
+                        ({pct(analytics.revenue.sold_usd, analytics.revenue.potential_usd)}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-emerald-50 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${pct(analytics.revenue.sold_usd, analytics.revenue.potential_usd)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/* 3. Avance de obra — ¿cuándo entrega? */}
+      {loading ? (
+        <section>
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Avance de obra</h2>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3 shadow-sm">
+            <div className="flex justify-between">
+              <Skeleton className="h-5 w-32 bg-gray-200" />
+              <Skeleton className="h-5 w-10 bg-gray-200" />
+            </div>
+            <Skeleton className="h-2 w-full bg-gray-200 rounded-full" />
+          </div>
+        </section>
+      ) : project ? (
+        <section>
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Avance de obra</h2>
+          <div className="bg-white border border-gray-200 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-gray-800 font-semibold text-sm">{deliveryConf?.label}</span>
+              <span className="text-sm font-bold tabular" style={{ color: deliveryConf?.indicatorClass?.includes('emerald') ? '#059669' : deliveryConf?.indicatorClass?.includes('blue') ? '#1d4ed8' : '#d97706' }}>{deliveryConf?.pct}%</span>
+            </div>
+            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={cn('h-full rounded-full transition-all duration-700', deliveryConf?.indicatorClass)}
+                style={{ width: `${deliveryConf?.pct}%` }}
+              />
+            </div>
+            {project.construction_start && (
+              <div className="flex flex-wrap gap-6 mt-4">
+                <div>
+                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Inicio de obra</p>
+                  <p className="text-sm font-medium text-gray-700">{project.construction_start}</p>
+                </div>
+                {project.estimated_delivery && (
+                  <div>
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Entrega estimada</p>
+                    <p className="text-sm font-medium text-gray-700">{project.estimated_delivery}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {/* 4. Funnel de conversión — ¿cómo convierte el pipeline? */}
       {(loading || analytics) && (
         <section>
           <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Funnel de conversión</h2>
@@ -208,67 +301,7 @@ export default function ProjectDashboard() {
         </section>
       )}
 
-      {/* Analytics: Revenue */}
-      {(loading || analytics) && (
-        <section>
-          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Revenue</h2>
-          {loading ? (
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-8 w-full bg-gray-100 rounded-xl" />)}
-            </div>
-          ) : analytics ? (
-            <div className="bg-white border border-gray-200 rounded-2xl p-6">
-              <div className="space-y-5">
-                <div>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <span className="text-sm font-medium text-gray-500">Potencial total</span>
-                    <span className="text-sm font-bold text-gray-800 tabular">{formatUSD(analytics.revenue.potential_usd)}</span>
-                  </div>
-                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-gray-200 rounded-full w-full" />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <span className="text-sm font-medium text-gray-500">Reservado</span>
-                    <span className="text-sm font-bold text-amber-700 tabular">
-                      {formatUSD(analytics.revenue.reserved_usd)}
-                      <span className="font-normal text-gray-400 text-xs ml-1.5">
-                        ({pct(analytics.revenue.reserved_usd, analytics.revenue.potential_usd)}%)
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-amber-50 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-400 rounded-full transition-all duration-500"
-                      style={{ width: `${pct(analytics.revenue.reserved_usd, analytics.revenue.potential_usd)}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <span className="text-sm font-medium text-gray-500">Vendido</span>
-                    <span className="text-sm font-bold text-emerald-700 tabular">
-                      {formatUSD(analytics.revenue.sold_usd)}
-                      <span className="font-normal text-gray-400 text-xs ml-1.5">
-                        ({pct(analytics.revenue.sold_usd, analytics.revenue.potential_usd)}%)
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-2.5 bg-emerald-50 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                      style={{ width: `${pct(analytics.revenue.sold_usd, analytics.revenue.potential_usd)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </section>
-      )}
-
-      {/* Analytics: Weekly bar chart */}
+      {/* 5. Leads por semana — ¿qué actividad hubo? */}
       {!loading && analytics && weeklyLeads.length > 0 && (
         <section>
           <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Leads por semana</h2>
@@ -315,73 +348,7 @@ export default function ProjectDashboard() {
         </section>
       )}
 
-      {/* Analytics: Lead sources */}
-      {!loading && analytics && analytics.lead_sources.length > 0 && (
-        <section>
-          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Fuentes de leads</h2>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <div className="flex flex-wrap gap-2">
-              {analytics.lead_sources.map(({ source, count }) => {
-                const total = analytics.funnel.leads_total;
-                const p = pct(count, total);
-                return (
-                  <div key={source} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 border border-gray-200 hover:border-blue-200 hover:bg-blue-50 transition-colors group">
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-800 capitalize transition-colors">{source}</span>
-                    <span className="text-xs font-bold text-gray-900 group-hover:text-blue-900 tabular transition-colors">{count}</span>
-                    {p > 0 && <span className="text-[10px] text-gray-400 group-hover:text-blue-500 transition-colors font-medium">{p}%</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Obra progress */}
-      {loading ? (
-        <section>
-          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Avance de obra</h2>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3 shadow-sm">
-            <div className="flex justify-between">
-              <Skeleton className="h-5 w-32 bg-gray-200" />
-              <Skeleton className="h-5 w-10 bg-gray-200" />
-            </div>
-            <Skeleton className="h-2 w-full bg-gray-200 rounded-full" />
-          </div>
-        </section>
-      ) : project ? (
-        <section>
-          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Avance de obra</h2>
-          <div className="bg-white border border-gray-200 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-gray-800 font-semibold text-sm">{deliveryConf?.label}</span>
-              <span className="text-sm font-bold tabular" style={{ color: deliveryConf?.indicatorClass?.includes('emerald') ? '#059669' : deliveryConf?.indicatorClass?.includes('blue') ? '#1d4ed8' : '#d97706' }}>{deliveryConf?.pct}%</span>
-            </div>
-            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-              <div
-                className={cn('h-full rounded-full transition-all duration-700', deliveryConf?.indicatorClass)}
-                style={{ width: `${deliveryConf?.pct}%` }}
-              />
-            </div>
-            {project.construction_start && (
-              <div className="flex flex-wrap gap-6 mt-4">
-                <div>
-                  <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Inicio de obra</p>
-                  <p className="text-sm font-medium text-gray-700">{project.construction_start}</p>
-                </div>
-                {project.estimated_delivery && (
-                  <div>
-                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mb-0.5">Entrega estimada</p>
-                    <p className="text-sm font-medium text-gray-700">{project.estimated_delivery}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-      ) : null}
-
-      {/* Description */}
+      {/* 6. Descripción — contexto del proyecto */}
       {!loading && project?.description && (
         <section>
           <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Descripción</h2>
@@ -391,7 +358,7 @@ export default function ProjectDashboard() {
         </section>
       )}
 
-      {/* Amenities */}
+      {/* 7. Amenities — características */}
       {!loading && project?.amenities && project.amenities.length > 0 && (
         <section>
           <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">Amenities</h2>

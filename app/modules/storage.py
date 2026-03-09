@@ -37,6 +37,7 @@ async def upload_file(
     doc_type: str,
     filename: str,
     org_id: str | None = None,
+    org_slug: str | None = None,
 ) -> str:
     """Upload a file to S3 and return the public URL."""
     if filename.lower().endswith(".pdf") and not file_bytes[:5] == b"%PDF-":
@@ -46,7 +47,7 @@ async def upload_file(
         )
 
     settings = get_settings()
-    key = _build_key(project_slug, doc_type, filename, org_id=org_id)
+    key = _build_key(project_slug, doc_type, filename, org_slug=org_slug or org_id)
 
     content_type = "application/pdf" if filename.lower().endswith(".pdf") else "application/octet-stream"
 
@@ -92,15 +93,15 @@ async def download_file(file_url: str) -> bytes:
         return response.content
 
 
-def _build_key(project_slug: str, doc_type: str, filename: str, org_id: str | None = None) -> str:
+def _build_key(project_slug: str, doc_type: str, filename: str, org_slug: str | None = None) -> str:
     """Build a structured S3 key.
 
-    With org_id:    orgs/{org_id}/projects/{slug}/{filename}
-    Without org_id: projects/{slug}/{filename}  (legacy fallback)
+    With org_slug:    orgs/{org_slug}/projects/{slug}/{filename}
+    Without org_slug: projects/{slug}/{filename}  (legacy fallback)
     """
     safe_filename = filename.replace(" ", "_").lower()
-    if org_id:
-        return f"orgs/{org_id}/projects/{project_slug}/{safe_filename}"
+    if org_slug:
+        return f"orgs/{org_slug}/projects/{project_slug}/{safe_filename}"
     return f"projects/{project_slug}/{safe_filename}"
 
 
@@ -111,18 +112,20 @@ async def upload_obra_foto(
     scope: str = "general",
     identifier: str | None = None,
     org_id: str | None = None,
+    org_slug: str | None = None,
 ) -> str:
     """Upload an obra photo with structured path based on scope.
 
-    With org_id:
-      general → orgs/{org_id}/projects/{slug}/obra/general/{filename}
-      unit    → orgs/{org_id}/projects/{slug}/obra/unidades/{identifier}/{filename}
-      floor   → orgs/{org_id}/projects/{slug}/obra/pisos/p{identifier}/{filename}
-    Without org_id (legacy fallback): projects/{slug}/obra/...
+    With org_slug:
+      general → orgs/{org_slug}/projects/{slug}/obra/general/{filename}
+      unit    → orgs/{org_slug}/projects/{slug}/obra/unidades/{identifier}/{filename}
+      floor   → orgs/{org_slug}/projects/{slug}/obra/pisos/p{identifier}/{filename}
+    Without org_slug (legacy fallback): projects/{slug}/obra/...
     """
     settings = get_settings()
     safe_filename = filename.replace(" ", "_").lower()
-    prefix = f"orgs/{org_id}/projects/{project_slug}" if org_id else f"projects/{project_slug}"
+    org_folder = org_slug or org_id
+    prefix = f"orgs/{org_folder}/projects/{project_slug}" if org_folder else f"projects/{project_slug}"
 
     if scope == "unit" and identifier:
         key = f"{prefix}/obra/unidades/{identifier}/{safe_filename}"
@@ -167,10 +170,11 @@ async def upload_factura_pdf(
     org_id: str,
     project_slug: str,
     filename: str,
+    org_slug: str | None = None,
 ) -> str:
     """Upload a factura PDF with org-hierarchical path.
 
-    Path: orgs/{org_id}/projects/{project_slug}/facturas/{YYYY}/{MM}/{ts}_{filename}
+    Path: orgs/{org_slug}/projects/{project_slug}/facturas/{YYYY}/{MM}/{ts}_{filename}
     """
     import time
     from datetime import datetime as _dt
@@ -182,8 +186,9 @@ async def upload_factura_pdf(
     safe_filename = filename.replace(" ", "_").lower()
     now = _dt.utcnow()
     ts = int(time.time())
+    org_folder = org_slug or org_id
     key = (
-        f"orgs/{org_id}/projects/{project_slug}/facturas/"
+        f"orgs/{org_folder}/projects/{project_slug}/facturas/"
         f"{now.year}/{now.month:02d}/{ts}_{safe_filename}"
     )
 

@@ -179,7 +179,6 @@ h1, h2, h3, h4, .font-display {
 /* Card with animated top accent stripe on hover */
 .card-top-accent {
   position: relative;
-  overflow: hidden;
 }
 .card-top-accent::before {
   content: '';
@@ -189,6 +188,7 @@ h1, h2, h3, h4, .font-display {
   right: 0;
   height: 3px;
   background: linear-gradient(90deg, #1d4ed8 0%, #6366f1 100%);
+  border-radius: 1rem 1rem 0 0;
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);

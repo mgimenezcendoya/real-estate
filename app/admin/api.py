@@ -433,11 +433,13 @@ async def create_organization(
     existing = await pool.fetchrow("SELECT id FROM organizations WHERE name = $1", body.name)
     if existing:
         raise HTTPException(status_code=409, detail=f"Ya existe una organización con el nombre '{body.name}'")
+    import re
+    org_slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
     row = await pool.fetchrow(
-        """INSERT INTO organizations (name, tipo, cuit)
-           VALUES ($1, $2, $3)
+        """INSERT INTO organizations (name, tipo, cuit, slug)
+           VALUES ($1, $2, $3, $4)
            RETURNING id, name, tipo, cuit, activa, created_at""",
-        body.name, body.tipo, body.cuit,
+        body.name, body.tipo, body.cuit, org_slug,
     )
     logger.info("Organization created: %s (%s)", body.name, row["id"])
     return dict(row)
@@ -714,16 +716,19 @@ async def upload_document(
     """
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT id, name, organization_id FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow(
+        "SELECT p.id, p.name, p.organization_id, o.slug as org_slug FROM projects p LEFT JOIN organizations o ON o.id = p.organization_id WHERE p.id = $1",
+        project_id,
+    )
     if not project:
         return {"error": f"Project {project_id} not found"}
 
     content = await file.read()
     filename = file.filename or "document.pdf"
     project_slug = project["name"].lower().replace(" ", "-")
-    org_id = str(project["organization_id"]) if project["organization_id"] else None
+    org_slug = project["org_slug"] or str(project["organization_id"]) if project["organization_id"] else None
 
-    file_url = await upload_file(content, project_slug, doc_type, filename, org_id=org_id)
+    file_url = await upload_file(content, project_slug, doc_type, filename, org_slug=org_slug)
 
     if unit_identifier:
         await pool.execute(
@@ -1692,7 +1697,10 @@ async def create_obra_update(
     """Create an obra update: saves record, uploads photos, updates etapa progress."""
     pool = await get_pool()
 
-    project = await pool.fetchrow("SELECT slug, organization_id FROM projects WHERE id = $1", project_id)
+    project = await pool.fetchrow(
+        "SELECT p.slug, p.organization_id, o.slug as org_slug FROM projects p LEFT JOIN organizations o ON o.id = p.organization_id WHERE p.id = $1",
+        project_id,
+    )
     if not project:
         return {"error": "Project not found"}
 
@@ -1719,8 +1727,8 @@ async def create_obra_update(
         if not content:
             continue
         identifier = unit_identifier or (str(floor_num) if floor_num else None)
-        org_id = str(project["organization_id"]) if project["organization_id"] else None
-        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier, org_id=org_id)
+        org_slug = project.get("org_slug") or (str(project["organization_id"]) if project["organization_id"] else None)
+        file_url = await upload_obra_foto(content, project["slug"], foto.filename, scope, identifier, org_slug=org_slug)
         foto_row = await pool.fetchrow(
             """INSERT INTO obra_fotos (project_id, update_id, file_url, filename, scope, unit_identifier, floor)
                VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -2521,7 +2529,7 @@ async def upload_factura_pdf_endpoint(
     """Upload a factura PDF to S3 under orgs/{org_id}/projects/{slug}/facturas/..."""
     pool = await get_pool()
     project = await pool.fetchrow(
-        "SELECT slug, organization_id FROM projects WHERE id = $1",
+        "SELECT p.slug, p.organization_id, o.slug as org_slug FROM projects p LEFT JOIN organizations o ON o.id = p.organization_id WHERE p.id = $1",
         project_id,
     )
     if not project:
@@ -2534,9 +2542,11 @@ async def upload_factura_pdf_endpoint(
         raise HTTPException(status_code=400, detail="El archivo está vacío")
 
     try:
+        org_slug = project["org_slug"] or str(project["organization_id"])
         url = await upload_factura_pdf(
             file_bytes=content,
             org_id=str(project["organization_id"]),
+            org_slug=org_slug,
             project_slug=project["slug"],
             filename=file.filename or "factura.pdf",
         )
