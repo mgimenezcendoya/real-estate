@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, ChevronRight, ChevronLeft, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard } from 'lucide-react';
+import { Building2, HardHat, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -234,7 +234,6 @@ function NavContent({
 }
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [alertsOpen, setAlertsOpen] = useState(false);
   const { count: alertCount, refresh: refreshAlerts } = useAlertCount();
@@ -274,28 +273,13 @@ export default function Sidebar() {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop: persistent sidebar */}
-      <aside
-        className={cn(
-          'hidden md:flex flex-col border-r border-gray-200 bg-white transition-all duration-300 ease-in-out flex-shrink-0 z-40 relative',
-          collapsed ? 'w-20' : 'w-64'
-        )}
-      >
+      {/* Desktop: persistent sidebar — always collapsed */}
+      <aside className="hidden md:flex flex-col w-20 border-r border-gray-200 bg-white flex-shrink-0 z-40">
         <NavContent
-          collapsed={collapsed}
+          collapsed={true}
           onAlertsClick={() => setAlertsOpen(true)}
           alertCount={alertCount}
         />
-
-        {/* Collapse toggle button */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="absolute top-1/2 -translate-y-1/2 bg-white border border-gray-200 text-gray-400 hover:text-gray-700 transition-all w-6 h-6 rounded-full flex items-center justify-center shadow-sm z-50 hover:shadow-md"
-          style={{ left: collapsed ? '4.5rem' : '15.5rem' }}
-          aria-label={collapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
-        >
-          {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-        </button>
       </aside>
 
       {/* Alerts panel */}

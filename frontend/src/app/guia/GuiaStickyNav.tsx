@@ -51,8 +51,8 @@ export default function GuiaStickyNav({ sections }: GuiaStickyNavProps) {
             className={cn(
               'relative flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition-all duration-150',
               active
-                ? 'bg-blue-50 text-blue-700 font-medium'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                ? 'bg-indigo-50 text-indigo-700 font-medium'
+                : 'text-gray-500 hover:bg-slate-50 hover:text-gray-800'
             )}
             onClick={(e) => {
               e.preventDefault();
@@ -61,7 +61,7 @@ export default function GuiaStickyNav({ sections }: GuiaStickyNavProps) {
             }}
           >
             {active && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-blue-700 rounded-r-full" />
+              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-600 rounded-r-full" />
             )}
             <Icon size={15} className="flex-shrink-0" />
             <span>{label}</span>

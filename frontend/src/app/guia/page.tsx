@@ -15,7 +15,6 @@ import {
   Users,
   Lightbulb,
   ShieldAlert,
-  ChevronRight,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -97,7 +96,11 @@ function GuiaSection({
 
   return (
     <section id={id} className="scroll-mt-6">
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
+        {/* Category-colored top accent — isolated overflow to preserve border-radius */}
+        <div className="rounded-t-2xl overflow-hidden">
+          <div className={cn('h-[3px] w-full bg-gradient-to-r', cfg.iconGradient)} />
+        </div>
         {/* Card header */}
         <div className="relative px-6 pt-5 pb-4 border-b border-gray-100">
           {/* Faded section number watermark */}
@@ -219,17 +222,21 @@ function WorkflowList({
 
 function TipCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-3 bg-blue-50/60 rounded-xl px-4 py-3 border-l-[3px] border-blue-400">
-      <Lightbulb size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
-      <p className="text-sm text-blue-800 leading-relaxed">{children}</p>
+    <div className="flex gap-3 bg-indigo-50/50 rounded-xl px-4 py-3.5 border border-indigo-100">
+      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Lightbulb size={12} className="text-indigo-600" />
+      </div>
+      <p className="text-sm text-indigo-900/80 leading-relaxed">{children}</p>
     </div>
   );
 }
 
 function RoleNote({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-2.5 bg-amber-50/60 rounded-xl px-4 py-3 border-l-[3px] border-amber-400">
-      <ShieldAlert size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
+    <div className="flex gap-3 bg-amber-50/70 rounded-xl px-4 py-3.5 border border-amber-200/60">
+      <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <ShieldAlert size={12} className="text-amber-600" />
+      </div>
       <p className="text-xs text-amber-800 leading-relaxed">{children}</p>
     </div>
   );
@@ -243,8 +250,8 @@ function UseCaseList({ items }: { items: string[] }) {
       </p>
       <ul className="space-y-1.5">
         {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-1.5 text-sm text-muted-foreground">
-            <ChevronRight size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
+          <li key={i} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-300 mt-2 flex-shrink-0" />
             {item}
           </li>
         ))}
@@ -268,13 +275,23 @@ export default function GuiaPage() {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-sm">
-              <BookOpen size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground">Guía de Uso</h1>
-              <p className="text-sm text-muted-foreground">Todo lo que necesitás saber para operar REALIA</p>
+          <div className="relative bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
+            {/* Decorative circles */}
+            <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
+            <div className="absolute -bottom-8 right-16 w-20 h-20 rounded-full bg-white/5" />
+            <div className="absolute top-4 right-32 w-8 h-8 rounded-full bg-white/10" />
+
+            <div className="relative flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <BookOpen size={22} className="text-white" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-white/80 text-[10px] font-semibold uppercase tracking-wider mb-1">
+                  Manual de usuario
+                </div>
+                <h1 className="text-2xl font-display font-bold text-white leading-tight">Guía de Uso</h1>
+                <p className="text-sm text-indigo-100 mt-0.5">Todo lo que necesitás saber para operar REALIA</p>
+              </div>
             </div>
           </div>
         </div>
@@ -290,7 +307,7 @@ export default function GuiaPage() {
                   e.preventDefault();
                   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors whitespace-nowrap"
               >
                 <Icon size={12} />
                 {label}
@@ -672,33 +689,33 @@ export default function GuiaPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
                     Tabla de roles y permisos
                   </p>
-                  <div className="overflow-x-auto rounded-xl border border-border">
-                    <table className="w-full text-xs">
+                  <div className="overflow-x-auto border border-gray-200">
+                    <table className="w-full text-xs border-collapse">
                       <thead>
-                        <tr className="border-b border-border bg-muted/30">
-                          <th className="text-left px-3 py-2.5 font-semibold text-foreground">Rol</th>
-                          <th className="text-center px-3 py-2.5 font-semibold text-foreground">Proyectos</th>
-                          <th className="text-center px-3 py-2.5 font-semibold text-foreground">Ventas</th>
-                          <th className="text-center px-3 py-2.5 font-semibold text-foreground">Financiero</th>
-                          <th className="text-center px-3 py-2.5 font-semibold text-foreground">Inversores</th>
-                          <th className="text-center px-3 py-2.5 font-semibold text-foreground">Usuarios</th>
+                        <tr className="border-b border-gray-200 bg-gray-50">
+                          <th className="text-left pl-4 pr-4 py-2.5 font-semibold text-gray-700">Rol</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-gray-700">Proyectos</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-gray-700">Ventas</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-gray-700">Financiero</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-gray-700">Inversores</th>
+                          <th className="text-center px-4 py-2.5 font-semibold text-gray-700">Usuarios</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border">
+                      <tbody>
                         {[
                           { rol: 'Superadmin', proyectos: '✓ Todos', ventas: '✓', financiero: '✓', inversores: '✓', usuarios: '✓' },
                           { rol: 'Admin',       proyectos: '✓ Org',   ventas: '✓', financiero: '✓', inversores: '✓', usuarios: '✓' },
                           { rol: 'Gerente',     proyectos: '✓ Todos', ventas: '✓', financiero: '✓', inversores: '✓ Ver', usuarios: '—' },
                           { rol: 'Vendedor',    proyectos: '✓ Ver',   ventas: '✓ Propios', financiero: '—', inversores: '—', usuarios: '—' },
                           { rol: 'Lector',      proyectos: '✓ Ver',   ventas: '✓ Ver', financiero: '—', inversores: '—', usuarios: '—' },
-                        ].map((row) => (
-                          <tr key={row.rol} className="hover:bg-muted/20 transition-colors">
-                            <td className="px-3 py-2.5 font-semibold text-foreground">{row.rol}</td>
-                            <td className="px-3 py-2.5 text-center text-muted-foreground">{row.proyectos}</td>
-                            <td className="px-3 py-2.5 text-center text-muted-foreground">{row.ventas}</td>
-                            <td className="px-3 py-2.5 text-center text-muted-foreground">{row.financiero}</td>
-                            <td className="px-3 py-2.5 text-center text-muted-foreground">{row.inversores}</td>
-                            <td className="px-3 py-2.5 text-center text-muted-foreground">{row.usuarios}</td>
+                        ].map((row, i, arr) => (
+                          <tr key={row.rol} className={cn('hover:bg-gray-50/60 transition-colors', i < arr.length - 1 && 'border-b border-gray-100')}>
+                            <td className="pl-5 pr-4 py-2.5 font-semibold text-gray-800">{row.rol}</td>
+                            <td className="px-4 py-2.5 text-center text-gray-500">{row.proyectos}</td>
+                            <td className="px-4 py-2.5 text-center text-gray-500">{row.ventas}</td>
+                            <td className="px-4 py-2.5 text-center text-gray-500">{row.financiero}</td>
+                            <td className="px-4 py-2.5 text-center text-gray-500">{row.inversores}</td>
+                            <td className="px-4 pr-5 py-2.5 text-center text-gray-500">{row.usuarios}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -709,12 +726,15 @@ export default function GuiaPage() {
             )}
 
             {/* Glosario */}
-            <section className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+            <section className="bg-white border border-gray-100 rounded-2xl shadow-sm">
+              <div className="rounded-t-2xl overflow-hidden">
+                <div className="h-[3px] w-full bg-gradient-to-r from-slate-400 to-gray-500" />
+              </div>
               <div className="px-6 pt-5 pb-4 border-b border-gray-100">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Glosario</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Referencia</p>
                 <h2 className="font-display font-bold text-xl text-foreground mt-0.5">Términos clave</h2>
               </div>
-              <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+              <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { term: 'Lead',              def: 'Prospecto interesado en una o más unidades del proyecto.' },
                   { term: 'Cuota',             def: 'Pago pactado en el plan de pagos de una reserva, con fecha y monto definidos.' },
@@ -723,9 +743,9 @@ export default function GuiaPage() {
                   { term: 'Reserva',           def: 'Operación comercial que bloquea una unidad para un comprador con un plan de pagos.' },
                   { term: 'Plan de pagos',     def: 'Conjunto de cuotas acordadas para completar el pago de una unidad reservada.' },
                 ].map(({ term, def }) => (
-                  <div key={term} className="border-l-2 border-gray-200 pl-3">
-                    <p className="text-sm font-semibold text-foreground">{term}</p>
-                    <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{def}</p>
+                  <div key={term} className="bg-slate-50/70 rounded-xl p-3.5 border border-gray-100">
+                    <p className="text-sm font-semibold text-gray-900">{term}</p>
+                    <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">{def}</p>
                   </div>
                 ))}
               </div>
