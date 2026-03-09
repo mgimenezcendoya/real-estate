@@ -433,11 +433,13 @@ async def create_organization(
     existing = await pool.fetchrow("SELECT id FROM organizations WHERE name = $1", body.name)
     if existing:
         raise HTTPException(status_code=409, detail=f"Ya existe una organización con el nombre '{body.name}'")
+    import re
+    org_slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
     row = await pool.fetchrow(
-        """INSERT INTO organizations (name, tipo, cuit)
-           VALUES ($1, $2, $3)
+        """INSERT INTO organizations (name, tipo, cuit, slug)
+           VALUES ($1, $2, $3, $4)
            RETURNING id, name, tipo, cuit, activa, created_at""",
-        body.name, body.tipo, body.cuit,
+        body.name, body.tipo, body.cuit, org_slug,
     )
     logger.info("Organization created: %s (%s)", body.name, row["id"])
     return dict(row)
