@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Wrench, Building2, TrendingUp, DollarSign, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { api, ExchangeRate } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 // ─── Formatting ────────────────────────────────────────────────────────────────
@@ -26,189 +24,194 @@ function fUSD(n: number) {
   }).format(n);
 }
 
-function parseNum(s: string): number {
-  return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+function formatThousands(raw: string): string {
+  const [intPart, decPart] = raw.split('.');
+  const formatted = (intPart || '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return decPart !== undefined ? `${formatted},${decPart}` : formatted;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 const TIPOS = [
   { key: 'oficial', label: 'Oficial', sub: 'BCRA' },
-  { key: 'mep', label: 'MEP', sub: 'Bolsa' },
-  { key: 'blue', label: 'Blue', sub: 'Informal' },
+  { key: 'mep',     label: 'MEP',     sub: 'Bolsa' },
+  { key: 'blue',    label: 'Blue',    sub: 'Informal' },
 ];
 
-const TIPO_ICON: Record<string, React.ReactNode> = {
-  oficial: <Building2 size={15} />,
-  mep: <TrendingUp size={15} />,
-  blue: <DollarSign size={15} />,
-};
-
-const TIPO_COLOR: Record<string, string> = {
-  oficial: 'text-blue-600',
-  mep: 'text-violet-600',
-  blue: 'text-emerald-600',
-};
-
-const TIPO_BG: Record<string, string> = {
-  oficial: 'bg-blue-50 border-blue-100',
-  mep: 'bg-violet-50 border-violet-100',
-  blue: 'bg-emerald-50 border-emerald-100',
-};
-
-const TIPO_ACTIVE: Record<string, string> = {
-  oficial: 'bg-blue-600 text-white border-blue-600',
-  mep: 'bg-violet-600 text-white border-violet-600',
-  blue: 'bg-emerald-600 text-white border-emerald-600',
+const TIPO_META: Record<string, {
+  icon: React.ReactNode;
+  iconBg: string;
+  iconText: string;
+  stripe: string;
+  tintBg: string;
+  pillBg: string;
+  pillText: string;
+  pillBorder: string;
+  activeTab: string;
+}> = {
+  oficial: {
+    icon: <Building2 size={15} />,
+    iconBg: 'bg-blue-50',
+    iconText: 'text-blue-600',
+    stripe: 'from-blue-500 to-blue-600',
+    tintBg: 'bg-blue-50/30',
+    pillBg: 'bg-blue-50',
+    pillText: 'text-blue-700',
+    pillBorder: 'border-blue-200',
+    activeTab: 'bg-blue-600 text-white border-blue-600 shadow-sm',
+  },
+  mep: {
+    icon: <TrendingUp size={15} />,
+    iconBg: 'bg-violet-50',
+    iconText: 'text-violet-600',
+    stripe: 'from-violet-500 to-violet-600',
+    tintBg: 'bg-violet-50/30',
+    pillBg: 'bg-violet-50',
+    pillText: 'text-violet-700',
+    pillBorder: 'border-violet-200',
+    activeTab: 'bg-violet-600 text-white border-violet-600 shadow-sm',
+  },
+  blue: {
+    icon: <DollarSign size={15} />,
+    iconBg: 'bg-emerald-50',
+    iconText: 'text-emerald-600',
+    stripe: 'from-emerald-500 to-emerald-600',
+    tintBg: 'bg-emerald-50/30',
+    pillBg: 'bg-emerald-50',
+    pillText: 'text-emerald-700',
+    pillBorder: 'border-emerald-200',
+    activeTab: 'bg-emerald-600 text-white border-emerald-600 shadow-sm',
+  },
 };
 
 // ─── Rate card ─────────────────────────────────────────────────────────────────
 
 function RateCardSkeleton() {
   return (
-    <Card className="glass">
-      <CardHeader className="pb-2">
-        <Skeleton className="h-4 w-28" />
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
+      <div className="rounded-t-2xl overflow-hidden"><div className="h-[3px] bg-gray-100" /></div>
+      <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center justify-between">
+        <Skeleton className="h-5 w-32 bg-gray-100" />
+        <Skeleton className="h-4 w-20 bg-gray-100 rounded-full" />
+      </div>
+      <div className="px-5 py-5 space-y-4">
         <div className="flex justify-between">
-          <div className="space-y-1">
-            <Skeleton className="h-3 w-10" />
-            <Skeleton className="h-6 w-24" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-3 w-12 bg-gray-100" />
+            <Skeleton className="h-7 w-28 bg-gray-100" />
           </div>
-          <div className="space-y-1 text-right">
-            <Skeleton className="h-3 w-10 ml-auto" />
-            <Skeleton className="h-6 w-24" />
+          <div className="space-y-1.5 text-right">
+            <Skeleton className="h-3 w-12 bg-gray-100 ml-auto" />
+            <Skeleton className="h-7 w-28 bg-gray-100" />
           </div>
         </div>
-        <Skeleton className="h-3 w-20" />
-      </CardContent>
-    </Card>
+        <Skeleton className="h-4 w-24 bg-gray-100 rounded-full" />
+      </div>
+    </div>
   );
 }
 
 function RateCard({ rate }: { rate: ExchangeRate }) {
+  const meta = TIPO_META[rate.tipo] ?? TIPO_META.oficial;
   const spread = rate.compra > 0 ? ((rate.venta - rate.compra) / rate.compra) * 100 : 0;
+
   return (
-    <Card className="glass hover-lift transition-all">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className={cn('p-1.5 rounded-lg', TIPO_BG[rate.tipo], TIPO_COLOR[rate.tipo])}>
-              {TIPO_ICON[rate.tipo] ?? <DollarSign size={15} />}
-            </span>
-            <CardTitle className="text-sm font-semibold text-foreground">{rate.nombre}</CardTitle>
-          </div>
-          <span className="text-[10px] tabular text-muted-foreground">{rate.fecha}</span>
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200">
+      {/* Colored top stripe */}
+      <div className="rounded-t-2xl overflow-hidden">
+        <div className={cn('h-[3px] bg-gradient-to-r', meta.stripe)} />
+      </div>
+
+      {/* Header */}
+      <div className="px-5 pt-4 pb-3 border-b border-gray-50 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <span className={cn('p-1.5 rounded-lg', meta.iconBg, meta.iconText)}>
+            {meta.icon}
+          </span>
+          <span className="text-sm font-bold text-gray-900">{rate.nombre}</span>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-2.5">
-        <div className="flex items-end justify-between">
+        <span className="text-[10px] tabular text-gray-400 bg-gray-50 px-2.5 py-0.5 rounded-full border border-gray-100 font-medium">
+          {rate.fecha}
+        </span>
+      </div>
+
+      {/* Body */}
+      <div className={cn('px-5 pt-4 pb-5', meta.tintBg)}>
+        <div className="flex items-end justify-between mb-4">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Compra</p>
-            <p className="text-xl font-bold tabular text-green-600">{fARS(rate.compra)}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Compra</p>
+            <p className="text-2xl font-bold tabular text-gray-900 leading-none">{fARS(rate.compra)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-0.5">Venta</p>
-            <p className="text-xl font-bold tabular text-red-500">{fARS(rate.venta)}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1">Venta</p>
+            <p className="text-2xl font-bold tabular text-gray-900 leading-none">{fARS(rate.venta)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5 pt-0.5 border-t border-gray-100">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Spread</span>
-          <span className="text-xs font-semibold text-amber-600 tabular">{spread.toFixed(2)}%</span>
+
+        <div className="flex items-center gap-2 pt-3 border-t border-gray-200/50">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Spread</span>
+          <span className={cn('text-[11px] font-bold tabular px-2 py-0.5 rounded-full border', meta.pillBg, meta.pillText, meta.pillBorder)}>
+            {spread.toFixed(2)}%
+          </span>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 // ─── Simulator ─────────────────────────────────────────────────────────────────
 
-// direction: 'buy' = tengo ARS, quiero USD (uso venta)
-//            'sell' = tengo USD, quiero ARS (uso compra)
-
-// Format a raw numeric string with thousands separator (Argentine locale: 1.000.000)
-function formatThousands(raw: string): string {
-  // raw is digits + optional decimal point
-  const [intPart, decPart] = raw.split('.');
-  const formatted = (intPart || '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return decPart !== undefined ? `${formatted},${decPart}` : formatted;
-}
-
 function Simulator({ rates, loading }: { rates: ExchangeRate[]; loading: boolean }) {
   const [direction, setDirection] = useState<'buy' | 'sell'>('buy');
   const [selectedTipo, setSelectedTipo] = useState('mep');
-  // Raw numeric string (no thousand separators) — e.g. "100000"
   const [fromAmount, setFromAmount] = useState('100000');
 
   const selectedRate = rates.find((r) => r.tipo === selectedTipo);
-
-  // buy:  ARS → USD  (uses venta — the bank sells USD to you)
-  // sell: USD → ARS  (uses compra — the bank buys USD from you)
-  const price = direction === 'buy'
-    ? (selectedRate?.venta ?? 0)
-    : (selectedRate?.compra ?? 0);
-
-  // fromAmount is stored with dot as decimal separator ("1000.5") — use parseFloat directly.
-  // parseNum is only for Argentine-formatted strings (dots as thousand sep).
+  const price = direction === 'buy' ? (selectedRate?.venta ?? 0) : (selectedRate?.compra ?? 0);
   const parsedFrom = parseFloat(fromAmount) || 0;
   const result = price > 0
-    ? direction === 'buy'
-      ? parsedFrom / price   // ARS / venta = USD
-      : parsedFrom * price   // USD * compra = ARS
+    ? direction === 'buy' ? parsedFrom / price : parsedFrom * price
     : 0;
 
   const fromCurrency = direction === 'buy' ? 'ARS' : 'USD';
-  const toCurrency = direction === 'buy' ? 'USD' : 'ARS';
+  const toCurrency   = direction === 'buy' ? 'USD' : 'ARS';
+  const priceLabel   = direction === 'buy' ? 'venta' : 'compra';
 
   function handleSwap() {
-    // swap direction and use the current result as the new "from"
     setDirection(d => d === 'buy' ? 'sell' : 'buy');
-    if (result > 0) {
-      setFromAmount(String(Math.round(result)));
-    }
+    if (result > 0) setFromAmount(String(Math.round(result)));
   }
 
-  // Comparison: for each tipo, compute result using same direction/operation
   const rows = TIPOS.map(({ key, label }) => {
     const r = rates.find(x => x.tipo === key);
     const p = direction === 'buy' ? (r?.venta ?? 0) : (r?.compra ?? 0);
     const res = p > 0 ? (direction === 'buy' ? parsedFrom / p : parsedFrom * p) : 0;
-    return { key, label, price: p, result: res, date: r?.fecha };
+    return { key, label, price: p, result: res };
   });
 
-  const priceLabel = direction === 'buy' ? 'venta' : 'compra';
-
   return (
-    <Card className="glass">
-      <CardContent className="pt-6 space-y-5">
+    <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="h-[3px] bg-gradient-to-r from-slate-400 to-gray-500" />
 
+      <div className="px-6 pt-5 pb-6 space-y-5">
         {/* Direction toggle */}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setDirection('buy')}
-            className={cn(
-              'flex-1 py-2 px-4 rounded-xl text-sm font-semibold border transition-all duration-150',
-              direction === 'buy'
-                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
-            )}
-          >
-            Comprar USD
-          </button>
-          <button
-            type="button"
-            onClick={() => setDirection('sell')}
-            className={cn(
-              'flex-1 py-2 px-4 rounded-xl text-sm font-semibold border transition-all duration-150',
-              direction === 'sell'
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 hover:text-gray-700'
-            )}
-          >
-            Vender USD
-          </button>
+        <div className="flex gap-1.5 p-1 bg-gray-100 rounded-xl">
+          {[
+            { value: 'buy',  label: 'Comprar USD', color: 'bg-blue-600 text-white shadow-sm' },
+            { value: 'sell', label: 'Vender USD',  color: 'bg-emerald-600 text-white shadow-sm' },
+          ].map(({ value, label, color }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setDirection(value as 'buy' | 'sell')}
+              className={cn(
+                'flex-1 py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-150',
+                direction === value ? color : 'text-gray-500 hover:text-gray-700'
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Tipo pills */}
@@ -217,23 +220,24 @@ function Simulator({ rates, loading }: { rates: ExchangeRate[]; loading: boolean
             const r = rates.find(x => x.tipo === key);
             const p = direction === 'buy' ? r?.venta : r?.compra;
             const active = selectedTipo === key;
+            const meta = TIPO_META[key];
             return (
               <button
                 key={key}
                 type="button"
                 onClick={() => setSelectedTipo(key)}
                 className={cn(
-                  'flex-1 flex flex-col items-center py-2 px-3 rounded-xl border text-xs font-semibold transition-all duration-150',
+                  'flex-1 flex flex-col items-center py-2.5 px-2 rounded-xl border text-xs font-semibold transition-all duration-150',
                   active
-                    ? TIPO_ACTIVE[key]
-                    : cn('bg-white text-gray-600 hover:text-gray-900', TIPO_BG[key] && `hover:${TIPO_BG[key]}`, 'border-gray-200 hover:border-gray-300')
+                    ? cn(meta.pillBg, meta.pillText, meta.pillBorder, 'shadow-sm border')
+                    : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-white hover:border-gray-200'
                 )}
               >
-                <span>{label}</span>
-                <span className={cn('text-[10px] font-medium tabular mt-0.5', active ? 'opacity-80' : 'text-muted-foreground')}>
+                <span className="font-bold">{label}</span>
+                <span className={cn('text-[10px] tabular mt-0.5 font-medium', active ? meta.pillText : 'text-gray-400')}>
                   {loading ? '—' : (p ? fARS(p) : '—')}
                 </span>
-                <span className={cn('text-[9px] mt-0.5', active ? 'opacity-60' : 'text-muted-foreground/60')}>
+                <span className={cn('text-[9px] mt-0.5', active ? 'opacity-60' : 'text-gray-300')}>
                   {sub}
                 </span>
               </button>
@@ -241,83 +245,85 @@ function Simulator({ rates, loading }: { rates: ExchangeRate[]; loading: boolean
           })}
         </div>
 
-        {/* Converter boxes */}
-        <div className="space-y-2">
-          {/* From box */}
-          <div className="relative rounded-2xl border border-border bg-muted/30 p-4">
+        {/* Converter */}
+        <div className="space-y-1.5">
+          {/* From */}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
                 {fromCurrency === 'ARS' ? 'Pagás' : 'Tenés'}
               </span>
-              <Badge variant="outline" className="text-xs font-bold">{fromCurrency}</Badge>
+              <span className="text-[11px] font-bold text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-full">
+                {fromCurrency}
+              </span>
             </div>
             <input
               type="text"
               inputMode="decimal"
               value={formatThousands(fromAmount)}
               onChange={(e) => {
-                // Strip thousand separators (dots in es-AR) and normalize decimal
-                const raw = e.target.value
-                  .replace(/\./g, '')   // remove thousand sep dots
-                  .replace(',', '.');   // normalize decimal comma → dot
-                  // Keep only digits and at most one decimal point
+                const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                 const clean = raw.replace(/[^\d.]/g, '').replace(/^(\d*\.?\d*).*$/, '$1');
                 setFromAmount(clean);
               }}
-              className="w-full bg-transparent text-3xl font-bold tabular text-foreground focus:outline-none placeholder:text-muted-foreground/40"
+              className="w-full bg-transparent text-2xl font-bold tabular text-gray-900 focus:outline-none placeholder:text-gray-300"
               placeholder="0"
             />
           </div>
 
-          {/* Swap button */}
-          <div className="flex items-center justify-center">
+          {/* Swap */}
+          <div className="flex justify-center">
             <button
               type="button"
               onClick={handleSwap}
               className="p-2 rounded-full bg-white border border-gray-200 text-gray-400 hover:text-gray-700 hover:border-gray-300 hover:shadow-sm transition-all"
-              title="Intercambiar dirección"
+              title="Intercambiar"
             >
-              <ArrowUpDown size={15} />
+              <ArrowUpDown size={14} />
             </button>
           </div>
 
-          {/* To box (result) */}
-          <div className="relative rounded-2xl border border-border bg-white p-4">
+          {/* To (result) */}
+          <div className={cn(
+            'rounded-xl border px-4 py-3.5',
+            toCurrency === 'USD' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-blue-50/50 border-blue-100'
+          )}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {toCurrency === 'USD' ? 'Recibís' : 'Recibís'}
-              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Recibís</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted-foreground">precio {priceLabel}</span>
-                <Badge variant="outline" className="text-xs font-bold">{toCurrency}</Badge>
+                <span className="text-[10px] text-gray-400">precio {priceLabel}</span>
+                <span className={cn(
+                  'text-[11px] font-bold px-2 py-0.5 rounded-full border',
+                  toCurrency === 'USD' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-blue-100 text-blue-700 border-blue-200'
+                )}>
+                  {toCurrency}
+                </span>
               </div>
             </div>
             {loading ? (
-              <Skeleton className="h-9 w-48" />
+              <Skeleton className="h-8 w-40 bg-gray-200" />
             ) : (
-              <p className={cn(
-                'text-3xl font-bold tabular',
-                toCurrency === 'USD' ? 'text-emerald-600' : 'text-blue-600'
-              )}>
+              <p className={cn('text-2xl font-bold tabular leading-none', toCurrency === 'USD' ? 'text-emerald-700' : 'text-blue-700')}>
                 {toCurrency === 'USD' ? fUSD(result) : fARS(result)}
               </p>
             )}
             {!loading && price > 0 && (
-              <p className="text-xs text-muted-foreground mt-1.5">
+              <p className="text-[11px] text-gray-400 mt-1.5">
                 Usando {TIPOS.find(t => t.key === selectedTipo)?.label} {priceLabel} a {fARS(price)}
               </p>
             )}
           </div>
         </div>
 
-        {/* Comparison table */}
+        {/* Comparison */}
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2.5">
             Comparativa — precio {priceLabel}
           </p>
-          <div className="overflow-hidden rounded-xl border border-border divide-y divide-border">
+          <div className="rounded-xl border border-gray-100 overflow-hidden divide-y divide-gray-50">
             {rows.map(({ key, label, price: p, result: res }) => {
               const active = key === selectedTipo;
+              const meta = TIPO_META[key];
               return (
                 <button
                   key={key}
@@ -325,27 +331,24 @@ function Simulator({ rates, loading }: { rates: ExchangeRate[]; loading: boolean
                   onClick={() => setSelectedTipo(key)}
                   className={cn(
                     'w-full flex items-center justify-between px-4 py-3 text-sm transition-colors text-left',
-                    active ? 'bg-accent/40' : 'hover:bg-muted/40'
+                    active ? cn(meta.tintBg) : 'bg-white hover:bg-gray-50'
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className={cn('p-1 rounded-md', TIPO_BG[key], TIPO_COLOR[key])}>
-                      {TIPO_ICON[key]}
+                  <div className="flex items-center gap-2.5">
+                    <span className={cn('p-1 rounded-md', meta.iconBg, meta.iconText)}>
+                      {meta.icon}
                     </span>
                     <div>
-                      <p className={cn('font-semibold', active ? 'text-foreground' : 'text-gray-700')}>{label}</p>
-                      <p className="text-[10px] text-muted-foreground tabular">
-                        {loading ? '—' : (p > 0 ? fARS(p) : '—')}
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800">{label}</p>
+                      <p className="text-[10px] text-gray-400 tabular">{loading ? '—' : (p > 0 ? fARS(p) : '—')}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     {loading ? (
-                      <Skeleton className="h-5 w-28" />
+                      <Skeleton className="h-5 w-24 bg-gray-100" />
                     ) : (
                       <p className={cn(
-                        'font-bold tabular',
-                        active ? 'text-foreground' : 'text-gray-600',
+                        'font-bold tabular text-sm',
                         toCurrency === 'USD' ? 'text-emerald-700' : 'text-blue-700'
                       )}>
                         {toCurrency === 'USD' ? fUSD(res) : fARS(res)}
@@ -357,9 +360,8 @@ function Simulator({ rates, loading }: { rates: ExchangeRate[]; loading: boolean
             })}
           </div>
         </div>
-
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -378,7 +380,7 @@ export default function ToolsPage() {
       setRates(data);
       setLastUpdate(new Date());
     } catch {
-      // silent — keep previous data
+      // silent
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -396,50 +398,55 @@ export default function ToolsPage() {
       <div className="max-w-4xl mx-auto space-y-8">
 
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-sm">
-              <Wrench size={20} className="text-white" />
+        <div className="relative bg-gradient-to-br from-slate-700 via-slate-600 to-slate-800 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
+          <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
+          <div className="absolute bottom-0 right-20 w-16 h-16 rounded-full bg-white/5" />
+
+          <div className="relative flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Wrench size={22} className="text-white" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/20 text-white/80 text-[10px] font-semibold uppercase tracking-wider mb-1">
+                  Herramientas
+                </div>
+                <h1 className="text-2xl font-display font-bold text-white leading-tight">Tools</h1>
+                <p className="text-sm text-slate-300 mt-0.5">Mercado inmobiliario argentino</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-display font-bold text-foreground">Tools</h1>
-              <p className="text-sm text-muted-foreground">Herramientas para el mercado inmobiliario argentino</p>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {lastUpdate && (
+                <span className="text-xs text-slate-300 hidden sm:block">
+                  Actualizado {lastUpdate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => fetchRates(true)}
+                disabled={refreshing}
+                className="p-2 rounded-xl bg-white/10 border border-white/20 text-white/70 hover:bg-white/20 hover:text-white transition-colors disabled:opacity-50"
+                title="Actualizar cotizaciones"
+              >
+                <RefreshCw size={15} className={cn(refreshing && 'animate-spin')} />
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {lastUpdate && (
-              <span className="text-xs text-muted-foreground hidden sm:block">
-                Actualizado {lastUpdate.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => fetchRates(true)}
-              disabled={refreshing}
-              className="p-2 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50"
-              title="Actualizar cotizaciones"
-            >
-              <RefreshCw size={15} className={cn(refreshing && 'animate-spin')} />
-            </button>
           </div>
         </div>
 
         {/* Rate cards */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">
             Tipos de cambio ARS / USD
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {loading ? (
-              <>
-                <RateCardSkeleton />
-                <RateCardSkeleton />
-                <RateCardSkeleton />
-              </>
+              <><RateCardSkeleton /><RateCardSkeleton /><RateCardSkeleton /></>
             ) : rates.length > 0 ? (
               rates.map((rate) => <RateCard key={rate.tipo} rate={rate} />)
             ) : (
-              <div className="col-span-3 py-8 text-center text-sm text-muted-foreground">
+              <div className="col-span-3 py-8 text-center text-sm text-gray-400">
                 No se pudieron cargar las cotizaciones. Intentá recargar.
               </div>
             )}
@@ -448,10 +455,10 @@ export default function ToolsPage() {
 
         {/* Simulator */}
         <section>
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">
             Simulador de conversión
           </h2>
-          <div className="max-w-md">
+          <div className="max-w-md mx-auto">
             <Simulator rates={rates} loading={loading} />
           </div>
         </section>
