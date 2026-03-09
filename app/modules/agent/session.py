@@ -245,15 +245,18 @@ async def get_developer_context(developer_id: str) -> str:
             reserved = [u for u in units if u["status"] == "reserved"]
             sold = [u for u in units if u["status"] == "sold"]
             lines.append(f"\nUnidades ({len(units)} total — {len(available)} disponibles, {len(reserved)} reservadas, {len(sold)} vendidas):")
-            for u in units:
-                s = unit_status_labels.get(u["status"], u["status"])
-                price_str = f"USD {u['price_usd']:,.0f}" if u["price_usd"] else "precio a confirmar"
-                area_str = f"{u['area_m2']}m²" if u["area_m2"] else "superficie a confirmar"
-                lines.append(
-                    f"  - {u['identifier']}: Piso {u['floor']}, "
-                    f"{u['bedrooms']} amb, {area_str}, "
-                    f"{price_str} ({s})"
-                )
+            if available:
+                lines.append("Unidades disponibles:")
+                for u in available:
+                    price_str = f"USD {u['price_usd']:,.0f}" if u["price_usd"] else "precio a confirmar"
+                    area_str = f"{u['area_m2']}m²" if u["area_m2"] else "superficie a confirmar"
+                    lines.append(
+                        f"  - {u['identifier']}: Piso {u['floor']}, "
+                        f"{u['bedrooms']} amb, {area_str}, "
+                        f"{price_str}"
+                    )
+            else:
+                lines.append("  (No hay unidades disponibles en este momento)")
 
         docs = await pool.fetch(
             "SELECT doc_type, filename, unit_identifier FROM documents WHERE project_id = $1 AND is_active = TRUE ORDER BY doc_type, unit_identifier",
