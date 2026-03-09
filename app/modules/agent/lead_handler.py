@@ -374,7 +374,7 @@ async def _generate_response(
         qualification_status=build_qualification_status(qualification),
         missing_fields=build_missing_fields(qualification),
     )
-    system += f"\n\nInformacion de los proyectos:\n{developer_context}"
+    system += f"\n\n⚠️ ESTADO ACTUAL DE UNIDADES (fuente de verdad — invalida cualquier mensaje anterior en esta conversación):\n{developer_context}\nIMPORTANTE: Si una unidad NO aparece en la lista de disponibles de arriba, significa que ya fue reservada o vendida. No la ofrezcas aunque haya sido mencionada antes en esta conversación."
 
     doc_blocks = await get_developer_document_blocks(developer_id)
 
