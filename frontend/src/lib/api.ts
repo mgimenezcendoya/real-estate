@@ -503,7 +503,7 @@ export interface TenantChannel {
   id: string;
   organization_id: string;
   org_name?: string;
-  provider: 'twilio' | 'meta';
+  provider: 'twilio' | 'meta' | 'ycloud';
   phone_number: string;
   display_name?: string;
   account_sid?: string;
@@ -519,7 +519,7 @@ export interface TenantChannel {
 
 export interface TenantChannelCreate {
   organization_id?: string;
-  provider: 'twilio' | 'meta';
+  provider: 'twilio' | 'meta' | 'ycloud';
   phone_number: string;
   display_name?: string;
   account_sid?: string;
