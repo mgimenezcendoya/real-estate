@@ -400,6 +400,8 @@ class TenantChannelCreate(BaseModel):
 
 
 class TenantChannelUpdate(BaseModel):
+    organization_id: Optional[str] = None
+    provider: Optional[str] = None
     display_name: Optional[str] = None
     phone_number: Optional[str] = None
     account_sid: Optional[str] = None

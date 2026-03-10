@@ -872,12 +872,13 @@ export default function UsuariosPage() {
               <Label>Provider</Label>
               <Select
                 value={channelForm.provider}
-                onValueChange={(v: 'twilio' | 'meta') => setChannelForm(f => ({ ...f, provider: v }))}
+                onValueChange={(v: 'twilio' | 'meta' | 'ycloud') => setChannelForm(f => ({ ...f, provider: v }))}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="meta">Meta Cloud API</SelectItem>
                   <SelectItem value="twilio">Twilio Sandbox</SelectItem>
+                  <SelectItem value="ycloud">YCloud</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -968,6 +969,26 @@ export default function UsuariosPage() {
                   placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
                   value={channelForm.auth_token || ''}
                   onChange={e => setChannelForm(f => ({ ...f, auth_token: e.target.value }))}
+                />
+              </div>
+            </>)}
+
+            {/* YCloud fields */}
+            {channelForm.provider === 'ycloud' && (<>
+              <div>
+                <Label>Phone Number ID</Label>
+                <Input
+                  placeholder="1044304662093453"
+                  value={channelForm.phone_number_id || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, phone_number_id: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label>WABA ID</Label>
+                <Input
+                  placeholder="1210493091068332"
+                  value={channelForm.waba_id || ''}
+                  onChange={e => setChannelForm(f => ({ ...f, waba_id: e.target.value }))}
                 />
               </div>
             </>)}
