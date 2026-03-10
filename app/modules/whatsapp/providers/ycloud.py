@@ -72,40 +72,49 @@ def verify_signature(payload: bytes, signature_header: str, secret: str) -> bool
         return False
 
 
-async def send_text(phone_number_id: str, to: str, text: str, api_key: str) -> dict:
+async def send_text(phone_number: str, phone_number_id: str, to: str, text: str, api_key: str) -> dict:
     url = f"{YCLOUD_API_BASE}/whatsapp/messages/sendDirectly"
-    payload = {"to": to, "phoneNumberId": phone_number_id, "type": "text", "text": text}
+    payload = {
+        "from": phone_number,
+        "to": to,
+        "phoneNumberId": phone_number_id,
+        "type": "text",
+        "text": {"body": text},
+    }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers={"X-API-Key": api_key})
         return response.json()
 
 
-async def send_document(phone_number_id: str, to: str, document_url: str, filename: str, caption: str | None = None, api_key: str = "") -> dict:
+async def send_document(phone_number: str, phone_number_id: str, to: str, document_url: str, filename: str, caption: str | None = None, api_key: str = "") -> dict:
     url = f"{YCLOUD_API_BASE}/whatsapp/messages/sendDirectly"
+    doc = {"link": document_url, "filename": filename}
+    if caption:
+        doc["caption"] = caption
     payload = {
+        "from": phone_number,
         "to": to,
         "phoneNumberId": phone_number_id,
         "type": "document",
-        "mediaUrl": document_url,
-        "mediaType": "document",
-        "caption": caption or filename,
+        "document": doc,
     }
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers={"X-API-Key": api_key})
         return response.json()
 
 
-async def send_image(phone_number_id: str, to: str, image_url: str, caption: str | None = None, api_key: str = "") -> dict:
+async def send_image(phone_number: str, phone_number_id: str, to: str, image_url: str, caption: str | None = None, api_key: str = "") -> dict:
     url = f"{YCLOUD_API_BASE}/whatsapp/messages/sendDirectly"
+    image = {"link": image_url}
+    if caption:
+        image["caption"] = caption
     payload = {
+        "from": phone_number,
         "to": to,
         "phoneNumberId": phone_number_id,
         "type": "image",
-        "mediaUrl": image_url,
-        "mediaType": "image",
+        "image": image,
     }
-    if caption:
-        payload["caption"] = caption
     async with httpx.AsyncClient() as client:
         response = await client.post(url, json=payload, headers={"X-API-Key": api_key})
         return response.json()

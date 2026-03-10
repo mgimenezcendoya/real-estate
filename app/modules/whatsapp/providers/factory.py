@@ -144,15 +144,15 @@ class YCloudProvider:
 
     async def send_text(self, to: str, text: str) -> dict:
         from app.modules.whatsapp.providers.ycloud import send_text as _send
-        return await _send(self.channel.phone_number_id, to, text, self._api_key())
+        return await _send(self.channel.phone_number, self.channel.phone_number_id, to, text, self._api_key())
 
     async def send_document(self, to: str, document_url: str, filename: str, caption: str | None = None) -> dict:
         from app.modules.whatsapp.providers.ycloud import send_document as _send
-        return await _send(self.channel.phone_number_id, to, document_url, filename, caption, self._api_key())
+        return await _send(self.channel.phone_number, self.channel.phone_number_id, to, document_url, filename, caption, self._api_key())
 
     async def send_image(self, to: str, image_url: str, caption: str | None = None) -> dict:
         from app.modules.whatsapp.providers.ycloud import send_image as _send
-        return await _send(self.channel.phone_number_id, to, image_url, caption, self._api_key())
+        return await _send(self.channel.phone_number, self.channel.phone_number_id, to, image_url, caption, self._api_key())
 
     async def download_media(self, media_id: str | None = None, media_url: str | None = None) -> bytes:
         from app.modules.whatsapp.providers.ycloud import download_media as _dl
