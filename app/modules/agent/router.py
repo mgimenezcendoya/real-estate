@@ -80,6 +80,14 @@ async def resolve_tenant_channel(phone_hint: str, provider: str) -> TenantChanne
                WHERE phone_number_id = $1 AND provider = 'meta' AND activo = true""",
             phone_hint,
         )
+    elif provider == "ycloud":
+        row = await pool.fetchrow(
+            """SELECT id, organization_id, provider, phone_number, display_name,
+                      account_sid, auth_token, access_token, phone_number_id, verify_token, waba_id
+               FROM tenant_channels
+               WHERE waba_id = $1 AND provider = 'ycloud' AND activo = true""",
+            phone_hint,
+        )
     else:
         row = await pool.fetchrow(
             """SELECT id, organization_id, provider, phone_number, display_name,

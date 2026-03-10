@@ -9,27 +9,33 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _detect_provider(content_type: str) -> str:
-    """Detect provider from request content-type."""
+async def _detect_provider_and_hint(request: Request) -> tuple[str, str]:
+    """Detect provider and extract the phone hint in one pass (avoids double body read).
+    Returns (provider, phone_hint)."""
+    content_type = request.headers.get("content-type", "")
+
     if "application/x-www-form-urlencoded" in content_type:
-        return "twilio"
-    return "meta"
-
-
-async def _extract_phone_hint(request: Request, provider: str) -> str:
-    """Extract the receiving phone number/ID from the webhook payload."""
-    if provider == "twilio":
         form = await request.form()
-        return form.get("To", "").replace("whatsapp:", "").strip()
-    else:
-        try:
-            body = await request.json()
-            return (
-                body["entry"][0]["changes"][0]["value"]
-                ["metadata"]["phone_number_id"]
-            )
-        except (KeyError, IndexError, Exception):
-            return ""
+        hint = form.get("To", "").replace("whatsapp:", "").strip()
+        return "twilio", hint
+
+    try:
+        body = await request.json()
+    except Exception:
+        return "meta", ""
+
+    # YCloud payloads have a top-level "type" like "whatsapp.inbound_message.received"
+    if body.get("type", "").startswith("whatsapp."):
+        msg = body.get("whatsappInboundMessage", {})
+        hint = msg.get("wabaId", "")
+        return "ycloud", hint
+
+    # Meta payloads have "entry" array
+    try:
+        hint = body["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
+    except (KeyError, IndexError, Exception):
+        hint = ""
+    return "meta", hint
 
 
 @router.get("/webhook")
@@ -61,13 +67,7 @@ async def receive_message(request: Request):
     Falls back to ACTIVE_DEVELOPER_ID for local dev."""
     from app.modules.agent.router import resolve_tenant_channel, route_message
 
-    content_type = request.headers.get("content-type", "")
-    provider = _detect_provider(content_type)
-
-    # Need to read body for phone hint extraction, but FastAPI may consume it.
-    # For Twilio (form), we read form(). For Meta (JSON), we read json().
-    # Both are cached by FastAPI after first access.
-    phone_hint = await _extract_phone_hint(request, provider)
+    provider, phone_hint = await _detect_provider_and_hint(request)
 
     channel = await resolve_tenant_channel(phone_hint, provider)
     if not channel:

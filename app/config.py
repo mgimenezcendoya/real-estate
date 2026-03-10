@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # WhatsApp — provider selection
-    whatsapp_provider: str = "twilio"  # "twilio" for dev, "meta" for production
+    whatsapp_provider: str = "twilio"  # "twilio" for dev, "meta" / "ycloud" for production
+
+    # YCloud WhatsApp API
+    ycloud_api_key: str = ""
+    ycloud_webhook_secret: str = ""
 
     # WhatsApp Cloud API (Meta) — used when whatsapp_provider=meta
     whatsapp_token: str = ""

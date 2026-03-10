@@ -130,10 +130,41 @@ class MetaProvider:
             return response.content
 
 
-def get_provider(channel: TenantChannel) -> TwilioProvider | MetaProvider:
+class YCloudProvider:
+    def __init__(self, channel: TenantChannel):
+        self.channel = channel
+
+    def _api_key(self) -> str:
+        from app.config import get_settings
+        return get_settings().ycloud_api_key
+
+    async def parse_webhook(self, request: Request) -> list[IncomingMessage]:
+        from app.modules.whatsapp.providers.ycloud import parse_webhook as _parse
+        return await _parse(request)
+
+    async def send_text(self, to: str, text: str) -> dict:
+        from app.modules.whatsapp.providers.ycloud import send_text as _send
+        return await _send(self.channel.phone_number_id, to, text, self._api_key())
+
+    async def send_document(self, to: str, document_url: str, filename: str, caption: str | None = None) -> dict:
+        from app.modules.whatsapp.providers.ycloud import send_document as _send
+        return await _send(self.channel.phone_number_id, to, document_url, filename, caption, self._api_key())
+
+    async def send_image(self, to: str, image_url: str, caption: str | None = None) -> dict:
+        from app.modules.whatsapp.providers.ycloud import send_image as _send
+        return await _send(self.channel.phone_number_id, to, image_url, caption, self._api_key())
+
+    async def download_media(self, media_id: str | None = None, media_url: str | None = None) -> bytes:
+        from app.modules.whatsapp.providers.ycloud import download_media as _dl
+        return await _dl(media_url)
+
+
+def get_provider(channel: TenantChannel) -> TwilioProvider | MetaProvider | YCloudProvider:
     """Return a tenant-aware provider instance for the given channel."""
     if channel.provider == "twilio":
         return TwilioProvider(channel)
     elif channel.provider == "meta":
         return MetaProvider(channel)
+    elif channel.provider == "ycloud":
+        return YCloudProvider(channel)
     raise ValueError(f"Unknown provider: {channel.provider!r}")
