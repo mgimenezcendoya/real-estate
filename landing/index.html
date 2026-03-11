@@ -758,6 +758,71 @@
     }
     .plan-cta-btn.secondary:hover { color: var(--primary); border-color: var(--border-focus); transform: translateY(-1px); }
 
+    /* ─── VALUE ANCHOR ───────────────────────────────────── */
+    .value-anchor {
+      max-width: 680px;
+      margin: 0 auto clamp(24px,3vw,32px);
+      background: #fffbeb;
+      border: 1px solid rgba(217,119,6,0.18);
+      border-radius: var(--radius);
+      padding: 11px 20px;
+    }
+    .va-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      justify-content: center;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .va-label { font-weight: 600; color: var(--amber); white-space: nowrap; }
+    .va-sep { color: var(--text-3); }
+    .va-cost { color: var(--text-2); }
+    .va-cost strong { color: var(--text); }
+
+    /* ─── ADD-ONS ────────────────────────────────────────── */
+    .addon-section { max-width: 1000px; margin: clamp(40px,5vw,56px) auto 0; }
+    .addon-section-label {
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin-bottom: 16px;
+    }
+    .addon-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 640px) { .addon-grid { grid-template-columns: 1fr; } }
+    .addon-card {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: clamp(20px,2.5vw,28px);
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .addon-icon { font-size: 20px; line-height: 1; flex-shrink: 0; margin-top: 3px; }
+    .addon-name { font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .addon-price {
+      font-family: 'Outfit', sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      line-height: 1;
+    }
+    .addon-price span { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; color: var(--text-3); }
+    .addon-desc { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+    .addon-note { text-align: center; font-size: 12px; color: var(--text-3); margin-top: 14px; }
+
     /* ─── FINAL CTA ──────────────────────────────────────── */
     .cta-section { padding: 0 clamp(20px,5vw,48px) clamp(80px,10vw,120px); }
     .cta-card {
@@ -1517,7 +1582,14 @@
       <div class="pricing-header fade-up">
         <div class="section-tag">Precios</div>
         <h2 class="section-title" style="margin-top:12px">Simples. En USD. Sin sorpresas.</h2>
-        <p class="section-body" style="margin:0 auto">Comenzá con el plan que necesitás y escalá cuando estés listo.</p>
+        <p class="section-body" style="margin:0 auto">Comenzá con el plan que necesitás y escalá cuando estés listo. Sin contratos anuales obligatorios.</p>
+      </div>
+      <div class="value-anchor fade-up">
+        <div class="va-inner">
+          <span class="va-label">¿Lo hacés sin herramientas?</span>
+          <span class="va-sep">→</span>
+          <span class="va-cost">Un coordinador de ventas + administrativo cuesta entre <strong>USD 1.200 y 2.000/mes</strong>. Realia arranca en USD 349.</span>
+        </div>
       </div>
       <div class="billing-toggle fade-up">
         <span class="toggle-label-text">Mensual</span>
@@ -1525,71 +1597,97 @@
           <div class="toggle-thumb"></div>
         </div>
         <span class="toggle-label-text">Anual</span>
-        <span class="annual-badge">✓ 2 meses gratis</span>
+        <span class="annual-badge">✓ 15% de descuento</span>
       </div>
       <div class="pricing-grid fade-up d1">
-        <!-- Obra -->
+        <!-- Base -->
         <div class="pricing-card">
           <div>
-            <div class="plan-name-label">Obra</div>
+            <div class="plan-name-label">Base</div>
             <div class="plan-price-row">
               <span class="price-curr">USD</span>
-              <span class="price-num" id="p-obra">49</span>
+              <span class="price-num" id="p-base">349</span>
               <span class="price-per">/mes</span>
             </div>
-            <p class="plan-desc-text">Para desarrolladoras que quieren mantener informados a sus compradores y ordenar la gestión de proyectos.</p>
+            <p class="plan-desc-text">Para desarrolladoras con 1 proyecto que quieren ordenar su operación y no perder más leads.</p>
           </div>
           <div class="plan-divider"></div>
           <div class="plan-feat-list">
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Seguimiento de obra con % de avance</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Notificaciones WA a compradores con fotos</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Panel: proyectos, unidades, reservas</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Plan de pagos y financiero básico</div>
-            <div class="pf disabled"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span style="color:var(--text-3)">Chatbot IA de ventas</span></div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>1 proyecto activo</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Chatbot WhatsApp IA (leads 24/7)</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Portal de seguimiento para compradores</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Dashboard: unidades, reservas, financiero</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Soporte por email</div>
           </div>
-          <a href="#contacto" class="plan-cta-btn secondary">Empezar con Obra</a>
+          <a href="#contacto" class="plan-cta-btn secondary">Empezar</a>
         </div>
         <!-- Pro -->
         <div class="pricing-card featured">
-          <div class="featured-label">Más elegido</div>
+          <div class="featured-label">Más popular</div>
           <div>
             <div class="plan-name-label" style="color:var(--primary)">Pro</div>
             <div class="plan-price-row">
               <span class="price-curr">USD</span>
-              <span class="price-num gradient-text" id="p-pro">149</span>
+              <span class="price-num gradient-text" id="p-pro">599</span>
               <span class="price-per">/mes</span>
             </div>
-            <p class="plan-desc-text">Para desarrolladoras que quieren automatizar ventas y nunca perder un lead, además de gestionar su proyecto.</p>
+            <p class="plan-desc-text">Para desarrolladoras con 2 a 5 proyectos en simultáneo. El caso típico del mercado.</p>
           </div>
           <div class="plan-divider"></div>
           <div class="plan-feat-list">
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Todo el plan Obra</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Agente IA de ventas 24/7</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>WhatsApp + Web Chat + Instagram</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Calificación automática de leads</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Respuestas desde tus documentos reales</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Inbox omnicanal con HITL</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Todo el plan Base</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hasta 5 proyectos activos</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Dashboard multi-proyecto unificado</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Handoff al equipo de ventas desde el chat</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Reportes por unidad y por inversor</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Soporte prioritario</div>
           </div>
           <a href="#contacto" class="plan-cta-btn primary">Empezar con Pro</a>
         </div>
-        <!-- Enterprise -->
+        <!-- Studio -->
         <div class="pricing-card">
           <div>
-            <div class="plan-name-label">Enterprise</div>
+            <div class="plan-name-label">Studio</div>
             <div class="plan-price-row">
-              <span class="price-num" style="font-family:'DM Sans',sans-serif;font-size:clamp(24px,3vw,30px);font-weight:400;color:var(--text-2)">A consultar</span>
+              <span class="price-curr">USD</span>
+              <span class="price-num" id="p-studio">1.100</span>
+              <span class="price-per">/mes</span>
             </div>
-            <p class="plan-desc-text">Para portfolios de múltiples proyectos o inmobiliarias con alta rotación que necesitan integraciones a medida.</p>
+            <p class="plan-desc-text">Para desarrolladoras grandes o estudios que gestionan portfolios de 6 a 15 proyectos simultáneos.</p>
           </div>
           <div class="plan-divider"></div>
           <div class="plan-feat-list">
             <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Todo el plan Pro</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Multi-proyecto y multi-organización</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Hasta 15 proyectos activos</div>
             <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>White label (tu marca, no la nuestra)</div>
-            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>SLA garantizado + soporte dedicado</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>SLA garantizado</div>
+            <div class="pf"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Account manager dedicado</div>
           </div>
           <a href="#contacto" class="plan-cta-btn secondary">Hablar con ventas</a>
         </div>
+      </div>
+      <!-- Add-ons -->
+      <div class="addon-section fade-up d2">
+        <div class="addon-section-label">Cargos adicionales por ciclo de vida del proyecto</div>
+        <div class="addon-grid">
+          <div class="addon-card">
+            <div class="addon-icon">⚡</div>
+            <div>
+              <div class="addon-name">Setup por proyecto</div>
+              <div class="addon-price">USD 400 <span>· pago único</span></div>
+              <p class="addon-desc">Cubre la configuración del chatbot, carga inicial de información del proyecto e integración con WhatsApp. Se abona una sola vez al activar cada proyecto nuevo.</p>
+            </div>
+          </div>
+          <div class="addon-card">
+            <div class="addon-icon">🔄</div>
+            <div>
+              <div class="addon-name">Plan Postventa</div>
+              <div class="addon-price">USD 199 <span>· por proyecto / mes</span></div>
+              <p class="addon-desc">Se activa cuando termina la obra. Cubre gestión de garantías, reclamos y comunicación continua con compradores. Duración típica: 12–18 meses por proyecto.</p>
+            </div>
+          </div>
+        </div>
+        <p class="addon-note">Los proyectos en modo Postventa no ocupan lugar en tu plan principal — se facturan por separado.</p>
       </div>
     </div>
   </section>
@@ -1645,6 +1743,50 @@
             </div>
           </div>
           <div class="faq-a">El primer proyecto queda operativo en 48 horas. La primera sesión de onboarding (45 minutos) alcanza para cargar el proyecto, conectar WhatsApp y configurar el agente. No necesitás un equipo de IT ni integraciones complejas. En proyectos posteriores, la configuración tarda menos de 30 minutos.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">
+            ¿Qué es un "proyecto activo"?
+            <div class="faq-chevron">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="faq-a">Un proyecto activo es cualquier proyecto en construcción o en venta que tiene el chatbot y el dashboard funcionando. Los proyectos finalizados que pasan a modo Postventa no cuentan como activos en tu plan — se facturan por separado a USD 199/mes.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">
+            ¿Qué pasa cuando termina la obra?
+            <div class="faq-chevron">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="faq-a">El proyecto pasa al modo Postventa y deja de contar contra tu plan principal. Durante la postventa seguís teniendo comunicación con compradores, gestión de garantías y reclamos por USD 199/mes. Cuando la postventa termina, el proyecto se archiva sin cargo adicional.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">
+            ¿Puedo cambiar de plan?
+            <div class="faq-chevron">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="faq-a">Sí, podés subir o bajar de plan en cualquier momento. Si subís, el cambio es inmediato y el costo se prorratea por el mes en curso. Si bajás, el cambio se aplica al inicio del próximo período. Sin penalidades.
+          </div>
+        </div>
+
+        <div class="faq-item" onclick="toggleFaq(this)">
+          <div class="faq-q">
+            ¿Los precios son en dólares? ¿Cómo se factura?
+            <div class="faq-chevron">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div class="faq-a">Sí, todos los precios están en dólares estadounidenses, igual que las transacciones del sector inmobiliario argentino. La facturación es mensual por tarjeta de crédito o transferencia. Si necesitás factura en pesos para contabilidad local, coordinamos la conversión al tipo de cambio oficial del día de pago.
           </div>
         </div>
 
@@ -1758,12 +1900,19 @@
     if (sg) cntObs.observe(sg);
 
     /* ── BILLING TOGGLE ── */
+    /* ── PRICING CONFIG ── */
+    const PRICES = {
+      monthly: { base: '349', pro: '599', studio: '1.100' },
+      annual:  { base: '297', pro: '509', studio:   '935' },
+    };
     let annual = false;
     function toggleBilling() {
       annual = !annual;
       document.getElementById('billingToggle').classList.toggle('on', annual);
-      document.getElementById('p-obra').textContent = annual ? '41' : '49';
-      document.getElementById('p-pro').textContent  = annual ? '124' : '149';
+      const p = annual ? PRICES.annual : PRICES.monthly;
+      document.getElementById('p-base').textContent   = p.base;
+      document.getElementById('p-pro').textContent    = p.pro;
+      document.getElementById('p-studio').textContent = p.studio;
     }
 
     /* ── FAQ ACCORDION ── */
