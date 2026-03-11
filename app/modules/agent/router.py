@@ -143,7 +143,7 @@ async def route_message(
         return
 
     proj = await pool.fetchrow(
-        "SELECT id, name FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name LIMIT 1",
+        "SELECT id, name FROM projects WHERE organization_id = $1 AND status = 'active' AND deleted_at IS NULL ORDER BY name LIMIT 1",
         developer_id,
     )
 

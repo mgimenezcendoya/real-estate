@@ -85,7 +85,7 @@ Tenés la herramienta `derivar_vendedor` disponible. Usala cuando:
 - No podés responder con certeza y el lead insiste → razon: consulta_especifica
 
 NO derives por preguntas normales sobre precios, amenities, ubicación — esas las respondés vos.
-Cuando derives, respondé algo breve como "Te paso con un asesor que te va a poder ayudar."
+Cuando uses `derivar_vendedor`, NO incluyas texto adicional — el sistema envía automáticamente un mensaje al lead.
 """
 
 EXTRACTION_PROMPT = """Analiza la siguiente conversacion entre un lead y un asistente de ventas inmobiliario.

@@ -164,7 +164,7 @@ async def _handle_incoming_document(phone: str, developer_id: str, dev_name: str
 
     pool = await get_pool()
     projects = await pool.fetch(
-        "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name",
+        "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' AND deleted_at IS NULL ORDER BY name",
         developer_id,
     )
 
@@ -198,7 +198,7 @@ async def _handle_upload_classification(
 
     if pending["step"] == "ask_project":
         projects = await pool.fetch(
-            "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' ORDER BY name",
+            "SELECT name, slug FROM projects WHERE organization_id = $1 AND status = 'active' AND deleted_at IS NULL ORDER BY name",
             developer_id,
         )
         matched = None
@@ -273,7 +273,7 @@ async def _finalize_upload(
     pool = await get_pool()
 
     project = await pool.fetchrow(
-        "SELECT id, name, organization_id FROM projects WHERE slug = $1 AND organization_id = $2",
+        "SELECT id, name, organization_id FROM projects WHERE slug = $1 AND organization_id = $2 AND deleted_at IS NULL",
         pending["project_slug"], developer_id,
     )
     if not project:
@@ -499,7 +499,7 @@ async def _build_developer_context(developer_id: str) -> str:
 
     projects = await pool.fetch(
         """SELECT id, name, slug, address, neighborhood, status, delivery_status, estimated_delivery
-           FROM projects WHERE organization_id = $1 ORDER BY name""",
+           FROM projects WHERE organization_id = $1 AND deleted_at IS NULL ORDER BY name""",
         developer_id,
     )
 
@@ -791,7 +791,7 @@ async def _action_update_project(pool, params: dict, developer_id: str) -> dict:
     }
 
     proj = await pool.fetchrow(
-        "SELECT id, name FROM projects WHERE slug = $1 AND developer_id = $2",
+        "SELECT id, name FROM projects WHERE slug = $1 AND developer_id = $2 AND deleted_at IS NULL",
         project_slug, developer_id,
     )
     if not proj:
