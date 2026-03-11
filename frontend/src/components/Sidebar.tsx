@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard, Plug } from 'lucide-react';
+import { Building2, HardHat, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,7 +16,7 @@ const navItems = [
   { href: '/cobranza', label: 'Cobranza', icon: CreditCard },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/tools', label: 'Tools', icon: Wrench },
-  { href: '/configuracion', label: 'Configuración', icon: Plug },
+  { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
 function NavContent({
@@ -67,6 +67,7 @@ function NavContent({
           const active = pathname.startsWith(href);
           const isInbox = href === '/inbox';
           const showBadge = isInbox && inboxUnreadCount > 0;
+          const showActivityDot = isInbox && inboxUnreadCount > 0 && pathname !== '/inbox';
           return (
             <Link
               key={href}
@@ -94,6 +95,9 @@ function NavContent({
                 />
                 {showBadge && collapsed && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-700" />
+                )}
+                {showActivityDot && !collapsed && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                 )}
               </div>
               {!collapsed && <span className="text-sm font-medium">{label}</span>}

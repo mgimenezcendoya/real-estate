@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-from app.admin.auth import (authenticate_user_db, authenticate_user_env,
+from app.admin.auth import (authenticate_user_db,
                              create_token, hash_password,
                              update_ultimo_acceso, verify_token)
 from app.admin.deps import ADMIN_ROLES, _audit, _get_actor, _require_admin, security
@@ -23,9 +23,7 @@ class LoginBody(BaseModel):
 
 @router.post("/auth/login")
 async def auth_login(body: LoginBody):
-    """Validate credentials and return a JWT.
-    Tries DB users first; falls back to env vars (legacy transition support).
-    """
+    """Validate credentials against the users table and return a JWT."""
     pool = await get_pool()
 
     # 1. Primary: DB-based auth
@@ -54,26 +52,6 @@ async def auth_login(body: LoginBody):
             "debe_cambiar_password": db_user["debe_cambiar_password"],
         }
 
-    # 2. Fallback: env-var auth (legacy)
-    env_user = authenticate_user_env(body.username, body.password)
-    if env_user:
-        # Try to include an org_id so the SSE endpoint works for env-var users
-        env_org_row = await pool.fetchrow("SELECT id FROM organizations LIMIT 1")
-        env_org_id = str(env_org_row["id"]) if env_org_row else None
-        token = create_token(
-            sub=env_user["sub"],
-            role=env_user["role"],
-            nombre=env_user["nombre"],
-            organization_id=env_org_id,
-        )
-        return {
-            "token": token,
-            "user": env_user["sub"],
-            "role": env_user["role"],
-            "nombre": env_user["nombre"],
-            "organization_id": env_org_id,
-        }
-
     raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
 
@@ -81,10 +59,10 @@ async def auth_login(body: LoginBody):
 async def auth_me(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """Return current user identity from JWT."""
     if not credentials or credentials.scheme != "Bearer":
-        return {"user": None, "role": None}
+        raise HTTPException(status_code=401, detail="No autorizado")
     payload = verify_token(credentials.credentials)
     if not payload:
-        return {"user": None, "role": None}
+        raise HTTPException(status_code=401, detail="Token inválido o expirado")
     result = {
         "user": payload.get("sub"),
         "role": payload.get("role"),

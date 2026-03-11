@@ -12,3 +12,4 @@ aioboto3
 boto3
 PyJWT
 bcrypt
+sentry-sdk[fastapi]

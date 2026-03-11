@@ -6,7 +6,7 @@ import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Search, FileText, Send, Sparkles, Loader2, ArrowLeft, Wifi, WifiOff, MessageSquare, PanelRight } from 'lucide-react';
+import { Search, Send, Sparkles, Loader2, ArrowLeft, Wifi, WifiOff, MessageSquare, PanelRight } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,8 +14,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSSE, SSEMessageEvent, SSEHandoffUpdateEvent } from '@/hooks/useSSE';
 import { ContactDetailPanel } from './ContactDetailPanel';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { TypingIndicator } from './TypingIndicator';
+import { MessageBubble, isSameDay } from './MessageBubble';
+import { ConversationListItem, LeadGroup } from './ConversationListItem';
+import { SCORE_CONFIG } from './scoreConfig';
 
-type LeadGroup = { phone: string; mainLead: Lead; allLeadIds: string[]; lastMessage?: string };
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function groupLeadsByPhone(leads: Lead[]): LeadGroup[] {
   const byPhone = new Map<string, Lead[]>();
@@ -56,117 +60,14 @@ function getInitials(name: string): string {
   return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 }
 
-function parseLine(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) =>
-    part.startsWith('**') && part.endsWith('**')
-      ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
-      : part
-  );
-}
-
-function renderMarkdown(content: string, isOutgoing: boolean): React.ReactNode {
-  const lines = content.split('\n');
-  const result: React.ReactNode[] = [];
-  let listItems: string[] = [];
-  let key = 0;
-
-  const flushList = () => {
-    if (listItems.length === 0) return;
-    result.push(
-      <ul key={key++} className="my-1.5 space-y-0.5">
-        {listItems.map((item, i) => (
-          <li key={i} className="flex gap-2 items-start text-sm leading-relaxed">
-            <span className={cn('flex-shrink-0 select-none mt-px', isOutgoing ? 'text-indigo-200' : 'text-border')}>—</span>
-            <span>{parseLine(item)}</span>
-          </li>
-        ))}
-      </ul>
-    );
-    listItems = [];
-  };
-
-  lines.forEach((line) => {
-    if (line.startsWith('- ') || line.startsWith('• ')) {
-      listItems.push(line.slice(2));
-    } else {
-      flushList();
-      if (line.trim() === '') {
-        result.push(<div key={key++} className="h-1.5" />);
-      } else {
-        result.push(
-          <p key={key++} className="text-sm leading-relaxed">{parseLine(line)}</p>
-        );
-      }
-    }
-  });
-  flushList();
-  return <div className="space-y-0">{result}</div>;
-}
-
-const SCORE_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
-  hot:  { label: '🔥 Caliente', dot: 'bg-red-500',   badge: 'bg-red-50 text-red-700 border-red-200' },
-  warm: { label: '☀️ Tibio',    dot: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
-  cold: { label: '❄️ Frío',     dot: 'bg-blue-400',  badge: 'bg-blue-50 text-blue-700 border-blue-200' },
-};
-
-// Typing indicator with bouncing dots
-function TypingIndicator() {
-  return (
-    <div className="flex items-end gap-1 px-4 py-2.5 rounded-2xl rounded-bl-sm bg-[#eef1ff] border border-indigo-100/60 shadow-sm w-fit">
-      <style>{`
-        @keyframes typing-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
-          30% { transform: translateY(-5px); opacity: 1; }
-        }
-        .typing-dot { animation: typing-bounce 1.2s infinite; }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-      `}</style>
-      <div className="typing-dot w-2 h-2 rounded-full bg-indigo-400" />
-      <div className="typing-dot w-2 h-2 rounded-full bg-indigo-400" />
-      <div className="typing-dot w-2 h-2 rounded-full bg-indigo-400" />
-    </div>
-  );
-}
-
 // Chat background — soft neutral with a barely-visible dot grid
 const chatBgStyle: React.CSSProperties = {
-  backgroundColor: '#f4f6fb',
-  backgroundImage: `radial-gradient(circle, #c7cfe8 1px, transparent 1px)`,
+  backgroundColor: 'hsl(var(--accent) / 0.3)',
+  backgroundImage: `radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)`,
   backgroundSize: '24px 24px',
 };
 
-function formatTime(iso?: string) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-}
-
-function formatDateLabel(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return 'Hoy';
-  if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
-  return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-}
-
-function formatSidebarTime(iso?: string) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const today = new Date();
-  if (d.toDateString() === today.toDateString()) {
-    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  }
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-}
-
-function isSameDay(a?: string, b?: string) {
-  if (!a || !b) return false;
-  return new Date(a).toDateString() === new Date(b).toDateString();
-}
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
   const { markInboxAsRead } = useNotifications();
@@ -261,20 +162,46 @@ export default function InboxPage() {
       // Safety fallback: hide after 30s
       if (agentTypingTimerRef.current) clearTimeout(agentTypingTimerRef.current);
       agentTypingTimerRef.current = setTimeout(() => setAgentTyping(false), 30000);
+    } else {
+      // Assistant/agent message — clear typing indicator immediately
+      setAgentTyping(false);
+      if (agentTypingTimerRef.current) clearTimeout(agentTypingTimerRef.current);
     }
 
+    const newMsg: Conversation = {
+      id: `sse-${data.lead_id}-${Date.now()}`,
+      role: data.sender_type === 'lead' ? 'user' : 'assistant',
+      sender_type: data.sender_type as Conversation['sender_type'],
+      content: data.content,
+      media_type: null,
+      created_at: data.timestamp ?? new Date().toISOString(),
+    };
+
     setActiveConversation((prev) => {
+      const tsNew = new Date(newMsg.created_at).getTime();
       const alreadyExists = prev.some(
-        (m) => m.content === data.content && m.sender_type === data.sender_type
+        (m) =>
+          m.content === newMsg.content &&
+          m.sender_type === newMsg.sender_type &&
+          Math.abs(new Date(m.created_at).getTime() - tsNew) < 5000
       );
       if (alreadyExists) return prev;
-      loadMergedConversations(currentLeadIds).then((msgs) => {
-        setActiveConversation(msgs);
-        setAgentTyping(false);
-        if (agentTypingTimerRef.current) clearTimeout(agentTypingTimerRef.current);
-      }).catch(() => {});
-      return prev;
+      return [...prev, newMsg];
     });
+
+    // Update sidebar preview without refetching
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === data.lead_id
+          ? {
+              ...l,
+              last_message_preview: data.content,
+              last_message_at: data.timestamp ?? new Date().toISOString(),
+              last_message_role: data.sender_type,
+            }
+          : l
+      )
+    );
   }, []);
 
   const handleSSEHandoffUpdate = useCallback((data: SSEHandoffUpdateEvent) => {
@@ -390,12 +317,6 @@ export default function InboxPage() {
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
 
-  // Last message per group for sidebar preview
-  const lastMessageByPhone = useMemo(() => {
-    // We only have the active conversation loaded; show nothing for others
-    return new Map<string, string>();
-  }, []);
-
   return (
     <div className="flex flex-col h-full w-full overflow-hidden p-4 md:p-6 max-w-[1920px] mx-auto">
       {/* Page header */}
@@ -471,89 +392,14 @@ export default function InboxPage() {
               </div>
             ) : (
               <div className="py-1">
-                {filteredGroups.map((group) => {
-                  const { mainLead } = group;
-                  const isActive = selectedLeadId === mainLead.id;
-                  const score = mainLead.score ?? null;
-                  const timeLabel = formatSidebarTime(mainLead.last_contact || mainLead.created_at);
-
-                  const avatarGradient =
-                    score === 'hot'  ? 'from-red-400 to-red-600' :
-                    score === 'warm' ? 'from-amber-400 to-orange-500' :
-                    score === 'cold' ? 'from-blue-400 to-blue-600' :
-                    isActive         ? 'from-primary to-primary/80' :
-                                       'from-muted-foreground to-muted-foreground/70';
-
-                  const scoreDotColor =
-                    score === 'hot'  ? 'bg-red-500' :
-                    score === 'warm' ? 'bg-amber-400' :
-                    score === 'cold' ? 'bg-blue-400' : '';
-
-                  return (
-                    <button
-                      key={group.phone}
-                      onClick={() => handleSelectPerson(group)}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all relative group',
-                        isActive
-                          ? 'bg-primary/8'
-                          : 'hover:bg-secondary/60'
-                      )}
-                    >
-                      {/* Active bar */}
-                      <div className={cn(
-                        'absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full transition-all',
-                        isActive ? 'bg-primary opacity-100' : 'opacity-0'
-                      )} />
-
-                      {/* Avatar */}
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="w-10 h-10 shadow-sm">
-                          <AvatarFallback className={cn(
-                            'text-white text-[13px] font-display font-semibold bg-gradient-to-br',
-                            avatarGradient
-                          )}>
-                            {getInitials(mainLead.name || mainLead.phone)}
-                          </AvatarFallback>
-                        </Avatar>
-                        {scoreDotColor && (
-                          <span className={cn(
-                            'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
-                            scoreDotColor
-                          )} />
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between gap-1 mb-0.5">
-                          <span className={cn(
-                            'text-[13px] font-display font-semibold truncate leading-snug',
-                            isActive ? 'text-primary' : 'text-foreground'
-                          )}>
-                            {mainLead.name || mainLead.phone}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap flex-shrink-0 tabular">
-                            {timeLabel}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] text-muted-foreground/70 truncate flex-1 leading-tight">
-                            {mainLead.project_name || mainLead.phone}
-                          </span>
-                          {mainLead.handoff_active ? (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" title="Humano activo" />
-                          ) : (
-                            <Sparkles size={9} className={cn(
-                              'flex-shrink-0 transition-colors',
-                              isActive ? 'text-primary/50' : 'text-muted-foreground/30 group-hover:text-muted-foreground/50'
-                            )} />
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                {filteredGroups.map((group) => (
+                  <ConversationListItem
+                    key={group.phone}
+                    group={group}
+                    isActive={selectedLeadId === group.mainLead.id}
+                    onClick={handleSelectPerson}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -662,130 +508,15 @@ export default function InboxPage() {
               </div>
             ) : (
               <div className="py-3 px-2 md:px-4">
-                {activeConversation.map((msg, idx) => {
-                  const isLead     = msg.role === 'user';
-                  const isAI       = msg.role === 'assistant' && (msg.sender_type === 'ai' || msg.sender_type === 'agent');
-                  const isHuman    = msg.role === 'assistant' && msg.sender_type === 'human';
-                  const isTelegram = msg.role === 'assistant' && msg.sender_type === 'telegram';
-                  const isOutgoing = !isLead;
-
-                  const prevMsg    = activeConversation[idx - 1];
-                  const sameAsPrev = prevMsg && prevMsg.role === msg.role && prevMsg.sender_type === msg.sender_type;
-                  const showDateSep = !prevMsg || !isSameDay(prevMsg.created_at, msg.created_at);
-
-                  // Tail only on first message of each group
-                  const showTail = !sameAsPrev;
-
-                  // Bubble colors — cohesive with app palette
-                  const bubbleBg = isLead ? '#ffffff'
-                    : isAI      ? '#eef1ff'   // indigo-50: brand AI
-                    : isHuman   ? '#f0fdf4'   // green-50: human/handoff
-                    : isTelegram? '#f0f9ff'   // sky-50: telegram
-                    : '#f8f8f8';
-
-                  const senderName = isLead
-                    ? (selectedLead?.name || 'Usuario')
-                    : isAI ? 'Realia AI'
-                    : isHuman ? 'Soporte (Panel)'
-                    : isTelegram ? 'Soporte (Telegram)'
-                    : 'Sistema';
-
-                  const senderColor = isLead ? '#4b5563'
-                    : isAI      ? '#4338ca'
-                    : isHuman   ? '#15803d'
-                    : isTelegram? '#0284c7'
-                    : '#6b7280';
-
-                  return (
-                    <React.Fragment key={idx}>
-                      {showDateSep && (
-                        <div className="flex items-center justify-center my-4">
-                          <span className="bg-background/80 text-muted-foreground text-xs font-medium px-4 py-1 rounded-full shadow-sm border border-border/60">
-                            {formatDateLabel(msg.created_at)}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className={cn(
-                        'flex w-full',
-                        isOutgoing ? 'justify-end' : 'justify-start',
-                        sameAsPrev ? 'mt-[2px]' : 'mt-3',
-                      )}>
-                        {/* Bubble wrapper — max 65% width */}
-                        <div style={{ maxWidth: '65%', minWidth: 0 }}>
-
-                          {/* Sender label above bubble (only first in group, incoming) */}
-                          {!sameAsPrev && !isOutgoing && (
-                            <div className="text-xs font-semibold mb-0.5 px-[13px] flex items-center gap-1.5" style={{ color: senderColor }}>
-                              {senderName}
-                              {isAI && (
-                                <span className="text-[9px] bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-full px-1.5 py-[1px] font-bold uppercase tracking-wide">
-                                  AI
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {!sameAsPrev && isOutgoing && (
-                            <div className="text-xs font-semibold mb-0.5 px-[13px] text-right flex items-center justify-end gap-1.5" style={{ color: senderColor }}>
-                              {isAI && (
-                                <span className="text-[9px] bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-full px-1.5 py-[1px] font-bold uppercase tracking-wide">
-                                  AI
-                                </span>
-                              )}
-                              {senderName}
-                            </div>
-                          )}
-
-                          {/* The bubble itself */}
-                          <div
-                            className="relative"
-                            style={{
-                              backgroundColor: bubbleBg,
-                              borderRadius: showTail
-                                ? (isOutgoing ? '12px 2px 12px 12px' : '2px 12px 12px 12px')
-                                : '12px',
-                              padding: '7px 12px 5px',
-                              boxShadow: isLead
-                                ? '0 1px 2px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04)'
-                                : '0 1px 2px rgba(79,70,229,0.08)',
-                              wordBreak: 'break-word',
-                              overflowWrap: 'break-word',
-                            }}
-                          >
-                            {/* Message content */}
-                            <div className="text-[13.5px] leading-[1.5] text-foreground">
-                              {isAI || isHuman || isTelegram
-                                ? renderMarkdown(msg.content, isOutgoing)
-                                : <span>{msg.content}</span>
-                              }
-                            </div>
-
-                            {/* Media attachment */}
-                            {msg.media_type && (
-                              <div className="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/8">
-                                <FileText size={13} className="text-muted-foreground flex-shrink-0" />
-                                <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">{msg.media_type}</span>
-                              </div>
-                            )}
-
-                            {/* Timestamp row — inline at bottom right */}
-                            <div className="flex items-center justify-end gap-1 mt-0.5 -mb-[1px]">
-                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-                                {formatTime(msg.created_at)}
-                              </span>
-                              {isHuman && (
-                                <svg viewBox="0 0 16 11" width="16" height="11" className="flex-shrink-0">
-                                  <path d="M11.071.653a.45.45 0 0 0-.631 0L5.767 5.33l-1.2-1.2a.45.45 0 1 0-.636.636l1.519 1.519a.45.45 0 0 0 .636 0l4.985-4.996a.45.45 0 0 0 0-.636z" fill="#53bdeb"/>
-                                  <path d="M14.071.653a.45.45 0 0 0-.631 0L8.767 5.33" stroke="#53bdeb" strokeWidth="0.9" fill="none"/>
-                                </svg>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </React.Fragment>
-                  );
-                })}
+                {activeConversation.map((msg, idx) => (
+                  <MessageBubble
+                    key={idx}
+                    msg={msg}
+                    idx={idx}
+                    prevMsg={activeConversation[idx - 1]}
+                    selectedLead={selectedLead}
+                  />
+                ))}
 
                 {/* Typing indicator */}
                 {agentTyping && (

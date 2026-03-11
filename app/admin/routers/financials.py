@@ -396,13 +396,13 @@ async def create_buyer(project_id: str, body: BuyerBody):
         body.unit_id, project_id,
     )
     if not unit:
-        return {"error": "Unidad no encontrada"}
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
 
     existing = await pool.fetchval(
         "SELECT id FROM buyers WHERE unit_id = $1 AND status = 'active'", body.unit_id
     )
     if existing:
-        return {"error": f"Ya existe un comprador activo para la unidad {unit['identifier']}"}
+        raise HTTPException(status_code=409, detail=f"Ya existe un comprador activo para la unidad {unit['identifier']}")
 
     signed_at = datetime.now(timezone.utc)
     if body.signed_at:

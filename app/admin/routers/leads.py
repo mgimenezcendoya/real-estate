@@ -23,10 +23,21 @@ from app.modules.whatsapp.sender import send_text_message
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-UPDATABLE_LEAD_FIELDS = {
-    "name", "score", "source", "budget_usd", "intent", "timeline", "financing", "bedrooms", "location_pref",
-    "tags", "internal_notes",
+_LEAD_COLUMN_MAP = {
+    "name": "name",
+    "score": "score",
+    "source": "source",
+    "budget_usd": "budget_usd",
+    "intent": "intent",
+    "timeline": "timeline",
+    "financing": "financing",
+    "bedrooms": "bedrooms",
+    "location_pref": "location_pref",
+    "tags": "tags",
+    "internal_notes": "internal_notes",
 }
+
+UPDATABLE_LEAD_FIELDS = set(_LEAD_COLUMN_MAP.keys())
 
 
 @router.post("/jobs/nurturing")
@@ -74,16 +85,26 @@ async def list_leads(
         SELECT
             l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
             l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
-            l.created_at, l.last_contact,
+            l.created_at, l.last_contact, l.tags, l.internal_notes,
             p.name as project_name,
             EXISTS(
                 SELECT 1 FROM handoffs h
                 WHERE h.lead_id = l.id AND h.status = 'active'
-            ) as handoff_active
+            ) as handoff_active,
+            lm.content as last_message_preview,
+            lm.created_at as last_message_at,
+            lm.role as last_message_role
         FROM leads l
         LEFT JOIN projects p ON l.project_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT content, created_at, role
+            FROM conversations
+            WHERE lead_id = l.id
+            ORDER BY created_at DESC
+            LIMIT 1
+        ) lm ON true
         {where_clause}
-        ORDER BY l.last_contact DESC NULLS LAST, l.created_at DESC
+        ORDER BY COALESCE(lm.created_at, l.last_contact, l.created_at) DESC NULLS LAST
     """
 
     rows = await pool.fetch(query, *params)
@@ -105,18 +126,19 @@ async def update_lead(
 
     fields_to_update = {k: v for k, v in body.items() if k in UPDATABLE_LEAD_FIELDS}
     if not fields_to_update:
-        return {"error": f"No valid fields. Allowed: {', '.join(sorted(UPDATABLE_LEAD_FIELDS))}"}
+        raise HTTPException(status_code=400, detail=f"No valid fields. Allowed: {', '.join(sorted(UPDATABLE_LEAD_FIELDS))}")
 
     set_clauses = []
     params = [lead_id]
     for i, (field, value) in enumerate(fields_to_update.items(), start=2):
-        set_clauses.append(f"{field} = ${i}")
+        col = _LEAD_COLUMN_MAP[field]  # guaranteed safe column name
+        set_clauses.append(f"{col} = ${i}")
         params.append(value)
 
     sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, name, score"
     row = await pool.fetchrow(sql, *params)
     if not row:
-        return {"error": f"Lead {lead_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
 
     logger.info("Lead %s updated: %s", lead_id, list(fields_to_update.keys()))
     return {"updated": list(fields_to_update.keys()), "lead_id": str(row["id"]), "name": row["name"], "score": row["score"]}
@@ -267,7 +289,7 @@ async def get_lead(
         lead_id,
     )
     if not lead:
-        return {"error": f"Lead {lead_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
 
     # Verify the caller's org matches the lead's org (unless superadmin)
     if credentials and credentials.scheme == "Bearer":
@@ -399,7 +421,7 @@ async def send_lead_message(
     pool = await get_pool()
     lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
     if not lead:
-        return {"error": f"Lead {lead_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
 
     await ensure_handoff_for_human_reply(lead_id)
 
@@ -430,7 +452,7 @@ async def send_lead_message(
         await send_text_message(to=lead["phone"], text=request.content)
     except Exception as e:
         logger.error(f"Error sending message to {lead['phone']}: {e}")
-        return {"error": "Failed to dispatch message to WhatsApp provider"}
+        raise HTTPException(status_code=502, detail="Failed to dispatch message to WhatsApp provider")
 
     # Broadcast the new message to all connected admins of this tenant so the
     # inbox updates instantly without waiting for SSE polling

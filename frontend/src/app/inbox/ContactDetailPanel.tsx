@@ -7,29 +7,9 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Lead } from '@/lib/api';
 import { toast } from 'sonner';
+import { SCORE_CONFIG } from './scoreConfig';
 
 const PREDEFINED_TAGS = ['urgente', 'seguimiento', 'reclamo', 'pre-aprobado', 'primer contacto', 'sin respuesta'];
-
-const SCORE_CONFIG = {
-  hot: {
-    label: 'Hot',
-    ring: 'ring-2 ring-red-200',
-    avatarBg: 'bg-gradient-to-br from-red-400 to-red-600',
-    badge: 'bg-red-50 text-red-600 border border-red-200',
-  },
-  warm: {
-    label: 'Warm',
-    ring: 'ring-2 ring-amber-200',
-    avatarBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
-    badge: 'bg-amber-50 text-amber-700 border border-amber-200',
-  },
-  cold: {
-    label: 'Frío',
-    ring: 'ring-2 ring-blue-200',
-    avatarBg: 'bg-gradient-to-br from-blue-400 to-blue-600',
-    badge: 'bg-blue-50 text-blue-600 border border-blue-200',
-  },
-};
 
 interface ContactDetailPanelProps {
   lead: Lead;
@@ -245,7 +225,7 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
                 <button
                   onClick={() => removeTag(tag)}
                   aria-label={`Eliminar etiqueta ${tag}`}
-                  className="text-primary/40 hover:text-primary transition-colors ml-0.5"
+                  className="inline-flex items-center justify-center w-4 h-4 text-primary/40 hover:text-primary transition-colors ml-0.5 rounded-full"
                 >
                   <X size={9} />
                 </button>
@@ -273,7 +253,7 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
                 <button
                   key={tag}
                   onClick={() => addTag(tag)}
-                  className="text-[11px] text-muted-foreground hover:text-primary border border-dashed border-border/70 hover:border-primary/30 hover:bg-primary/5 px-2 py-0.5 rounded-full transition-all"
+                  className="text-[11px] text-muted-foreground hover:text-primary border border-dashed border-border/70 hover:border-primary/30 hover:bg-primary/5 px-2.5 py-1 rounded-full transition-all"
                 >
                   +{tag}
                 </button>
@@ -291,7 +271,7 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
             <button
               onClick={() => setEditingNotes(true)}
               aria-label="Editar notas"
-              className="p-1.5 -mt-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="p-1.5 -mt-1 rounded-lg text-muted-foreground/50 hover:text-foreground hover:bg-accent transition-colors"
             >
               <Pencil size={12} />
             </button>
@@ -331,10 +311,15 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
             className="w-full text-left group"
             aria-label="Editar nota"
           >
-            <div className="border-l-2 border-primary/25 pl-3 group-hover:border-primary/50 transition-colors">
-              <p className="text-xs text-foreground/75 leading-relaxed whitespace-pre-wrap group-hover:text-foreground/90 transition-colors">
-                {notes}
-              </p>
+            <div className="relative">
+              <div className="border-l-2 border-primary/25 pl-3 group-hover:border-primary/50 transition-colors">
+                <p className="text-xs text-foreground/75 leading-relaxed whitespace-pre-wrap group-hover:text-foreground/90 transition-colors">
+                  {notes}
+                </p>
+              </div>
+              <span className="lg:hidden absolute bottom-0 right-0 text-muted-foreground/40">
+                <Pencil size={10} />
+              </span>
             </div>
           </button>
         ) : (
