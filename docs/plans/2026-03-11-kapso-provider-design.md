@@ -94,6 +94,45 @@ New page with two tabs:
 
 ---
 
+## Tipos de conexión WhatsApp para clientes
+
+### Requisitos mínimos
+- Número de teléfono existente
+- App **WhatsApp Business** (gratuita, distinta a WhatsApp personal)
+- Nombre del negocio
+- Cuenta de **Facebook** (el flujo pide seleccionar o crear un portafolio comercial — Meta Business Manager — pero se puede crear en el momento, en 1-2 minutos dentro del propio flujo)
+- No requiere **verificación formal de empresa con Meta** (el proceso con documentación que tarda días/semanas)
+
+> ⚠️ WhatsApp personal (no Business) **no es compatible** con la API de Meta/Kapso.
+
+### Opción 1 — Conectar app WhatsApp Business (Coexistence)
+El número opera simultáneamente en la app y en la API de Realia.
+- ✅ No requiere número nuevo
+- ✅ El vendedor puede seguir usando la app manualmente
+- ✅ El bot responde automáticamente en paralelo
+- ⚠️ La lógica de handoff de Realia evita que bot y humano respondan al mismo mensaje
+- Límite: 5 mensajes/segundo
+
+### Opción 2 — Número dedicado
+El número queda exclusivamente para la API (sin app).
+- Puede ser un número nuevo provisto por Kapso, o uno existente migrado
+- Mayor velocidad: hasta 1000 mensajes/segundo
+- Recomendado para volumen alto o cuando se quiere separación total entre bot y atención humana
+
+### Por qué Kapso simplifica el onboarding vs Meta directo
+
+| | Meta directo | Kapso embedded login |
+|---|---|---|
+| Requiere Meta Business Manager | ✅ sí (pre-configurado) | ⚠️ se crea en el flujo (~2 min) |
+| Verificación formal de empresa con Meta | ✅ sí (puede tomar días) | ❌ no |
+| Configuración técnica (tokens, WABA) | ✅ compleja | ❌ automatizada |
+| Tiempo de onboarding | días/semanas | ~2 minutos |
+| Conocimiento técnico del cliente | alto | ninguno |
+
+El cliente solo hace click en "Conectar con Kapso" dentro de Realia, completa 2-3 pasos, y su número queda operativo. Kapso abstrae toda la complejidad de Meta.
+
+---
+
 ## What's NOT in scope
 
 - Migrating existing Meta/Twilio orgs to Kapso automatically
