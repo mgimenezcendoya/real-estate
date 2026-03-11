@@ -127,6 +127,8 @@ export interface Lead {
   last_contact?: string;
   project_name?: string;
   handoff_active?: boolean;
+  tags?: string[];
+  internal_notes?: string | null;
 }
 
 export interface Conversation {
@@ -634,6 +636,8 @@ export const api = {
     fetcher<{ deleted: boolean }>(`/admin/leads/${leadId}/notes/${noteId}`, { method: 'DELETE' }),
   updateLead: (leadId: string, fields: Partial<Pick<Lead, 'name' | 'score' | 'source' | 'budget_usd' | 'intent' | 'timeline' | 'financing' | 'bedrooms' | 'location_pref'>>) =>
     fetcher(`/admin/leads/${leadId}`, { method: 'PATCH', body: JSON.stringify(fields) }),
+  patchLeadDetails: (leadId: string, details: { tags?: string[]; internal_notes?: string | null }) =>
+    fetcher(`/admin/leads/${leadId}`, { method: 'PATCH', body: JSON.stringify(details) }),
 
   getDocuments: (projectId: string, docType?: string) =>
     fetcher<Document[]>(`/admin/documents/${projectId}${docType ? `?doc_type=${docType}` : ''}`),
