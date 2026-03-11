@@ -1422,6 +1422,7 @@ async def list_leads(
 
 UPDATABLE_LEAD_FIELDS = {
     "name", "score", "source", "budget_usd", "intent", "timeline", "financing", "bedrooms", "location_pref",
+    "tags", "internal_notes",
 }
 
 
@@ -1560,7 +1561,7 @@ async def get_lead(
         """
         SELECT l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
                l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
-               l.created_at, l.last_contact,
+               l.created_at, l.last_contact, l.tags, l.internal_notes,
                p.organization_id
         FROM leads l
         LEFT JOIN projects p ON l.project_id = p.id
