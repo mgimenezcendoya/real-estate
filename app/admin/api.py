@@ -819,6 +819,16 @@ async def update_project(project_id: str, request: Request):
     return {"updated": list(fields_to_update.keys()), "project_id": str(row["id"]), "project_name": row["name"]}
 
 
+@router.delete("/projects/{project_id}", status_code=204)
+async def delete_project(project_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Soft-delete a project by setting deleted_at = NOW()."""
+    pool = await get_pool()
+    await pool.execute(
+        "UPDATE projects SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
+        project_id,
+    )
+
+
 # --- Units management ---
 
 VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
@@ -827,12 +837,14 @@ VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
 @router.get("/projects")
 async def list_projects(
     developer_id: str | None = None,
+    include_deleted: bool = False,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """List projects. Automatically scoped to the caller's organization unless superadmin."""
+    """List projects. Automatically scoped to the caller's organization unless superadmin.
+    Pass include_deleted=true to include soft-deleted projects."""
     pool = await get_pool()
     columns = """id, organization_id, name, slug, address, neighborhood, city,
-                 total_floors, total_units, delivery_status, status, created_at"""
+                 total_floors, total_units, delivery_status, status, deleted_at, created_at"""
 
     effective_org_id = developer_id
     if not effective_org_id and credentials and credentials.scheme == "Bearer":
@@ -840,13 +852,17 @@ async def list_projects(
         if payload and payload.get("role") != "superadmin":
             effective_org_id = payload.get("organization_id")
 
+    deleted_clause = "" if include_deleted else "AND deleted_at IS NULL"
+
     if effective_org_id:
         rows = await pool.fetch(
-            f"SELECT {columns} FROM projects WHERE organization_id = $1 ORDER BY name",
+            f"SELECT {columns} FROM projects WHERE organization_id = $1 {deleted_clause} ORDER BY name",
             effective_org_id,
         )
     else:
-        rows = await pool.fetch(f"SELECT {columns} FROM projects ORDER BY name")
+        rows = await pool.fetch(
+            f"SELECT {columns} FROM projects WHERE TRUE {deleted_clause} ORDER BY name"
+        )
     return [dict(r) for r in rows]
 
 
@@ -2684,10 +2700,10 @@ async def get_cash_flow_consolidated(
 
     if effective_org_id:
         project_rows = await pool.fetch(
-            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+            "SELECT id FROM projects WHERE organization_id = $1 AND deleted_at IS NULL", effective_org_id
         )
     else:
-        project_rows = await pool.fetch("SELECT id FROM projects")
+        project_rows = await pool.fetch("SELECT id FROM projects WHERE deleted_at IS NULL")
 
     project_ids = [str(r["id"]) for r in project_rows]
     if not project_ids:
@@ -2805,10 +2821,10 @@ async def get_cobranza(
 
     if effective_org_id:
         project_rows = await pool.fetch(
-            "SELECT id FROM projects WHERE organization_id = $1", effective_org_id
+            "SELECT id FROM projects WHERE organization_id = $1 AND deleted_at IS NULL", effective_org_id
         )
     else:
-        project_rows = await pool.fetch("SELECT id FROM projects")
+        project_rows = await pool.fetch("SELECT id FROM projects WHERE deleted_at IS NULL")
 
     project_ids = [str(r["id"]) for r in project_rows]
     if not project_ids:

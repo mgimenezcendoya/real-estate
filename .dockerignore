@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Frontend (separate Railway service)
+frontend
+landing
+
+# Docs & scripts
+docs
+scripts
+templates
+migrations
+.agents
+.claude
+
+# IDE / OS
+.vscode
+.cursor
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+env
+.mypy_cache
+.pytest_cache
+.ruff_cache
+
+# Environment (secrets should be in Railway dashboard)
+.env
+.env.*
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Misc
+README.md
+render.yaml
+*.md

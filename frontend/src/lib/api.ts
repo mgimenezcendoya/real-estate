@@ -87,6 +87,7 @@ export interface Project {
   payment_info: string;
   whatsapp_number: string;
   status: string;
+  deleted_at: string | null;
   created_at: string;
 }
 
@@ -542,10 +543,13 @@ export interface AgentConfig {
 
 // --- API calls ---
 export const api = {
-  getProjects: () => fetcher<Project[]>('/admin/projects'),
+  getProjects: (includeDeleted = false) =>
+    fetcher<Project[]>(`/admin/projects${includeDeleted ? '?include_deleted=true' : ''}`),
   getProject: (id: string) => fetcher<Project>(`/admin/projects/${id}`),
   updateProject: (id: string, data: Partial<Project>) =>
     fetcher(`/admin/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProject: (id: string) =>
+    fetcher(`/admin/projects/${id}`, { method: 'DELETE' }),
 
   getUnits: (projectId: string) => fetcher<Unit[]>(`/admin/units/${projectId}`),
   updateUnitStatus: (unitId: string, status: string) =>
