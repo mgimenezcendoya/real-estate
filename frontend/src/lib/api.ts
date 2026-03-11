@@ -542,6 +542,34 @@ export interface AgentConfig {
   temperature: number;
 }
 
+export interface Subscription {
+  id: string;
+  organization_id: string;
+  org_name: string;
+  plan: 'base' | 'pro' | 'studio';
+  status: 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
+  billing_cycle: 'monthly' | 'annual';
+  price_usd: number;
+  current_period_start: string; // YYYY-MM-DD
+  current_period_end: string;   // YYYY-MM-DD
+  postventa_projects: number;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionCreate {
+  organization_id: string;
+  plan: 'base' | 'pro' | 'studio';
+  billing_cycle: 'monthly' | 'annual';
+  price_usd: number;
+  current_period_start: string;
+  current_period_end: string;
+  postventa_projects?: number;
+  notes?: string;
+  status?: 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
+}
+
 // --- API calls ---
 export const api = {
   getProjects: (includeDeleted = false) =>
@@ -871,6 +899,14 @@ export const api = {
     const q = qs.toString()
     return fetcher<AuditLogEntry[]>(`/admin/audit-log${q ? `?${q}` : ''}`)
   },
+
+  // --- Subscriptions ---
+  getSubscriptions: () => fetcher<Subscription[]>('/admin/subscriptions'),
+  getSubscription: (orgId: string) => fetcher<Subscription>(`/admin/subscriptions/${orgId}`),
+  createSubscription: (data: SubscriptionCreate) =>
+    fetcher<Subscription>('/admin/subscriptions', { method: 'POST', body: JSON.stringify(data) }),
+  updateSubscription: (orgId: string, data: Partial<SubscriptionCreate>) =>
+    fetcher<Subscription>(`/admin/subscriptions/${orgId}`, { method: 'PATCH', body: JSON.stringify(data) }),
 
   login: (username: string, password: string) =>
     fetch(`${BASE_URL}/admin/auth/login`, {
