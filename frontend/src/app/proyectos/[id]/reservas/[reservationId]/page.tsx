@@ -41,6 +41,7 @@ export default function ReservationDetailPage() {
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [plan, setPlan] = useState<PaymentPlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('detalle');
 
   // Modals
   const [showCreatePlan, setShowCreatePlan] = useState(false);
@@ -57,7 +58,7 @@ export default function ReservationDetailPage() {
   // Create plan form
   const [planForm, setPlanForm] = useState({
     descripcion: '', monto_total: '', moneda_base: 'USD',
-    anticipo_pct: '30', n_cuotas: '12', tipo_ajuste: 'ninguno',
+    anticipo_pct: '30', seña_monto: '', n_cuotas: '12', tipo_ajuste: 'ninguno',
   });
 
   // Register payment form
@@ -84,8 +85,12 @@ export default function ReservationDetailPage() {
       ]);
       setReservation(res);
       setPlan(p);
+      // Pre-fill plan form: total = unit price, seña = down payment already committed
+      if (res?.unit_price_usd) {
+        setPlanForm(f => ({ ...f, monto_total: String(res.unit_price_usd) }));
+      }
       if (res?.amount_usd) {
-        setPlanForm(f => ({ ...f, monto_total: String(res.amount_usd) }));
+        setPlanForm(f => ({ ...f, seña_monto: String(res.amount_usd) }));
       }
     } catch {
       toast.error('Error al cargar reserva');
@@ -96,11 +101,12 @@ export default function ReservationDetailPage() {
 
   function buildInstallments() {
     const total = parseFloat(planForm.monto_total) || 0;
-    const anticipoPct = parseFloat(planForm.anticipo_pct) || 0;
     const nCuotas = parseInt(planForm.n_cuotas) || 1;
     const moneda = planForm.moneda_base as 'USD' | 'ARS';
 
-    const anticipo = total * (anticipoPct / 100);
+    // If a seña was paid, use it as the exact anticipo amount; otherwise fall back to %
+    const señaMonto = parseFloat(planForm.seña_monto) || 0;
+    const anticipo = señaMonto > 0 ? señaMonto : total * ((parseFloat(planForm.anticipo_pct) || 0) / 100);
     const remaining = total - anticipo;
     const cuota = remaining / nCuotas;
 
@@ -150,6 +156,7 @@ export default function ReservationDetailPage() {
       });
       toast.success('Plan de pagos creado');
       setShowCreatePlan(false);
+      setActiveTab('pagos');
       load();
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Error');
@@ -319,7 +326,7 @@ export default function ReservationDetailPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="detalle">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="detalle">Detalle</TabsTrigger>
           <TabsTrigger value="pagos">Plan de Pagos</TabsTrigger>
@@ -563,9 +570,24 @@ export default function ReservationDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>% Anticipo</Label>
-                <Input type="number" value={planForm.anticipo_pct}
-                  onChange={e => setPlanForm(f => ({ ...f, anticipo_pct: e.target.value }))} placeholder="30" />
+                {planForm.seña_monto ? (
+                  <>
+                    <Label>Seña / Anticipo</Label>
+                    <Input type="number" value={planForm.seña_monto}
+                      onChange={e => setPlanForm(f => ({ ...f, seña_monto: e.target.value }))} placeholder="0" />
+                    {planForm.monto_total && (
+                      <p className="text-xs text-muted-foreground">
+                        Saldo: {fmt(Math.max(0, (parseFloat(planForm.monto_total) || 0) - (parseFloat(planForm.seña_monto) || 0)), planForm.moneda_base as 'USD' | 'ARS')}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Label>% Anticipo</Label>
+                    <Input type="number" value={planForm.anticipo_pct}
+                      onChange={e => setPlanForm(f => ({ ...f, anticipo_pct: e.target.value }))} placeholder="30" />
+                  </>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>N° cuotas</Label>
