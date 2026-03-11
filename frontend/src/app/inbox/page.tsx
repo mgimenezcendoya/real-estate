@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSSE, SSEMessageEvent, SSEHandoffUpdateEvent } from '@/hooks/useSSE';
 import { ContactDetailPanel } from './ContactDetailPanel';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 type LeadGroup = { phone: string; mainLead: Lead; allLeadIds: string[]; lastMessage?: string };
 
@@ -76,7 +77,7 @@ function renderMarkdown(content: string, isOutgoing: boolean): React.ReactNode {
       <ul key={key++} className="my-1.5 space-y-0.5">
         {listItems.map((item, i) => (
           <li key={i} className="flex gap-2 items-start text-sm leading-relaxed">
-            <span className={cn('flex-shrink-0 select-none mt-px', isOutgoing ? 'text-indigo-200' : 'text-gray-300')}>—</span>
+            <span className={cn('flex-shrink-0 select-none mt-px', isOutgoing ? 'text-indigo-200' : 'text-border')}>—</span>
             <span>{parseLine(item)}</span>
           </li>
         ))}
@@ -192,6 +193,7 @@ export default function InboxPage() {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const [agentTyping, setAgentTyping] = useState(false);
   const [showContactPanel, setShowContactPanel] = useState(true);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -322,6 +324,7 @@ export default function InboxPage() {
     setMessageInput('');
     setMobileShowChat(true);
     setAgentTyping(false);
+    setShowMobileDetail(false);
     try {
       const [merged, handoff] = await Promise.all([
         loadMergedConversations(group.allLeadIds),
@@ -402,7 +405,7 @@ export default function InboxPage() {
             <MessageSquare size={11} />
             Inbox
           </div>
-          <h1 className="text-2xl md:text-3xl font-display font-bold text-gray-900 tracking-tight leading-none">
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground tracking-tight leading-none">
             Conversaciones
           </h1>
         </div>
@@ -420,7 +423,7 @@ export default function InboxPage() {
       </div>
 
       {/* Main panel */}
-      <div className="flex flex-1 min-h-0 overflow-hidden shadow-sm border border-gray-200">
+      <div className="flex flex-1 min-h-0 overflow-hidden shadow-sm border border-border">
 
         {/* ── Sidebar ── */}
         <div className={cn(
@@ -479,7 +482,7 @@ export default function InboxPage() {
                     score === 'warm' ? 'from-amber-400 to-orange-500' :
                     score === 'cold' ? 'from-blue-400 to-blue-600' :
                     isActive         ? 'from-primary to-primary/80' :
-                                       'from-slate-400 to-slate-500';
+                                       'from-muted-foreground to-muted-foreground/70';
 
                   const scoreDotColor =
                     score === 'hot'  ? 'bg-red-500' :
@@ -565,22 +568,22 @@ export default function InboxPage() {
 
           {/* Chat header */}
           {selectedLead ? (
-            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100 flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 bg-secondary/40 border-b border-border flex-shrink-0">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setMobileShowChat(false)}
-                  className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-white transition-colors"
+                  className="md:hidden p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background transition-colors"
                 >
                   <ArrowLeft size={18} />
                 </button>
-                <Avatar className="w-9 h-9 rounded-full border-2 border-white shadow-sm">
+                <Avatar className="w-9 h-9 rounded-full border-2 border-background shadow-sm">
                   <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-800 text-sm font-bold">
                     {getInitials(selectedLead.name || selectedLead.phone)}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-gray-900">
+                    <span className="text-sm font-semibold text-foreground">
                       {selectedLead.name || 'Usuario desconocido'}
                     </span>
                     {selectedLead.project_name && selectedLead.project_id && (
@@ -591,7 +594,7 @@ export default function InboxPage() {
                       </Link>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-muted-foreground">
                     {agentTyping ? (
                       <span className="text-emerald-600 font-medium">escribiendo...</span>
                     ) : (
@@ -606,6 +609,15 @@ export default function InboxPage() {
                     {SCORE_CONFIG[selectedLead.score]?.label}
                   </Badge>
                 )}
+                {/* Mobile detail button */}
+                <button
+                  onClick={() => setShowMobileDetail(true)}
+                  className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-all"
+                >
+                  <PanelRight size={13} />
+                  <span>Detalle</span>
+                </button>
+                {/* Desktop panel toggle */}
                 <button
                   onClick={() => setShowContactPanel(v => !v)}
                   title={showContactPanel ? 'Ocultar panel' : 'Mostrar panel'}
@@ -622,30 +634,30 @@ export default function InboxPage() {
               </div>
             </div>
           ) : (
-            <div className="h-[57px] bg-gray-50 border-b border-gray-100 flex-shrink-0" />
+            <div className="h-[57px] bg-secondary/40 border-b border-border flex-shrink-0" />
           )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto scroll-smooth" style={chatBgStyle}>
             {!selectedLead ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-8">
-                <div className="w-16 h-16 rounded-full bg-white/80 border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-background/80 border border-border flex items-center justify-center mb-4 shadow-sm">
                   <MessageSquare size={26} className="text-emerald-600" />
                 </div>
-                <h3 className="text-gray-700 font-semibold mb-1">Seleccioná una conversación</h3>
-                <p className="text-gray-400 text-sm max-w-xs">Elegí un contacto de la lista para ver su historial de mensajes.</p>
+                <h3 className="text-foreground font-semibold mb-1">Seleccioná una conversación</h3>
+                <p className="text-muted-foreground text-sm max-w-xs">Elegí un contacto de la lista para ver su historial de mensajes.</p>
               </div>
             ) : loadingChat ? (
               <div className="flex items-center justify-center h-full">
                 <div className="flex flex-col items-center gap-3">
                   <Loader2 size={22} className="animate-spin text-emerald-600" />
-                  <span className="text-sm text-gray-500">Cargando conversación...</span>
+                  <span className="text-sm text-muted-foreground">Cargando conversación...</span>
                 </div>
               </div>
             ) : activeConversation.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="bg-white/80 rounded-xl px-5 py-3 shadow-sm border border-gray-100">
-                  <p className="text-gray-400 text-sm">Sin mensajes aún.</p>
+                <div className="bg-background/80 rounded-xl px-5 py-3 shadow-sm border border-border">
+                  <p className="text-muted-foreground text-sm">Sin mensajes aún.</p>
                 </div>
               </div>
             ) : (
@@ -688,7 +700,7 @@ export default function InboxPage() {
                     <React.Fragment key={idx}>
                       {showDateSep && (
                         <div className="flex items-center justify-center my-4">
-                          <span className="bg-white/80 text-slate-500 text-xs font-medium px-4 py-1 rounded-full shadow-sm border border-slate-200/60">
+                          <span className="bg-background/80 text-muted-foreground text-xs font-medium px-4 py-1 rounded-full shadow-sm border border-border/60">
                             {formatDateLabel(msg.created_at)}
                           </span>
                         </div>
@@ -741,7 +753,7 @@ export default function InboxPage() {
                             }}
                           >
                             {/* Message content */}
-                            <div className="text-[13.5px] leading-[1.5] text-gray-800">
+                            <div className="text-[13.5px] leading-[1.5] text-foreground">
                               {isAI || isHuman || isTelegram
                                 ? renderMarkdown(msg.content, isOutgoing)
                                 : <span>{msg.content}</span>
@@ -751,14 +763,14 @@ export default function InboxPage() {
                             {/* Media attachment */}
                             {msg.media_type && (
                               <div className="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/8">
-                                <FileText size={13} className="text-gray-500 flex-shrink-0" />
-                                <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">{msg.media_type}</span>
+                                <FileText size={13} className="text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs font-medium text-foreground/70 uppercase tracking-wide">{msg.media_type}</span>
                               </div>
                             )}
 
                             {/* Timestamp row — inline at bottom right */}
                             <div className="flex items-center justify-end gap-1 mt-0.5 -mb-[1px]">
-                              <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
                                 {formatTime(msg.created_at)}
                               </span>
                               {isHuman && (
@@ -797,16 +809,16 @@ export default function InboxPage() {
 
           {/* Input area */}
           {selectedLead && !isReader && (
-            <div className="bg-gray-50 border-t border-gray-100 flex-shrink-0">
+            <div className="bg-secondary/40 border-t border-border flex-shrink-0">
 
               {/* Mode bar */}
-              <div className="flex items-center gap-3 px-4 py-2 border-b border-gray-100">
+              <div className="flex items-center gap-3 px-4 py-2 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className={cn(
                     'w-2 h-2 rounded-full flex-shrink-0',
                     handoffActive ? 'bg-emerald-500' : 'bg-indigo-400 animate-pulse',
                   )} />
-                  <span className="text-xs font-medium text-gray-600">
+                  <span className="text-xs font-medium text-foreground/70">
                     {handoffActive ? 'Modo humano' : 'Modo agente'}
                   </span>
                   {handoffActive && (
@@ -821,8 +833,8 @@ export default function InboxPage() {
                   className={cn(
                     'text-xs font-semibold px-3 py-1 rounded-full border transition-all',
                     handoffActive
-                      ? 'bg-white border-gray-300 text-gray-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600'
-                      : 'bg-white border-blue-300 text-blue-600 hover:bg-blue-50',
+                      ? 'bg-background border-border text-muted-foreground hover:bg-red-50 hover:border-red-300 hover:text-red-600'
+                      : 'bg-background border-blue-300 text-blue-600 hover:bg-blue-50',
                   )}
                 >
                   {handoffActive ? 'Ceder al bot' : 'Tomar'}
@@ -836,7 +848,7 @@ export default function InboxPage() {
                   <textarea
                     ref={textareaRef}
                     placeholder="Escribí un mensaje..."
-                    className="w-full bg-white border border-gray-200 text-gray-900 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 rounded-lg px-4 py-2.5 resize-none transition-all shadow-sm"
+                    className="w-full bg-background border border-input text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 rounded-lg px-4 py-2.5 resize-none transition-all shadow-sm"
                     style={{ minHeight: '40px', maxHeight: '120px', overflowY: 'auto' }}
                     rows={1}
                     value={messageInput}
@@ -862,7 +874,7 @@ export default function InboxPage() {
           )}
         </div>
 
-        {/* ── Contact detail panel ── */}
+        {/* ── Contact detail panel (desktop) ── */}
         {selectedLead && showContactPanel && (
           <div className="hidden lg:flex flex-col w-[280px] shrink-0">
             <ContactDetailPanel
@@ -873,6 +885,19 @@ export default function InboxPage() {
           </div>
         )}
       </div>
+
+      {/* ── Contact detail panel (mobile Sheet) ── */}
+      <Sheet open={showMobileDetail} onOpenChange={setShowMobileDetail}>
+        <SheetContent side="right" className="p-0 w-[300px]">
+          {selectedLead && (
+            <ContactDetailPanel
+              lead={selectedLead}
+              handoffActive={handoffActive}
+              onClose={() => setShowMobileDetail(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
