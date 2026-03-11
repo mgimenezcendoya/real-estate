@@ -581,7 +581,9 @@ async def create_subscription(
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING *""",
         body.organization_id, body.plan, body.status, body.billing_cycle,
-        body.price_usd, body.current_period_start, body.current_period_end,
+        body.price_usd,
+        __import__('datetime').date.fromisoformat(body.current_period_start),
+        __import__('datetime').date.fromisoformat(body.current_period_end),
         body.postventa_projects, body.notes,
     )
     logger.info("Subscription created for org %s: plan=%s", body.organization_id, body.plan)
@@ -602,8 +604,13 @@ async def update_subscription(
         raise HTTPException(status_code=400, detail="plan debe ser base, pro o studio")
     if body.status and body.status not in ("trial", "active", "past_due", "suspended", "cancelled"):
         raise HTTPException(status_code=400, detail="status inválido")
+    from datetime import date as _date
     pool = await get_pool()
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Convertir strings de fecha a datetime.date para asyncpg
+    for date_field in ("current_period_start", "current_period_end"):
+        if date_field in updates and isinstance(updates[date_field], str):
+            updates[date_field] = _date.fromisoformat(updates[date_field])
     if not updates:
         row = await pool.fetchrow("SELECT * FROM subscriptions WHERE organization_id = $1", org_id)
         return dict(row) if row else {}
