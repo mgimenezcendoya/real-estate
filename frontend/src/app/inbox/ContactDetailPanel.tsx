@@ -30,13 +30,21 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
   const [editingNotes, setEditingNotes] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedNotesRef = useRef<string>(lead.internal_notes ?? '');
 
   // Sync when lead changes
   useEffect(() => {
     setTags(lead.tags ?? []);
     setNotes(lead.internal_notes ?? '');
+    savedNotesRef.current = lead.internal_notes ?? '';
     setEditingNotes(false);
   }, [lead.id]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const saveTags = (newTags: string[]) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -75,6 +83,7 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
     setSavingNotes(true);
     try {
       await api.patchLeadDetails(lead.id, { internal_notes: notes });
+      savedNotesRef.current = notes;
       setEditingNotes(false);
       toast.success('Notas guardadas');
     } catch {
@@ -253,7 +262,7 @@ export function ContactDetailPanel({ lead, handoffActive, onClose }: ContactDeta
             />
             <div className="flex gap-1.5 justify-end">
               <button
-                onClick={() => { setNotes(lead.internal_notes ?? ''); setEditingNotes(false); }}
+                onClick={() => { setNotes(savedNotesRef.current); setEditingNotes(false); }}
                 className="text-xs px-2.5 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground transition-colors"
               >
                 Cancelar
