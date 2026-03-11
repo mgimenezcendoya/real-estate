@@ -516,8 +516,14 @@ async def inbox_stream(
 
 
 @router.get("/metrics/{project_id}")
-async def get_metrics(project_id: str):
+async def get_metrics(
+    project_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Get project metrics."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
 
     # Lead counts by score
@@ -557,8 +563,15 @@ async def get_metrics(project_id: str):
 
 
 @router.get("/documents/{project_id}")
-async def list_documents(project_id: str, doc_type: str | None = None):
+async def list_documents(
+    project_id: str,
+    doc_type: str | None = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """List active documents for a project."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
     if doc_type:
         rows = await pool.fetch(

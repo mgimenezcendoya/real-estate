@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+from app.admin.auth import verify_token
 from app.admin.deps import _audit, _get_actor, _require_admin, security
 from app.database import get_pool
 from app.modules.obra.notifier import notify_buyers_of_update
@@ -73,8 +74,14 @@ async def init_obra_etapas(project_id: str):
 
 
 @router.get("/obra/{project_id}")
-async def get_obra(project_id: str):
+async def get_obra(
+    project_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """Get full obra data: etapas with nested updates+fotos, calculated overall progress."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
 
     etapas = await pool.fetch(

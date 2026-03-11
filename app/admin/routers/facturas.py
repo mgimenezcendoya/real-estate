@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+from app.admin.auth import verify_token
 from app.admin.deps import _audit, _get_actor, _require_admin, security
 from app.database import get_pool
 from app.modules.storage import upload_factura_pdf
@@ -64,7 +65,11 @@ async def list_facturas(
     proveedor: Optional[str] = None,
     fecha_desde: Optional[str] = None,
     fecha_hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
     conditions = ["f.project_id = $1", "f.deleted_at IS NULL"]
     params: list = [project_id]

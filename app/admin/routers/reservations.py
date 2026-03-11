@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+from app.admin.auth import verify_token
 from app.admin.deps import _audit, _get_actor, _require_admin, security
 from app.database import get_pool
 
@@ -197,8 +198,15 @@ async def create_reservation(
 
 
 @router.get("/reservations/{project_id}")
-async def list_reservations(project_id: str, status: Optional[str] = None):
+async def list_reservations(
+    project_id: str,
+    status: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """List reservations for a project, optionally filtered by status."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
 
     conditions = ["r.project_id = $1"]

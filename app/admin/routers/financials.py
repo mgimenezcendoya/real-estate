@@ -55,6 +55,9 @@ async def get_cash_flow(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
     """Monthly cash flow: ingresos (payment_records) vs egresos (expenses + obra_payments)."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
     # Cobros reales de cuotas (convertidos a USD si es ARS usando tipo_cambio del proyecto)
     ingresos_rows = await pool.fetch(
@@ -361,8 +364,14 @@ async def get_cobranza(
 
 
 @router.get("/buyers/{project_id}")
-async def list_buyers(project_id: str):
+async def list_buyers(
+    project_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
     """List active buyers for a project with their unit details."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
     rows = await pool.fetch(
         """SELECT b.id, b.lead_id, b.unit_id, b.phone, b.name, b.signed_at, b.status,
@@ -414,7 +423,13 @@ async def create_buyer(project_id: str, body: BuyerBody):
 
 
 @router.get("/financials/{project_id}/summary")
-async def get_financials_summary(project_id: str):
+async def get_financials_summary(
+    project_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
 
     config_row = await pool.fetchrow(

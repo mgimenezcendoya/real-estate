@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
+from app.admin.auth import verify_token
 from app.admin.deps import _audit, _get_actor, _require_admin, security
 from app.database import get_pool
 from app.modules.whatsapp.sender import send_text_message
@@ -26,7 +27,13 @@ class InvestorBody(BaseModel):
 
 
 @router.get("/investors/{project_id}")
-async def list_investors(project_id: str):
+async def list_investors(
+    project_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
     pool = await get_pool()
     rows = await pool.fetch(
         "SELECT id, nombre, email, telefono, monto_aportado_usd, fecha_aporte, porcentaje_participacion, created_at FROM investors WHERE project_id = $1 AND deleted_at IS NULL ORDER BY nombre",
