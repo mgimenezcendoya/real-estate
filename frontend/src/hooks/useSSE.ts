@@ -3,12 +3,12 @@
  * typed callbacks for each event type.
  *
  * Features:
- * - Authenticates via ?token= query param (EventSource doesn't support headers)
+ * - Authenticates via Authorization: Bearer header (token never in URL)
  * - Reconnects automatically with exponential backoff (1s → 2s → 4s → … → 30s)
  * - On reconnect: calls onReconnect() so the caller can refresh stale state
  * - Exposes connection status: "connecting" | "connected" | "disconnected"
  * - Ignores "ping" events (keepalive only)
- * - Cleans up EventSource on unmount
+ * - Cleans up fetch AbortController on unmount
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -48,8 +48,8 @@ interface UseSSEOptions {
 export function useSSE({ onMessage, onHandoffUpdate, onReconnect, enabled = true }: UseSSEOptions) {
   const [status, setStatus] = useState<SSEStatus>('connecting');
 
-  // Keep latest callbacks in refs so the EventSource listener closure never
-  // captures stale values (avoids recreating the EventSource on every render)
+  // Keep latest callbacks in refs so the fetch reader closure never
+  // captures stale values (avoids recreating the connection on every render)
   const onMessageRef = useRef(onMessage);
   const onHandoffUpdateRef = useRef(onHandoffUpdate);
   const onReconnectRef = useRef(onReconnect);
@@ -58,62 +58,96 @@ export function useSSE({ onMessage, onHandoffUpdate, onReconnect, enabled = true
   useEffect(() => { onReconnectRef.current = onReconnect; }, [onReconnect]);
 
   const retryDelayRef = useRef(1000); // current backoff delay in ms
-  const esRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFirstConnection = useRef(true);
 
   const connect = useCallback(() => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    // NOTE: sessionStorage clears on tab close. For httpOnly cookie auth (stronger
+    // XSS protection), a backend session endpoint would be needed — tracked as future work.
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
       setStatus('disconnected');
       return;
     }
 
     setStatus('connecting');
-    const url = `${BASE_URL}/admin/inbox/stream?token=${encodeURIComponent(token)}`;
-    const es = new EventSource(url);
-    esRef.current = es;
+    const url = `${BASE_URL}/admin/inbox/stream`;
 
-    es.addEventListener('open', () => {
-      setStatus('connected');
-      if (!isFirstConnection.current) {
-        // Notify caller to refresh data that may have been missed during the gap
-        onReconnectRef.current?.();
-      }
-      isFirstConnection.current = false;
-      retryDelayRef.current = 1000; // reset backoff on successful connection
-    });
+    // AbortController lets us cancel the fetch on cleanup/reconnect
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    es.addEventListener('message', (e) => {
-      try {
-        const data = JSON.parse(e.data) as SSEMessageEvent;
-        onMessageRef.current?.(data);
-      } catch {
-        // ignore malformed events
-      }
-    });
+    fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok || !response.body) {
+          throw new Error(`SSE connection failed: ${response.status}`);
+        }
 
-    es.addEventListener('handoff_update', (e) => {
-      try {
-        const data = JSON.parse(e.data) as SSEHandoffUpdateEvent;
-        onHandoffUpdateRef.current?.(data);
-      } catch {
-        // ignore malformed events
-      }
-    });
+        setStatus('connected');
+        if (!isFirstConnection.current) {
+          onReconnectRef.current?.();
+        }
+        isFirstConnection.current = false;
+        retryDelayRef.current = 1000;
 
-    // "ping" events are intentionally not handled — they are keepalive only
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-    es.addEventListener('error', () => {
-      es.close();
-      esRef.current = null;
-      setStatus('disconnected');
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-      // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (max)
-      const delay = retryDelayRef.current;
-      retryDelayRef.current = Math.min(delay * 2, 30_000);
-      timeoutRef.current = setTimeout(connect, delay);
-    });
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? ''; // keep incomplete last line
+
+          let eventType = 'message';
+          let dataLine = '';
+
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              eventType = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              dataLine = line.slice(6).trim();
+            } else if (line === '') {
+              // Empty line = event boundary
+              if (dataLine && eventType !== 'ping') {
+                try {
+                  const parsed = JSON.parse(dataLine);
+                  if (eventType === 'message') {
+                    onMessageRef.current?.(parsed);
+                  } else if (eventType === 'handoff_update') {
+                    onHandoffUpdateRef.current?.(parsed);
+                  }
+                } catch {
+                  // ignore malformed
+                }
+              }
+              eventType = 'message';
+              dataLine = '';
+            }
+          }
+        }
+
+        // Stream ended cleanly — reconnect
+        throw new Error('SSE stream closed');
+      })
+      .catch((err) => {
+        if ((err as Error).name === 'AbortError') return; // intentional cleanup
+
+        abortRef.current = null;
+        setStatus('disconnected');
+
+        // Exponential backoff: 1s → 2s → 4s → 8s → 16s → 30s (max)
+        const delay = retryDelayRef.current;
+        retryDelayRef.current = Math.min(delay * 2, 30_000);
+        timeoutRef.current = setTimeout(connect, delay);
+      });
   }, []); // stable — only runs once, callbacks are accessed via refs
 
   useEffect(() => {
@@ -122,8 +156,8 @@ export function useSSE({ onMessage, onHandoffUpdate, onReconnect, enabled = true
     connect();
 
     return () => {
-      esRef.current?.close();
-      esRef.current = null;
+      abortRef.current?.abort();
+      abortRef.current = null;
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [enabled, connect]);

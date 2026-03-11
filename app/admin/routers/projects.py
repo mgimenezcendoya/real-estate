@@ -42,7 +42,7 @@ async def upload_document(
         project_id,
     )
     if not project:
-        return {"error": f"Project {project_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
 
     content = await file.read()
     filename = file.filename or "document.pdf"
@@ -96,7 +96,7 @@ async def get_project(project_id: str):
         project_id,
     )
     if not row:
-        return {"error": f"Project {project_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     return dict(row)
 
 
@@ -112,7 +112,7 @@ async def update_project(project_id: str, request: Request):
 
     fields_to_update = {k: v for k, v in body.items() if k in UPDATABLE_PROJECT_FIELDS}
     if not fields_to_update:
-        return {"error": f"No valid fields to update. Allowed: {', '.join(sorted(UPDATABLE_PROJECT_FIELDS))}"}
+        raise HTTPException(status_code=400, detail=f"No valid fields to update. Allowed: {', '.join(sorted(UPDATABLE_PROJECT_FIELDS))}")
 
     set_clauses = []
     params = [project_id]
@@ -123,7 +123,7 @@ async def update_project(project_id: str, request: Request):
     sql = f"UPDATE projects SET {', '.join(set_clauses)} WHERE id = $1 RETURNING id, name"
     row = await pool.fetchrow(sql, *params)
     if not row:
-        return {"error": f"Project {project_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
 
     logger.info("Project %s updated: %s", row["name"], list(fields_to_update.keys()))
     return {"updated": list(fields_to_update.keys()), "project_id": str(row["id"]), "project_name": row["name"]}
@@ -218,7 +218,7 @@ async def update_unit_status(unit_id: str, request: Request):
     new_status = body.get("status", "").lower()
 
     if new_status not in VALID_UNIT_STATUSES:
-        return {"error": f"Invalid status '{new_status}'. Must be one of: {', '.join(sorted(VALID_UNIT_STATUSES))}"}
+        raise HTTPException(status_code=400, detail=f"Invalid status '{new_status}'. Must be one of: {', '.join(sorted(VALID_UNIT_STATUSES))}")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
@@ -227,7 +227,7 @@ async def update_unit_status(unit_id: str, request: Request):
                 new_status, unit_id,
             )
             if not row:
-                return {"error": f"Unit {unit_id} not found"}
+                raise HTTPException(status_code=404, detail=f"Unit {unit_id} not found")
 
             # When reverting to available, cancel any active reservation so the
             # derived status query (which reads from reservations) stays in sync.
@@ -250,14 +250,14 @@ async def update_unit(unit_id: str, request: Request):
     allowed = {"price_usd", "area_m2", "bedrooms", "floor"}
     updates = {k: v for k, v in body.items() if k in allowed and v is not None}
     if not updates:
-        return {"error": "No valid fields to update"}
+        raise HTTPException(status_code=400, detail="No valid fields to update")
 
     # Fetch current values before updating
     current = await pool.fetchrow(
         "SELECT floor, bedrooms, area_m2, price_usd FROM units WHERE id = $1", unit_id
     )
     if not current:
-        return {"error": f"Unit {unit_id} not found"}
+        raise HTTPException(status_code=404, detail=f"Unit {unit_id} not found")
 
     set_clause = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(updates))
     values = list(updates.values())

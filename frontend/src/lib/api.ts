@@ -4,13 +4,17 @@ const AUTH_TOKEN_KEY = 'realia_token';
 
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(AUTH_TOKEN_KEY);
+  // NOTE: sessionStorage clears on tab close. For httpOnly cookie auth (stronger
+  // XSS protection), a backend session endpoint would be needed — tracked as future work.
+  return sessionStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function setAuthToken(token: string | null): void {
   if (typeof window === 'undefined') return;
-  if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
-  else localStorage.removeItem(AUTH_TOKEN_KEY);
+  // NOTE: sessionStorage clears on tab close. For httpOnly cookie auth (stronger
+  // XSS protection), a backend session endpoint would be needed — tracked as future work.
+  if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  else sessionStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
 async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {

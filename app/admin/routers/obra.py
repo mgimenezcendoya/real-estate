@@ -145,7 +145,7 @@ async def patch_etapa(etapa_id: str, request: Request):
     ALLOWED = {"nombre", "peso_pct", "porcentaje_completado", "activa"}
     fields = {k: v for k, v in body.items() if k in ALLOWED}
     if not fields:
-        return {"error": "No valid fields"}
+        raise HTTPException(status_code=400, detail="No valid fields")
 
     if "peso_pct" in fields:
         project_id = await pool.fetchval(
@@ -173,7 +173,7 @@ async def patch_etapa(etapa_id: str, request: Request):
         *params,
     )
     if not row:
-        return {"error": "Etapa not found"}
+        raise HTTPException(status_code=404, detail="Etapa not found")
     return dict(row)
 
 
@@ -253,7 +253,7 @@ async def create_obra_update(
         project_id,
     )
     if not project:
-        return {"error": "Project not found"}
+        raise HTTPException(status_code=404, detail="Project not found")
 
     update = await pool.fetchrow(
         """INSERT INTO obra_updates (project_id, etapa_id, fecha, nota_publica, nota_interna, scope, unit_identifier, floor, source)

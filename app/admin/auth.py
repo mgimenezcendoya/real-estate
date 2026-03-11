@@ -3,7 +3,6 @@ Admin panel auth: token generation and verification.
 
 Strategy:
   1. Primary auth: DB users table (bcrypt password, JWT token).
-  2. Fallback auth: env vars ADMIN_USERNAME/ADMIN_PASSWORD (legacy, for transition).
 
 Tokens are signed JWTs (PyJWT, HS256, 24h expiry).
 JWT payload includes: sub (email or username), user_id, organization_id, role, nombre.
@@ -132,22 +131,7 @@ async def update_ultimo_acceso(pool, user_id: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Env-var fallback (legacy — keep until all users are migrated to DB)
+# Env-var fallback (removed — all users must exist in the users table)
 # ---------------------------------------------------------------------------
-
-def authenticate_user_env(username: str, password: str) -> Optional[dict]:
-    """Check credentials against legacy env vars (ADMIN_USERNAME/PASSWORD).
-    Returns a synthetic user dict on success, None otherwise.
-    """
-    settings = get_settings()
-    if settings.admin_username and settings.admin_password:
-        if username == settings.admin_username and password == settings.admin_password:
-            return {"sub": username, "role": "admin", "nombre": username}
-    if (
-        settings.reader_username
-        and settings.reader_password
-        and username == settings.reader_username
-        and password == settings.reader_password
-    ):
-        return {"sub": username, "role": "lector", "nombre": username}
-    return None
+# authenticate_user_env was removed. Any remaining ADMIN_USERNAME/ADMIN_PASSWORD
+# env vars are now inert. Create users via POST /admin/users instead.

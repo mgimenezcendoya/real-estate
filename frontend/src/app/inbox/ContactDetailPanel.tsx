@@ -7,29 +7,9 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import type { Lead } from '@/lib/api';
 import { toast } from 'sonner';
+import { SCORE_CONFIG } from './scoreConfig';
 
 const PREDEFINED_TAGS = ['urgente', 'seguimiento', 'reclamo', 'pre-aprobado', 'primer contacto', 'sin respuesta'];
-
-const SCORE_CONFIG = {
-  hot: {
-    label: 'Hot',
-    ring: 'ring-2 ring-red-200',
-    avatarBg: 'bg-gradient-to-br from-red-400 to-red-600',
-    badge: 'bg-red-50 text-red-600 border border-red-200',
-  },
-  warm: {
-    label: 'Warm',
-    ring: 'ring-2 ring-amber-200',
-    avatarBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
-    badge: 'bg-amber-50 text-amber-700 border border-amber-200',
-  },
-  cold: {
-    label: 'Frío',
-    ring: 'ring-2 ring-blue-200',
-    avatarBg: 'bg-gradient-to-br from-blue-400 to-blue-600',
-    badge: 'bg-blue-50 text-blue-600 border border-blue-200',
-  },
-};
 
 interface ContactDetailPanelProps {
   lead: Lead;

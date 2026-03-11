@@ -94,11 +94,10 @@ class TestPublicEndpoints:
         r = client.get("/admin/tools/exchange-rates")
         assert r.status_code == 200
 
-    def test_auth_me_returns_null_user_without_token(self, client):
-        """auth/me returns {user: null} when unauthenticated."""
+    def test_auth_me_returns_401_without_token(self, client):
+        """auth/me now returns 401 when unauthenticated (not {user: null})."""
         r = client.get("/admin/auth/me")
-        assert r.status_code == 200
-        assert r.json().get("user") is None
+        assert r.status_code == 401
 
     def test_leads_list_accessible_without_token(self, client):
         """list_leads is semi-public (scoped by JWT if present, open otherwise)."""
