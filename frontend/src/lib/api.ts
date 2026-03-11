@@ -927,3 +927,32 @@ export const api = {
   changePassword: (current_password: string, new_password: string) =>
     fetcher<{ ok: boolean }>('/admin/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
 };
+
+// --- Kapso ---
+
+export interface KapsoChannel {
+  id: string;
+  organization_id: string;
+  provider: 'kapso';
+  phone_number: string;
+  phone_number_id: string;
+  display_name: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+export async function createKapsoSetupLink(displayName?: string): Promise<{ url: string }> {
+  return fetcher('/admin/kapso/setup-link', {
+    method: 'POST',
+    body: JSON.stringify({ display_name: displayName ?? null }),
+  });
+}
+
+export async function getKapsoChannel(): Promise<KapsoChannel | null> {
+  const channels = await fetcher<KapsoChannel[]>('/admin/tenant-channels');
+  return channels.find((c) => c.provider === 'kapso' && c.activo) ?? null;
+}
+
+export async function disconnectKapsoChannel(channelId: string): Promise<void> {
+  await fetcher(`/admin/tenant-channels/${channelId}`, { method: 'DELETE' });
+}
