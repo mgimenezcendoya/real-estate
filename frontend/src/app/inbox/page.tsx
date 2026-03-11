@@ -6,12 +6,13 @@ import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Search, FileText, Send, Sparkles, Loader2, ArrowLeft, Wifi, WifiOff, MessageSquare } from 'lucide-react';
+import { Search, FileText, Send, Sparkles, Loader2, ArrowLeft, Wifi, WifiOff, MessageSquare, PanelRight } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSSE, SSEMessageEvent, SSEHandoffUpdateEvent } from '@/hooks/useSSE';
+import { ContactDetailPanel } from './ContactDetailPanel';
 
 type LeadGroup = { phone: string; mainLead: Lead; allLeadIds: string[]; lastMessage?: string };
 
@@ -190,6 +191,7 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const [agentTyping, setAgentTyping] = useState(false);
+  const [showContactPanel, setShowContactPanel] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -572,6 +574,18 @@ export default function InboxPage() {
                     {SCORE_CONFIG[selectedLead.score]?.label}
                   </Badge>
                 )}
+                <button
+                  onClick={() => setShowContactPanel(v => !v)}
+                  title={showContactPanel ? 'Ocultar panel' : 'Mostrar panel'}
+                  className={cn(
+                    'p-1.5 rounded-md transition-colors',
+                    showContactPanel
+                      ? 'text-primary bg-primary/10'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  )}
+                >
+                  <PanelRight size={16} />
+                </button>
               </div>
             </div>
           ) : (
@@ -814,6 +828,17 @@ export default function InboxPage() {
             </div>
           )}
         </div>
+
+        {/* ── Contact detail panel ── */}
+        {selectedLead && showContactPanel && (
+          <div className="hidden lg:flex flex-col w-[280px] shrink-0">
+            <ContactDetailPanel
+              lead={selectedLead}
+              handoffActive={handoffActive}
+              onClose={() => setShowContactPanel(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
