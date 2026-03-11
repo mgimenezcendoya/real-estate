@@ -45,8 +45,6 @@ from app.modules.whatsapp.providers.factory import get_provider as _get_provider
 
 logger = logging.getLogger(__name__)
 
-DOC_MARKER_RE = re.compile(r"\[ENVIAR_DOC:(\w+):(\w+)(?::([a-zA-Z0-9_-]+))?\]")
-HANDOFF_MARKER_RE = re.compile(r"\[HANDOFF:([^\]]+)\]")
 
 async def _safe_task(coro, label: str) -> None:
     """Run a coroutine as a background task and log any exception."""
@@ -55,11 +53,59 @@ async def _safe_task(coro, label: str) -> None:
     except Exception as e:
         logger.error("Background task '%s' failed: %s", label, e, exc_info=True)
 
-# Phrases that indicate the agent intends to hand off even without the explicit marker
-_HANDOFF_PHRASES = re.compile(
-    r"(te paso con un asesor|te comunico con|paso con un asesor|un asesor (se va a |te va a |va a )?(comunicar|contactar|ayudar|confirmar)|pasarte con (un asesor|el equipo)|te pongo en contacto)",
-    re.IGNORECASE,
-)
+
+# ---------------------------------------------------------------------------
+# Anthropic Tool Use definitions — replace text markers with structured calls
+# ---------------------------------------------------------------------------
+LEAD_TOOLS = [
+    {
+        "name": "enviar_documento",
+        "description": (
+            "Envía un documento del proyecto al lead por WhatsApp. "
+            "Usá esta herramienta cuando el lead pida explícitamente un documento "
+            "(brochure, plano, lista de precios, memoria, etc.)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tipo": {
+                    "type": "string",
+                    "enum": ["plano", "precios", "brochure", "memoria", "reglamento", "faq", "contrato", "cronograma"],
+                    "description": "Tipo de documento a enviar",
+                },
+                "unidad": {
+                    "type": "string",
+                    "description": "Identificador de la unidad (ej: 2B). Omitir si no aplica a una unidad específica.",
+                },
+                "proyecto_slug": {
+                    "type": "string",
+                    "description": "Slug del proyecto en minúsculas con guiones (ej: manzanares-2088)",
+                },
+            },
+            "required": ["tipo", "proyecto_slug"],
+        },
+    },
+    {
+        "name": "derivar_vendedor",
+        "description": (
+            "Deriva la conversación a un vendedor humano. "
+            "Usá esta herramienta cuando: (1) el lead pide hablar con una persona, "
+            "(2) el lead muestra intención de cierre (quiere reservar, señar, visitar), "
+            "o (3) no podés responder con certeza y el lead insiste."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "razon": {
+                    "type": "string",
+                    "enum": ["lead_request", "intencion_cierre", "consulta_especifica"],
+                    "description": "Motivo de la derivación",
+                },
+            },
+            "required": ["razon"],
+        },
+    },
+]
 
 
 async def handle_lead_message(
@@ -146,6 +192,19 @@ async def handle_lead_message(
 
     text = message.text if message_type == "text" else None
     if not text:
+        _MEDIA_REPLY = {
+            "audio": "¡Hola! No puedo escuchar audios. ¿Me lo podés escribir por texto?",
+            "image": "¡Hola! No puedo ver imágenes. ¿Me podés describir tu consulta por texto?",
+            "video": "¡Hola! No puedo ver videos. ¿Me podés escribir tu consulta?",
+            "sticker": "¡Hola! ¿En qué te puedo ayudar?",
+        }
+        reply = _MEDIA_REPLY.get(message_type, "¡Hola! Solo puedo leer mensajes de texto. ¿Me escribís tu consulta?")
+        if channel:
+            provider = _get_provider(channel)
+            await provider.send_text(sender_phone, reply)
+        else:
+            from app.modules.whatsapp.sender import send_text_message
+            await send_text_message(to=sender_phone, text=reply)
         return
 
     await save_conversation_message(
@@ -178,7 +237,7 @@ async def handle_lead_message(
     developer_projects = await get_developer_projects(developer_id)
     history = await get_conversation_history(lead_id, limit=15)
 
-    response_text = await _generate_response(
+    response = await _generate_response(
         developer_id=developer_id,
         developer_name=developer["developer_name"],
         developer_context=developer_context,
@@ -187,28 +246,24 @@ async def handle_lead_message(
         user_message=text,
     )
 
-    clean_text, doc_request = _extract_doc_marker(response_text)
-    clean_text, handoff_trigger = _extract_handoff_marker(clean_text)
-
-    # Fallback: if the agent said "te paso con un asesor" but forgot the marker, trigger anyway
-    if not handoff_trigger and _HANDOFF_PHRASES.search(clean_text):
-        logger.info("Handoff phrase detected without marker for lead %s — auto-triggering handoff", lead_id)
-        handoff_trigger = "auto_detected"
+    reply_text = response["text"]
+    doc_request = response["doc_request"]
+    handoff_trigger = response["handoff_trigger"]
 
     await save_conversation_message(
         lead_id=lead_id,
         role="assistant",
         sender_type="agent",
-        content=clean_text,
+        content=reply_text,
     )
 
-    logger.info("Replying to %s: %s", sender_phone, clean_text[:80])
+    logger.info("Replying to %s: %s", sender_phone, reply_text[:80])
     if channel:
         provider = _get_provider(channel)
-        await provider.send_text(sender_phone, clean_text)
+        await provider.send_text(sender_phone, reply_text)
     else:
         from app.modules.whatsapp.sender import send_text_message
-        await send_text_message(to=sender_phone, text=clean_text)
+        await send_text_message(to=sender_phone, text=reply_text)
 
     # Broadcast AI response to the admin inbox — non-blocking
     asyncio.create_task(
@@ -218,7 +273,7 @@ async def handle_lead_message(
             {
                 "lead_id": lead_id,
                 "phone": sender_phone,
-                "content": clean_text,
+                "content": reply_text,
                 "sender_type": "agent",
                 "timestamp": None,
                 "handoff_active": False,
@@ -233,7 +288,7 @@ async def handle_lead_message(
 
     if handoff_trigger:
         qual_summary, full_history = _build_handoff_context(
-            qualification, history, text, clean_text,
+            qualification, history, text, reply_text,
         )
         # Use qualification project_id as fallback if default_project_id is None
         effective_project_id = default_project_id or qualification.get("project_id")
@@ -250,34 +305,16 @@ async def handle_lead_message(
             )
         )
 
-    asyncio.create_task(
-        _safe_task(
-            _update_qualification(lead_id, history, text, clean_text, qualification.get("project_id"), developer_projects),
-            label=f"update_qualification lead={lead_id}",
+    # Only run extraction when the message has substance and there are still fields to collect
+    missing = build_missing_fields(qualification)
+    if len(text) > 20 and missing != "Todos los datos recopilados.":
+        asyncio.create_task(
+            _safe_task(
+                _update_qualification(lead_id, history, text, reply_text, qualification.get("project_id"), developer_projects),
+                label=f"update_qualification lead={lead_id}",
+            )
         )
-    )
 
-
-def _extract_doc_marker(text: str) -> tuple[str, dict | None]:
-    """Parse and remove [ENVIAR_DOC:type:unit] marker from Claude's response."""
-    match = DOC_MARKER_RE.search(text)
-    if not match:
-        return text, None
-
-    clean = DOC_MARKER_RE.sub("", text).rstrip()
-    doc_type = match.group(1)
-    unit = match.group(2) if match.group(2) != "NONE" else None
-    project_slug = match.group(3) if match.group(3) else None
-    return clean, {"doc_type": doc_type, "unit_identifier": unit, "project_slug": project_slug}
-
-
-def _extract_handoff_marker(text: str) -> tuple[str, str | None]:
-    """Parse and remove [HANDOFF:reason] marker from Claude's response."""
-    match = HANDOFF_MARKER_RE.search(text)
-    if not match:
-        return text, None
-    clean = HANDOFF_MARKER_RE.sub("", text).rstrip()
-    return clean, match.group(1)
 
 
 def _build_handoff_context(
@@ -353,6 +390,26 @@ async def _send_document(
         logger.error("Failed to send document to %s: %s", to_phone, e)
 
 
+_PDF_KEYWORDS = re.compile(
+    r"(terminacion|material|amenit|superfici|memoria|brochure|plano|precio|reglamento|"
+    r"contrato|cronograma|entrega|acabado|piso|cocina|baño|dormitorio|living|balcon|"
+    r"terraza|estacionamiento|cochera|baulera|expensa|medida|metro|m2|m²)",
+    re.IGNORECASE,
+)
+
+
+def _should_attach_pdfs(user_message: str, conversation_history: list[dict]) -> bool:
+    """Only attach PDFs when the lead's message is likely to need document info."""
+    if _PDF_KEYWORDS.search(user_message):
+        return True
+    # Also check the last assistant message — if agent promised info from docs, attach them
+    if conversation_history:
+        last = conversation_history[-1]
+        if last.get("sender_type") == "agent" and "confirmo" in (last.get("content") or "").lower():
+            return True
+    return False
+
+
 async def _generate_response(
     developer_id: str,
     developer_name: str,
@@ -360,13 +417,15 @@ async def _generate_response(
     qualification: dict,
     conversation_history: list[dict],
     user_message: str,
-) -> str:
-    """Call Claude to generate a response, with project PDFs as native attachments."""
+) -> dict:
+    """Call Claude with tool_use. Returns {text, doc_request, handoff_trigger}."""
     from app.modules.agent.config_loader import get_agent_config
     settings = get_settings()
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     agent_config = await get_agent_config(developer_id)
+
+    is_first_contact = len(conversation_history) == 0
 
     system = build_lead_system_prompt(
         agent_config=agent_config,
@@ -374,24 +433,47 @@ async def _generate_response(
         qualification_status=build_qualification_status(qualification),
         missing_fields=build_missing_fields(qualification),
     )
-    system += f"\n\n⚠️ ESTADO ACTUAL DE UNIDADES (fuente de verdad — invalida cualquier mensaje anterior en esta conversación):\n{developer_context}\nIMPORTANTE: Si una unidad NO aparece en la lista de disponibles de arriba, significa que ya fue reservada o vendida. No la ofrezcas aunque haya sido mencionada antes en esta conversación."
 
-    doc_blocks = await get_developer_document_blocks(developer_id)
+    if is_first_contact:
+        system += (
+            "\n\nINSTRUCCIÓN ESPECIAL — PRIMER CONTACTO: "
+            "Este es el primer mensaje del lead. Presentate brevemente como asistente de "
+            f"{developer_name} y mencioná los proyectos disponibles. "
+            "Sé cálido pero conciso."
+        )
 
     messages = []
 
-    if doc_blocks:
-        messages.append({
-            "role": "user",
-            "content": [
-                {"type": "text", "text": "Documentos del proyecto adjuntos para consulta:"},
-                *doc_blocks,
-            ],
-        })
-        messages.append({
-            "role": "assistant",
-            "content": "Entendido, tengo los documentos del proyecto disponibles para consultar.",
-        })
+    # Unit context as user/assistant message pair (not in system prompt)
+    messages.append({
+        "role": "user",
+        "content": (
+            f"⚠️ ESTADO ACTUAL DE UNIDADES (fuente de verdad — invalida cualquier mensaje anterior):\n"
+            f"{developer_context}\n"
+            f"IMPORTANTE: Si una unidad NO aparece en la lista de disponibles, "
+            f"significa que ya fue reservada o vendida. No la ofrezcas."
+        ),
+    })
+    messages.append({
+        "role": "assistant",
+        "content": "Entendido, tengo el estado actualizado de todas las unidades.",
+    })
+
+    # Only attach PDFs when the message is relevant (saves tokens)
+    if _should_attach_pdfs(user_message, conversation_history):
+        doc_blocks = await get_developer_document_blocks(developer_id)
+        if doc_blocks:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Documentos del proyecto adjuntos para consulta:"},
+                    *doc_blocks,
+                ],
+            })
+            messages.append({
+                "role": "assistant",
+                "content": "Entendido, tengo los documentos del proyecto disponibles para consultar.",
+            })
 
     for msg in conversation_history[:-1]:
         role = "user" if msg["sender_type"] == "lead" else "assistant"
@@ -404,9 +486,27 @@ async def _generate_response(
         temperature=agent_config.temperature,
         system=system,
         messages=messages,
+        tools=LEAD_TOOLS,
     )
 
-    return response.content[0].text
+    # Parse response: extract text and tool calls
+    result = {"text": "", "doc_request": None, "handoff_trigger": None}
+
+    for block in response.content:
+        if block.type == "text":
+            result["text"] = block.text
+        elif block.type == "tool_use":
+            if block.name == "enviar_documento":
+                inp = block.input
+                result["doc_request"] = {
+                    "doc_type": inp["tipo"],
+                    "unit_identifier": inp.get("unidad"),
+                    "project_slug": inp["proyecto_slug"],
+                }
+            elif block.name == "derivar_vendedor":
+                result["handoff_trigger"] = block.input["razon"]
+
+    return result
 
 
 async def _update_qualification(

@@ -19,8 +19,8 @@ class AgentConfig:
     system_prompt_override: Optional[str] = None
     system_prompt_append: Optional[str] = None
     model: str = "claude-haiku-4-5-20251001"
-    max_tokens: int = 800
-    temperature: float = 0.7
+    max_tokens: int = 500
+    temperature: float = 0.4
 
 
 async def get_agent_config(organization_id: str) -> AgentConfig:
@@ -43,6 +43,6 @@ async def get_agent_config(organization_id: str) -> AgentConfig:
         system_prompt_override=row["system_prompt_override"],
         system_prompt_append=row["system_prompt_append"],
         model=row["model"] or "claude-haiku-4-5-20251001",
-        max_tokens=row["max_tokens"] or 800,
-        temperature=float(row["temperature"] or 0.7),
+        max_tokens=row["max_tokens"] or 500,
+        temperature=float(row["temperature"] or 0.4),
     )
