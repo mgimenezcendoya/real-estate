@@ -885,7 +885,17 @@ async def list_units(project_id: str):
     """List all units for a project with their current status."""
     pool = await get_pool()
     rows = await pool.fetch(
-        "SELECT id, identifier, floor, bedrooms, area_m2, price_usd, status FROM units WHERE project_id = $1 ORDER BY floor, identifier",
+        """
+        SELECT u.id, u.identifier, u.floor, u.bedrooms, u.area_m2, u.price_usd,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'converted') THEN 'sold'
+                 WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'active')    THEN 'reserved'
+                 ELSE 'available'
+               END AS status
+        FROM units u
+        WHERE u.project_id = $1
+        ORDER BY u.floor, u.identifier
+        """,
         project_id,
     )
     return [dict(r) for r in rows]
@@ -896,6 +906,7 @@ async def update_unit_status(unit_id: str, request: Request):
     """Update the status of a unit.
 
     Body: {"status": "available" | "reserved" | "sold"}
+    When setting to 'available', any active reservation for the unit is cancelled atomically.
     """
     pool = await get_pool()
     body = await request.json()
@@ -904,12 +915,22 @@ async def update_unit_status(unit_id: str, request: Request):
     if new_status not in VALID_UNIT_STATUSES:
         return {"error": f"Invalid status '{new_status}'. Must be one of: {', '.join(sorted(VALID_UNIT_STATUSES))}"}
 
-    row = await pool.fetchrow(
-        "UPDATE units SET status = $1 WHERE id = $2 RETURNING id, identifier, project_id, status",
-        new_status, unit_id,
-    )
-    if not row:
-        return {"error": f"Unit {unit_id} not found"}
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "UPDATE units SET status = $1 WHERE id = $2 RETURNING id, identifier, project_id, status",
+                new_status, unit_id,
+            )
+            if not row:
+                return {"error": f"Unit {unit_id} not found"}
+
+            # When reverting to available, cancel any active reservation so the
+            # derived status query (which reads from reservations) stays in sync.
+            if new_status == "available":
+                await conn.execute(
+                    "UPDATE reservations SET status = 'cancelled', updated_at = NOW() WHERE unit_id = $1 AND status = 'active'",
+                    unit_id,
+                )
 
     logger.info("Unit %s (%s) status changed to %s", row["identifier"], unit_id, new_status)
     return dict(row)

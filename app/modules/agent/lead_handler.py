@@ -257,13 +257,16 @@ async def handle_lead_message(
         content=reply_text,
     )
 
-    logger.info("Replying to %s: %s", sender_phone, reply_text[:80])
-    if channel:
-        provider = _get_provider(channel)
-        await provider.send_text(sender_phone, reply_text)
-    else:
-        from app.modules.whatsapp.sender import send_text_message
-        await send_text_message(to=sender_phone, text=reply_text)
+    # Skip sending the LLM text to the lead when a handoff is triggered —
+    # initiate_handoff() sends the structured message instead.
+    if not handoff_trigger:
+        logger.info("Replying to %s: %s", sender_phone, reply_text[:80])
+        if channel:
+            provider = _get_provider(channel)
+            await provider.send_text(sender_phone, reply_text)
+        else:
+            from app.modules.whatsapp.sender import send_text_message
+            await send_text_message(to=sender_phone, text=reply_text)
 
     # Broadcast AI response to the admin inbox — non-blocking
     asyncio.create_task(
