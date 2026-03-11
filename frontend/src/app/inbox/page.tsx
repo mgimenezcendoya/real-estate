@@ -420,106 +420,138 @@ export default function InboxPage() {
       </div>
 
       {/* Main panel */}
-      <div className="flex flex-1 min-h-0 rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+      <div className="flex flex-1 min-h-0 overflow-hidden shadow-sm border border-gray-200">
 
         {/* ── Sidebar ── */}
         <div className={cn(
-          'flex flex-col bg-white border-r border-gray-100 flex-shrink-0 w-full md:w-[300px] lg:w-[320px]',
+          'flex flex-col bg-background border-r border-border/60 flex-shrink-0 w-full md:w-[300px] lg:w-[320px]',
           mobileShowChat ? 'hidden md:flex' : 'flex'
         )}>
           {/* Sidebar header */}
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <div className="px-3 pt-3 pb-2.5 border-b border-border/50">
+            <div className="flex items-center gap-2 bg-secondary/40 border border-transparent rounded-xl px-3 py-2 transition-all focus-within:bg-background focus-within:border-border focus-within:ring-1 focus-within:ring-ring">
+              <Search size={13} className="text-muted-foreground/50 flex-shrink-0" />
               <input
                 type="text"
                 autoComplete="off"
                 placeholder="Buscar contacto..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-gray-200 text-sm text-gray-900 rounded-full pl-8 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 placeholder:text-gray-400 transition-all"
+                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none min-w-0"
               />
             </div>
+            {!loadingLeads && filteredGroups.length > 0 && (
+              <p className="text-[10px] text-muted-foreground/50 mt-1.5 px-0.5 uppercase tracking-wider">
+                {filteredGroups.length} {filteredGroups.length === 1 ? 'contacto' : 'contactos'}
+              </p>
+            )}
           </div>
 
           {/* Contact list */}
           <div className="flex-1 overflow-y-auto">
             {loadingLeads ? (
-              <div className="p-3 space-y-1">
+              <div className="p-2 space-y-0.5">
                 {[1,2,3,4,5].map(i => (
-                  <div key={i} className="flex gap-3 items-center p-3">
-                    <Skeleton className="w-11 h-11 rounded-full bg-gray-100 flex-shrink-0" />
+                  <div key={i} className="flex gap-3 items-center px-3 py-3">
+                    <Skeleton className="w-10 h-10 rounded-full bg-secondary flex-shrink-0" />
                     <div className="flex-1 space-y-2">
-                      <Skeleton className="h-3.5 w-3/4 bg-gray-100" />
-                      <Skeleton className="h-3 w-1/2 bg-gray-50" />
+                      <Skeleton className="h-3 w-3/4 bg-secondary" />
+                      <Skeleton className="h-2.5 w-1/2 bg-secondary/70" />
                     </div>
                   </div>
                 ))}
               </div>
             ) : filteredGroups.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-                <MessageSquare size={24} className="text-gray-200 mb-3" />
-                <p className="text-gray-400 text-sm">Sin conversaciones</p>
+                <MessageSquare size={22} className="text-border mb-3" />
+                <p className="text-muted-foreground/60 text-xs">Sin conversaciones</p>
               </div>
             ) : (
-              filteredGroups.map((group) => {
-                const { mainLead } = group;
-                const isActive = selectedLeadId === mainLead.id;
-                const score = mainLead.score ? SCORE_CONFIG[mainLead.score] : null;
-                const timeLabel = formatSidebarTime(mainLead.last_contact || mainLead.created_at);
-                return (
-                  <button
-                    key={group.phone}
-                    onClick={() => handleSelectPerson(group)}
-                    className={cn(
-                      'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors relative',
-                      isActive ? 'bg-indigo-50/60' : 'hover:bg-slate-50',
-                      'border-b border-gray-50'
-                    )}
-                  >
-                    {/* Active indicator */}
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-8 bg-indigo-500 rounded-r-full" />
-                    )}
+              <div className="py-1">
+                {filteredGroups.map((group) => {
+                  const { mainLead } = group;
+                  const isActive = selectedLeadId === mainLead.id;
+                  const score = mainLead.score ?? null;
+                  const timeLabel = formatSidebarTime(mainLead.last_contact || mainLead.created_at);
 
-                    {/* Avatar */}
-                    <div className="relative flex-shrink-0">
-                      <Avatar className="w-11 h-11 rounded-full border-2 border-white shadow-sm">
-                        <AvatarFallback className={cn(
-                          'rounded-full text-sm font-bold',
-                          isActive ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-100 text-slate-600'
-                        )}>
-                          {getInitials(mainLead.name || mainLead.phone)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {/* Score dot */}
-                      {score && (
-                        <span className={cn('absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white', score.dot)} />
+                  const avatarGradient =
+                    score === 'hot'  ? 'from-red-400 to-red-600' :
+                    score === 'warm' ? 'from-amber-400 to-orange-500' :
+                    score === 'cold' ? 'from-blue-400 to-blue-600' :
+                    isActive         ? 'from-primary to-primary/80' :
+                                       'from-slate-400 to-slate-500';
+
+                  const scoreDotColor =
+                    score === 'hot'  ? 'bg-red-500' :
+                    score === 'warm' ? 'bg-amber-400' :
+                    score === 'cold' ? 'bg-blue-400' : '';
+
+                  return (
+                    <button
+                      key={group.phone}
+                      onClick={() => handleSelectPerson(group)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-all relative group',
+                        isActive
+                          ? 'bg-primary/8'
+                          : 'hover:bg-secondary/60'
                       )}
-                    </div>
+                    >
+                      {/* Active bar */}
+                      <div className={cn(
+                        'absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full transition-all',
+                        isActive ? 'bg-primary opacity-100' : 'opacity-0'
+                      )} />
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline justify-between gap-1 mb-0.5">
-                        <span className={cn('text-sm font-semibold truncate', isActive ? 'text-indigo-900' : 'text-gray-900')}>
-                          {mainLead.name || mainLead.phone}
-                        </span>
-                        <span className="text-[11px] text-gray-400 whitespace-nowrap flex-shrink-0">{timeLabel}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-400 truncate flex-1">
-                          {mainLead.project_name || mainLead.phone}
-                        </span>
-                        {mainLead.handoff_active ? (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" title="Humano activo" />
-                        ) : (
-                          <Sparkles size={10} className="text-indigo-300 flex-shrink-0" />
+                      {/* Avatar */}
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="w-10 h-10 shadow-sm">
+                          <AvatarFallback className={cn(
+                            'text-white text-[13px] font-display font-semibold bg-gradient-to-br',
+                            avatarGradient
+                          )}>
+                            {getInitials(mainLead.name || mainLead.phone)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {scoreDotColor && (
+                          <span className={cn(
+                            'absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background',
+                            scoreDotColor
+                          )} />
                         )}
                       </div>
-                    </div>
-                  </button>
-                );
-              })
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-1 mb-0.5">
+                          <span className={cn(
+                            'text-[13px] font-display font-semibold truncate leading-snug',
+                            isActive ? 'text-primary' : 'text-foreground'
+                          )}>
+                            {mainLead.name || mainLead.phone}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground/60 whitespace-nowrap flex-shrink-0 tabular">
+                            {timeLabel}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-muted-foreground/70 truncate flex-1 leading-tight">
+                            {mainLead.project_name || mainLead.phone}
+                          </span>
+                          {mainLead.handoff_active ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" title="Humano activo" />
+                          ) : (
+                            <Sparkles size={9} className={cn(
+                              'flex-shrink-0 transition-colors',
+                              isActive ? 'text-primary/50' : 'text-muted-foreground/30 group-hover:text-muted-foreground/50'
+                            )} />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
@@ -578,13 +610,14 @@ export default function InboxPage() {
                   onClick={() => setShowContactPanel(v => !v)}
                   title={showContactPanel ? 'Ocultar panel' : 'Mostrar panel'}
                   className={cn(
-                    'p-1.5 rounded-md transition-colors',
+                    'hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
                     showContactPanel
-                      ? 'text-primary bg-primary/10'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                      ? 'bg-primary/8 text-primary border-primary/20 hover:bg-primary/12'
+                      : 'bg-transparent text-muted-foreground border-border hover:bg-secondary hover:text-foreground'
                   )}
                 >
-                  <PanelRight size={16} />
+                  <PanelRight size={13} />
+                  <span>{showContactPanel ? 'Ocultar' : 'Detalle'}</span>
                 </button>
               </div>
             </div>
