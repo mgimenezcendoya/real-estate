@@ -448,85 +448,6 @@
       max-width: 560px;
     }
 
-    /* ─── PROBLEM SECTION ────────────────────────────────── */
-    .problems-bg {
-      background: var(--bg-end);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-    .problems-header {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: clamp(40px, 6vw, 80px);
-      align-items: end;
-      margin-bottom: clamp(48px, 6vw, 72px);
-    }
-    @media (max-width: 768px) { .problems-header { grid-template-columns: 1fr; } }
-    .problems-grid {
-      display: grid;
-      grid-template-columns: repeat(3,1fr);
-      gap: 16px;
-    }
-    @media (max-width: 900px) { .problems-grid { grid-template-columns: 1fr; } }
-    .problem-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: clamp(24px, 2.5vw, 36px);
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      position: relative;
-      overflow: hidden;
-      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-    }
-    .problem-card:hover {
-      transform: translateY(-3px);
-      box-shadow: var(--shadow-md);
-      border-color: rgba(29,78,216,0.2);
-    }
-    .problem-card::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 3px;
-      background: var(--gradient);
-      transform: scaleX(0);
-      transform-origin: left;
-      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
-    }
-    .problem-card:hover::before { transform: scaleX(1); }
-    .problem-icon-wrap {
-      width: 44px; height: 44px;
-      border-radius: 10px;
-      background: #eff6ff;
-      border: 1px solid rgba(29,78,216,0.12);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 20px;
-    }
-    .problem-title { font-size: 16px; font-weight: 600; color: var(--text); line-height: 1.3; font-family: 'Outfit', sans-serif; }
-    .problem-desc { font-size: 14px; color: var(--text-2); line-height: 1.6; }
-    .problem-stat-chip {
-      margin-top: auto;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: var(--surface-muted);
-      border: 1px solid var(--border);
-      border-radius: 100px;
-      font-size: 12px;
-      color: var(--text-2);
-      font-weight: 500;
-    }
-    .stat-chip-accent {
-      font-family: 'Outfit', sans-serif;
-      font-size: 14px;
-      font-weight: 700;
-    }
 
     /* ─── FEATURES ───────────────────────────────────────── */
     .feature-row {
@@ -931,100 +852,6 @@
     .footer-links a:hover { color: var(--primary); }
     .footer-copy { font-size: 12px; color: var(--text-3); }
 
-    /* ─── MODULE GRID ────────────────────────────────────── */
-    .modules-bg {
-      background: var(--bg-end);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-    .modules-header { text-align: center; max-width: 560px; margin: 0 auto clamp(40px,5vw,56px); }
-    .modules-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      max-width: 1160px;
-      margin: 0 auto;
-    }
-    @media (max-width: 900px) { .modules-grid { grid-template-columns: repeat(2,1fr); } }
-    @media (max-width: 500px) { .modules-grid { grid-template-columns: 1fr; } }
-    .module-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 22px 24px;
-      box-shadow: var(--shadow-sm);
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-      position: relative;
-      overflow: hidden;
-    }
-    .module-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: rgba(29,78,216,0.18); }
-    .module-card::before {
-      content: '';
-      position: absolute; top: 0; left: 0; right: 0; height: 3px;
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      opacity: 0;
-      transition: opacity 0.25s;
-    }
-    .module-card:hover::before { opacity: 1; }
-    .mc-blue::before   { background: linear-gradient(90deg,#1d4ed8,#6366f1); }
-    .mc-green::before  { background: linear-gradient(90deg,#059669,#10b981); }
-    .mc-violet::before { background: linear-gradient(90deg,#7c3aed,#a78bfa); }
-    .mc-amber::before  { background: linear-gradient(90deg,#d97706,#fbbf24); }
-    .mc-sky::before    { background: linear-gradient(90deg,#0284c7,#38bdf8); }
-    .mc-rose::before   { background: linear-gradient(90deg,#e11d48,#fb7185); }
-    .module-icon {
-      width: 40px; height: 40px; border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px; flex-shrink: 0;
-    }
-    .mi-blue   { background: #eff6ff; }
-    .mi-green  { background: #ecfdf5; }
-    .mi-violet { background: #f5f3ff; }
-    .mi-amber  { background: #fffbeb; }
-    .mi-sky    { background: #f0f9ff; }
-    .mi-rose   { background: #fff1f2; }
-    .module-title { font-size: 14px; font-weight: 700; color: var(--text); font-family: 'Outfit', sans-serif; line-height: 1.3; }
-    .module-desc { font-size: 13px; color: var(--text-2); line-height: 1.55; }
-    .module-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 2px; }
-    .mpill {
-      font-size: 11px; font-weight: 500; color: var(--text-2);
-      background: var(--surface-muted); border: 1px solid var(--border);
-      padding: 2px 8px; border-radius: 100px;
-    }
-
-    /* ─── ROI CALLOUT ────────────────────────────────────── */
-    .roi-callout {
-      max-width: 1160px;
-      margin: 20px auto 0;
-      padding: 0 clamp(20px,5vw,48px);
-    }
-    .roi-inner {
-      background: linear-gradient(135deg, rgba(29,78,216,0.04) 0%, rgba(99,102,241,0.07) 100%);
-      border: 1px solid rgba(29,78,216,0.18);
-      border-radius: var(--radius-lg);
-      padding: 20px 28px;
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      flex-wrap: wrap;
-    }
-    .roi-emoji { font-size: 22px; flex-shrink: 0; }
-    .roi-text { flex: 1; min-width: 220px; }
-    .roi-text strong { display: block; font-size: 15px; color: var(--text); font-weight: 600; margin-bottom: 4px; }
-    .roi-text span { font-size: 13px; color: var(--text-2); line-height: 1.6; }
-    .roi-pill {
-      padding: 8px 18px;
-      background: var(--primary);
-      color: #fff;
-      border-radius: 100px;
-      font-size: 13px;
-      font-weight: 600;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
 
     /* ─── ICP SECTION ────────────────────────────────────── */
     .icp-bg {
@@ -1261,7 +1088,6 @@
       </a>
       <ul class="nav-links">
         <li><a href="#funciones">Funciones</a></li>
-        <li><a href="#modulos">Módulos</a></li>
         <li><a href="#como-funciona">Cómo funciona</a></li>
         <li><a href="#pricing">Precios</a></li>
         <li><a href="#faq">FAQ</a></li>
@@ -1387,50 +1213,6 @@
     </div>
   </div>
 
-  <!-- ROI CALLOUT -->
-  <div class="roi-callout fade-up">
-    <div class="roi-inner">
-      <span class="roi-emoji">💡</span>
-      <div class="roi-text">
-        <strong>La math que no podés ignorar</strong>
-        <span>Con una tasa de conversión del 5%, perder solo 2 leads calificados por mes son <strong>USD 8.000 en comisiones anuales</strong> que se esfuman. Realia Pro cuesta USD 1.788/año. El ROI se paga con el primer cierre extra.</span>
-      </div>
-      <div class="roi-pill">ROI desde el mes 1</div>
-    </div>
-  </div>
-
-  <!-- PROBLEM -->
-  <section class="main problems-bg" id="problemas">
-    <div class="container">
-      <div class="problems-header">
-        <div>
-          <div class="section-tag fade-up">El problema</div>
-          <h2 class="section-title fade-up d1">Tu proyecto vale millones.<br><span class="gradient-text">Tu proceso de ventas, no.</span></h2>
-        </div>
-        <p class="section-body fade-up d2">Las desarrolladoras pierden entre el 30 y el 60% de sus leads por falta de respuesta rápida. Y sus compradores están en la oscuridad mientras la obra avanza.</p>
-      </div>
-      <div class="problems-grid">
-        <div class="problem-card fade-up">
-          <div class="problem-icon-wrap">😴</div>
-          <div class="problem-title">Leads que se enfrían de noche</div>
-          <div class="problem-desc">El 40% de los mensajes llega fuera del horario. Sin respuesta automática, ese interés se va a la competencia en minutos.</div>
-          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">40%</span>leads perdidos fuera de horario</div>
-        </div>
-        <div class="problem-card fade-up d1">
-          <div class="problem-icon-wrap">🏗️</div>
-          <div class="problem-title">Compradores desinformados</div>
-          <div class="problem-desc">Tus compradores no saben cuánto avanzó la obra. Cada "¿cómo va todo?" consume tiempo del equipo que se podría automatizar.</div>
-          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">80%</span>de consultas de obra son evitables</div>
-        </div>
-        <div class="problem-card fade-up d2">
-          <div class="problem-icon-wrap">📊</div>
-          <div class="problem-title">Gestión fragmentada</div>
-          <div class="problem-desc">Leads en WhatsApp, actualizaciones por email, reservas en Excel y obra en papel. Nada se conecta, todo se pierde.</div>
-          <div class="problem-stat-chip"><span class="stat-chip-accent gradient-text">4+</span>herramientas que no se hablan</div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <!-- ANTES VS DESPUÉS -->
   <section class="main avd-bg">
@@ -1697,85 +1479,6 @@
     </div>
   </section>
 
-  <!-- MODULE GRID -->
-  <section class="main modules-bg" id="modulos">
-    <div class="container">
-      <div class="modules-header fade-up">
-        <div class="section-tag">Todo incluido</div>
-        <h2 class="section-title" style="margin-top:12px">Un panel para gestionar<br>todo el ciclo del proyecto.</h2>
-        <p class="section-body" style="margin:0 auto">Desde el primer lead hasta la entrega de llaves. Sin saltar entre herramientas.</p>
-      </div>
-      <div class="modules-grid">
-
-        <div class="module-card mc-blue fade-up">
-          <div class="module-icon mi-blue">🏗️</div>
-          <div class="module-title">Seguimiento de obra</div>
-          <div class="module-desc">Etapas con porcentaje ponderado, actualización de avance con fotos y notificaciones automáticas por WhatsApp a cada comprador.</div>
-          <div class="module-pills">
-            <span class="mpill">% de avance</span>
-            <span class="mpill">Fotos por etapa</span>
-            <span class="mpill">Notif. WA</span>
-          </div>
-        </div>
-
-        <div class="module-card mc-green fade-up d1">
-          <div class="module-icon mi-green">📊</div>
-          <div class="module-title">Dashboard financiero</div>
-          <div class="module-desc">Presupuesto vs ejecutado, flujo de caja mes a mes, carga de facturas con PDF y comparativa de ingresos reales vs proyectados.</div>
-          <div class="module-pills">
-            <span class="mpill">Presupuesto</span>
-            <span class="mpill">Flujo de caja</span>
-            <span class="mpill">Facturas</span>
-          </div>
-        </div>
-
-        <div class="module-card mc-violet fade-up d2">
-          <div class="module-icon mi-violet">💼</div>
-          <div class="module-title">Portal de inversores</div>
-          <div class="module-desc">Generá y enviá reportes completos (avance + financiero + fotos) por WhatsApp a tus inversores en un clic. Sin armar PDFs a mano.</div>
-          <div class="module-pills">
-            <span class="mpill">Reporte automático</span>
-            <span class="mpill">Envío WA</span>
-            <span class="mpill">Historial</span>
-          </div>
-        </div>
-
-        <div class="module-card mc-amber fade-up">
-          <div class="module-icon mi-amber">🏢</div>
-          <div class="module-title">Gestión de unidades</div>
-          <div class="module-desc">Grilla de unidades por piso con estados en tiempo real (disponible, reservado, vendido), precios y tipologías de un vistazo.</div>
-          <div class="module-pills">
-            <span class="mpill">Grilla por piso</span>
-            <span class="mpill">Estados</span>
-            <span class="mpill">Reservas</span>
-          </div>
-        </div>
-
-        <div class="module-card mc-sky fade-up d1">
-          <div class="module-icon mi-sky">💳</div>
-          <div class="module-title">Plan de pagos y cobranza</div>
-          <div class="module-desc">Cuotas, vencimientos y registro de pagos por operación. Vista de cobranza consolidada para todas las unidades vendidas del proyecto.</div>
-          <div class="module-pills">
-            <span class="mpill">Cuotas</span>
-            <span class="mpill">Registros de pago</span>
-            <span class="mpill">Cobranza</span>
-          </div>
-        </div>
-
-        <div class="module-card mc-rose fade-up d2">
-          <div class="module-icon mi-rose">💬</div>
-          <div class="module-title">Inbox omnicanal</div>
-          <div class="module-desc">WhatsApp, Instagram y Web Chat en una sola bandeja. El agente IA atiende y califica; tu equipo toma el control cuando corresponde.</div>
-          <div class="module-pills">
-            <span class="mpill">WhatsApp</span>
-            <span class="mpill">Instagram</span>
-            <span class="mpill">Web Chat</span>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
 
   <!-- HOW IT WORKS -->
   <section class="main how-bg" id="como-funciona">
