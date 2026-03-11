@@ -446,7 +446,8 @@ export interface InvestorReportPreview {
 // --- Alert types ---
 export interface Alert {
   id: string;
-  project_id: string;
+  project_id: string | null;
+  organization_id: string | null;
   tipo: string;
   titulo: string;
   descripcion: string | null;

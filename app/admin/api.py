@@ -3797,13 +3797,20 @@ async def list_investor_reports(project_id: str):
 async def list_alerts(project_id: Optional[str] = None):
     pool = await get_pool()
     if project_id:
+        # Alertas del proyecto + alertas de nivel org (suscripciones, etc.)
         rows = await pool.fetch(
-            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts WHERE project_id = $1 ORDER BY created_at DESC",
+            """SELECT id, project_id, organization_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at
+               FROM project_alerts
+               WHERE project_id = $1
+               ORDER BY created_at DESC""",
             project_id,
         )
     else:
         rows = await pool.fetch(
-            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts ORDER BY created_at DESC LIMIT 100",
+            """SELECT id, project_id, organization_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at
+               FROM project_alerts
+               ORDER BY created_at DESC
+               LIMIT 100""",
         )
     return [dict(r) for r in rows]
 
