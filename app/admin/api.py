@@ -819,14 +819,28 @@ async def update_project(project_id: str, request: Request):
     return {"updated": list(fields_to_update.keys()), "project_id": str(row["id"]), "project_name": row["name"]}
 
 
-@router.delete("/projects/{project_id}", status_code=204)
+@router.delete("/projects/{project_id}")
 async def delete_project(project_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """Soft-delete a project by setting deleted_at = NOW()."""
     pool = await get_pool()
-    await pool.execute(
+    result = await pool.execute(
         "UPDATE projects SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
         project_id,
     )
+    deleted = result.split()[-1] != "0"
+    return {"deleted": deleted}
+
+
+@router.post("/projects/{project_id}/restore")
+async def restore_project(project_id: str, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
+    """Restore a soft-deleted project by clearing deleted_at."""
+    pool = await get_pool()
+    result = await pool.execute(
+        "UPDATE projects SET deleted_at = NULL WHERE id = $1 AND deleted_at IS NOT NULL",
+        project_id,
+    )
+    restored = result.split()[-1] != "0"
+    return {"restored": restored}
 
 
 # --- Units management ---

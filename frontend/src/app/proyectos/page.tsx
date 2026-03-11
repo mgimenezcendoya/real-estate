@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, Project, Metrics, Organization, CashFlowRow } from '@/lib/api';
-import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle, MoreVertical, Pencil, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -189,6 +189,16 @@ export default function ProyectosPage() {
       toast.error('No se pudo eliminar el proyecto');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleRestore = async (project: Project) => {
+    try {
+      await api.restoreProject(project.id);
+      toast.success('Proyecto restaurado');
+      loadProjects();
+    } catch {
+      toast.error('No se pudo restaurar el proyecto');
     }
   };
 
@@ -435,24 +445,33 @@ export default function ProyectosPage() {
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-44">
-                                  {!isDeleted && (
+                                  {isDeleted ? (
                                     <DropdownMenuItem
-                                      onClick={(e) => { e.preventDefault(); setRenameProject(project); setRenameName(project.name); }}
-                                      className="gap-2 cursor-pointer"
+                                      onClick={(e) => { e.preventDefault(); handleRestore(project); }}
+                                      className="gap-2 cursor-pointer text-emerald-600 focus:text-emerald-600 focus:bg-emerald-50"
                                     >
-                                      <Pencil size={13} />
-                                      Renombrar
+                                      <RotateCcw size={13} />
+                                      Restaurar
                                     </DropdownMenuItem>
+                                  ) : (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={(e) => { e.preventDefault(); setRenameProject(project); setRenameName(project.name); }}
+                                        className="gap-2 cursor-pointer"
+                                      >
+                                        <Pencil size={13} />
+                                        Renombrar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={(e) => { e.preventDefault(); setDeleteProjectState(project); }}
+                                        className="gap-2 cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
+                                      >
+                                        <Trash2 size={13} />
+                                        Eliminar
+                                      </DropdownMenuItem>
+                                    </>
                                   )}
-                                  {!isDeleted && <DropdownMenuSeparator />}
-                                  <DropdownMenuItem
-                                    onClick={(e) => { e.preventDefault(); setDeleteProjectState(project); }}
-                                    className={cn('gap-2 cursor-pointer', isDeleted ? 'text-gray-500' : 'text-red-600 focus:text-red-600 focus:bg-red-50')}
-                                    disabled={isDeleted}
-                                  >
-                                    <Trash2 size={13} />
-                                    {isDeleted ? 'Eliminado' : 'Eliminar'}
-                                  </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}

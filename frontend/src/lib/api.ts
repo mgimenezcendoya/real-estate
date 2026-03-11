@@ -551,6 +551,8 @@ export const api = {
     fetcher(`/admin/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteProject: (id: string) =>
     fetcher(`/admin/projects/${id}`, { method: 'DELETE' }),
+  restoreProject: (id: string) =>
+    fetcher(`/admin/projects/${id}/restore`, { method: 'POST' }),
 
   getUnits: (projectId: string) => fetcher<Unit[]>(`/admin/units/${projectId}`),
   updateUnitStatus: (unitId: string, status: string) =>
