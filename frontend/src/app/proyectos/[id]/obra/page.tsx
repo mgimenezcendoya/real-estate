@@ -1308,49 +1308,6 @@ export default function ObraPage() {
             )}
           </div>
 
-          {/* Buyers panel */}
-          <div className="space-y-3">
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Users size={15} className="text-gray-500" />
-                  <h3 className="text-sm font-semibold text-gray-900">Compradores</h3>
-                  <Badge className="bg-blue-50 text-blue-800 border-blue-200 text-[10px] font-bold">
-                    {buyers.length}
-                  </Badge>
-                </div>
-              </div>
-
-              {buyers.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-6">
-                  Sin compradores registrados
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {buyers.map((b) => (
-                    <div key={b.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center flex-shrink-0">
-                        <span className="text-blue-800 text-xs font-bold">
-                          {(b.name || 'C').charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">{b.name || 'Sin nombre'}</p>
-                        <p className="text-xs text-gray-500">
-                          Unidad {b.unit_identifier} · P{b.unit_floor}
-                        </p>
-                        {b.signed_at && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">
-                            Firmó {formatDate(b.signed_at)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
 
