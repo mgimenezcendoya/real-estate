@@ -422,6 +422,31 @@ class AgentConfigUpdate(BaseModel):
     temperature: Optional[float] = None
 
 
+# ── Subscriptions ──────────────────────────────────────────────────────────
+
+class SubscriptionCreate(BaseModel):
+    organization_id: str
+    plan: str  # 'base' | 'pro' | 'studio'
+    billing_cycle: str = "monthly"  # 'monthly' | 'annual'
+    price_usd: float
+    current_period_start: str  # ISO date string YYYY-MM-DD
+    current_period_end: str    # ISO date string YYYY-MM-DD
+    postventa_projects: int = 0
+    notes: Optional[str] = None
+    status: str = "active"
+
+
+class SubscriptionUpdate(BaseModel):
+    plan: Optional[str] = None
+    status: Optional[str] = None
+    billing_cycle: Optional[str] = None
+    price_usd: Optional[float] = None
+    current_period_start: Optional[str] = None
+    current_period_end: Optional[str] = None
+    postventa_projects: Optional[int] = None
+    notes: Optional[str] = None
+
+
 @router.post("/organizations")
 async def create_organization(
     body: OrganizationBody,
@@ -487,6 +512,110 @@ async def toggle_organization_active(
     if not row:
         raise HTTPException(status_code=404, detail="Organización no encontrada")
     logger.info("Organization %s toggled active=%s", org_id, row["activa"])
+    return dict(row)
+
+
+# ── Subscriptions ──────────────────────────────────────────────────────────
+
+
+@router.get("/subscriptions")
+async def list_subscriptions(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Lista todas las suscripciones. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede ver suscripciones")
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT s.*, o.name AS org_name
+           FROM subscriptions s
+           JOIN organizations o ON o.id = s.organization_id
+           ORDER BY o.name"""
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/subscriptions/{org_id}")
+async def get_subscription(
+    org_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Obtiene la suscripción de una organización."""
+    payload = _require_admin(credentials)
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+    if caller_role != "superadmin" and caller_org != org_id:
+        raise HTTPException(status_code=403)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT s.*, o.name AS org_name
+           FROM subscriptions s
+           JOIN organizations o ON o.id = s.organization_id
+           WHERE s.organization_id = $1""",
+        org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Sin suscripción activa")
+    return dict(row)
+
+
+@router.post("/subscriptions")
+async def create_subscription(
+    body: SubscriptionCreate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Crea una suscripción para una organización. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede crear suscripciones")
+    if body.plan not in ("base", "pro", "studio"):
+        raise HTTPException(status_code=400, detail="plan debe ser base, pro o studio")
+    if body.status not in ("trial", "active", "past_due", "suspended", "cancelled"):
+        raise HTTPException(status_code=400, detail="status inválido")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """INSERT INTO subscriptions
+               (organization_id, plan, status, billing_cycle, price_usd,
+                current_period_start, current_period_end, postventa_projects, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *""",
+        body.organization_id, body.plan, body.status, body.billing_cycle,
+        body.price_usd, body.current_period_start, body.current_period_end,
+        body.postventa_projects, body.notes,
+    )
+    logger.info("Subscription created for org %s: plan=%s", body.organization_id, body.plan)
+    return dict(row)
+
+
+@router.patch("/subscriptions/{org_id}")
+async def update_subscription(
+    org_id: str,
+    body: SubscriptionUpdate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Actualiza la suscripción de una organización. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede modificar suscripciones")
+    if body.plan and body.plan not in ("base", "pro", "studio"):
+        raise HTTPException(status_code=400, detail="plan debe ser base, pro o studio")
+    if body.status and body.status not in ("trial", "active", "past_due", "suspended", "cancelled"):
+        raise HTTPException(status_code=400, detail="status inválido")
+    pool = await get_pool()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        row = await pool.fetchrow("SELECT * FROM subscriptions WHERE organization_id = $1", org_id)
+        return dict(row) if row else {}
+    set_clause = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    row = await pool.fetchrow(
+        f"UPDATE subscriptions SET {set_clause}, updated_at = NOW() WHERE organization_id = $1 RETURNING *",
+        org_id, *values,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+    logger.info("Subscription updated for org %s: %s", org_id, updates)
     return dict(row)
 
 
