@@ -29,6 +29,7 @@ async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
     const msg = body.detail || body.error || body.message || `Error ${res.status}`;
     throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
   }
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 
