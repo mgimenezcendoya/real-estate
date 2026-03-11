@@ -390,12 +390,6 @@ export default function InboxPage() {
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId);
 
-  // Last message per group for sidebar preview
-  const lastMessageByPhone = useMemo(() => {
-    // We only have the active conversation loaded; show nothing for others
-    return new Map<string, string>();
-  }, []);
-
   return (
     <div className="flex flex-col h-full w-full overflow-hidden p-4 md:p-6 max-w-[1920px] mx-auto">
       {/* Page header */}
@@ -550,6 +544,14 @@ export default function InboxPage() {
                             )} />
                           )}
                         </div>
+                        {mainLead.last_message_preview && (
+                          <p className="text-[11px] text-muted-foreground truncate leading-snug mt-0.5">
+                            {mainLead.last_message_role === 'assistant' ? (
+                              <span className="text-primary/60">Bot: </span>
+                            ) : null}
+                            {mainLead.last_message_preview}
+                          </p>
+                        )}
                       </div>
                     </button>
                   );

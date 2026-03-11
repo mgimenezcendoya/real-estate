@@ -74,16 +74,26 @@ async def list_leads(
         SELECT
             l.id, l.project_id, l.phone, l.name, l.intent, l.financing, l.timeline,
             l.budget_usd, l.bedrooms, l.location_pref, l.score, l.source,
-            l.created_at, l.last_contact,
+            l.created_at, l.last_contact, l.tags, l.internal_notes,
             p.name as project_name,
             EXISTS(
                 SELECT 1 FROM handoffs h
                 WHERE h.lead_id = l.id AND h.status = 'active'
-            ) as handoff_active
+            ) as handoff_active,
+            lm.content as last_message_preview,
+            lm.created_at as last_message_at,
+            lm.role as last_message_role
         FROM leads l
         LEFT JOIN projects p ON l.project_id = p.id
+        LEFT JOIN LATERAL (
+            SELECT content, created_at, role
+            FROM conversations
+            WHERE lead_id = l.id
+            ORDER BY created_at DESC
+            LIMIT 1
+        ) lm ON true
         {where_clause}
-        ORDER BY l.last_contact DESC NULLS LAST, l.created_at DESC
+        ORDER BY COALESCE(lm.created_at, l.last_contact, l.created_at) DESC NULLS LAST
     """
 
     rows = await pool.fetch(query, *params)

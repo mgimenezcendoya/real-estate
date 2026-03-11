@@ -129,6 +129,9 @@ export interface Lead {
   handoff_active?: boolean;
   tags?: string[];
   internal_notes?: string | null;
+  last_message_preview?: string | null;
+  last_message_at?: string | null;
+  last_message_role?: string | null;
 }
 
 export interface Conversation {
