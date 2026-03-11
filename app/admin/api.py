@@ -2981,11 +2981,36 @@ async def get_project_template():
 @router.get("/project-template/download")
 async def download_project_template():
     """Download the CSV template file."""
-    import os
-    from fastapi.responses import FileResponse
-    template_path = os.path.join(os.path.dirname(__file__), "..", "..", "templates", "proyecto_template.csv")
-    template_path = os.path.abspath(template_path)
-    return FileResponse(template_path, media_type="text/csv", filename="proyecto_template.csv")
+    from fastapi.responses import Response
+    csv_content = (
+        "## TEMPLATE PARA CARGAR PROYECTO\n"
+        "## Completá lo que puedas. Lo que no tengas dejalo vacío.\n"
+        "## El resto lo podés completar después por WhatsApp.\n"
+        "##\n"
+        "## SECCIÓN 1: DATOS DEL PROYECTO (completar en la primera fila de datos)\n"
+        "## SECCIÓN 2: UNIDADES (una fila por unidad)\n"
+        "##\n"
+        "## Guardar como CSV (separado por comas) y enviar por WhatsApp.\n"
+        "\n"
+        "proyecto_nombre,proyecto_direccion,proyecto_barrio,proyecto_ciudad,proyecto_descripcion,"
+        "proyecto_pisos_total,proyecto_unidades_total,proyecto_inicio_obra,proyecto_entrega_estimada,"
+        "proyecto_estado_obra,proyecto_formas_pago,proyecto_amenities,unidad,piso,ambientes,m2,precio_usd,estado\n"
+        'Manzanares 2088,Manzanares 2088,Núñez,CABA,Edificio residencial premium de 5 plantas a 5 cuadras del río,'
+        '5,8,2025-03-01,2027-12-01,en_construccion,"30% anticipo USD + 18 cuotas CAC + 10% posesion. Contado: 5% dto.",'
+        '"SUM con parrilla | Piscina | Gimnasio | Bicicletero | Seguridad 24hs",1A,1,1,35,58000,disponible\n'
+        ",,,,,,,,,,,,1B,1,2,50,78000,disponible\n"
+        ",,,,,,,,,,,,2A,2,2,52,82000,disponible\n"
+        ",,,,,,,,,,,,2B,2,2,55,86000,reservada\n"
+        ",,,,,,,,,,,,3A,3,3,72,115000,disponible\n"
+        ",,,,,,,,,,,,3B,3,3,75,120000,disponible\n"
+        ",,,,,,,,,,,,4A,4,3,78,130000,disponible\n"
+        ",,,,,,,,,,,,PH,5,4,110,195000,disponible\n"
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=proyecto_template.csv"},
+    )
 
 
 @router.post("/load-project")
