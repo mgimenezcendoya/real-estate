@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { api, User, Organization, TenantChannel, TenantChannelCreate } from '@/lib/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { api, User, Organization, TenantChannel, TenantChannelCreate, Subscription, SubscriptionCreate } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Plus, Pencil, KeyRound, UserX, UserCheck, Users, Building2, PowerOff, Power, WifiOff, Phone, Bot } from 'lucide-react';
+import { Plus, Pencil, KeyRound, UserX, UserCheck, Users, Building2, PowerOff, Power, WifiOff, Phone, Bot, CreditCard, CalendarDays, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super Admin',
@@ -37,7 +37,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 type ModalMode = 'create' | 'edit' | 'reset-password' | null;
-type Tab = 'usuarios' | 'organizaciones' | 'canales' | 'agente';
+type Tab = 'usuarios' | 'organizaciones' | 'canales' | 'agente' | 'cobros';
 
 export default function UsuariosPage() {
   const { isAdmin, role } = useAuth();
@@ -124,6 +124,34 @@ export default function UsuariosPage() {
   useEffect(() => {
     if (activeTab === 'agente') loadAgentConfig(isSuperAdmin && selectedAgentOrg !== '__own__' ? selectedAgentOrg : undefined);
   }, [activeTab, selectedAgentOrg, loadAgentConfig, isSuperAdmin]);
+
+  // --- Cobros state ---
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subModal, setSubModal] = useState<'create' | 'edit' | null>(null);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [savingSub, setSavingSub] = useState(false);
+  const [subForm, setSubForm] = useState<SubscriptionCreate>({
+    organization_id: '',
+    plan: 'pro',
+    billing_cycle: 'monthly',
+    price_usd: 599,
+    current_period_start: new Date().toISOString().slice(0, 10),
+    current_period_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    postventa_projects: 0,
+    notes: '',
+    status: 'active',
+  });
+
+  const loadSubscriptions = useCallback(async () => {
+    try {
+      const data = await api.getSubscriptions();
+      setSubscriptions(data);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'cobros') loadSubscriptions();
+  }, [activeTab, loadSubscriptions]);
 
   useEffect(() => { load(); }, []);
 
@@ -302,6 +330,27 @@ export default function UsuariosPage() {
     return acc;
   }, {});
 
+  const PLAN_LABELS: Record<string, string> = { base: 'Base', pro: 'Pro', studio: 'Studio' };
+  const PLAN_PRICES: Record<string, number> = { base: 349, pro: 599, studio: 1100 };
+
+  const STATUS_CONFIG: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
+    trial:     { label: 'Trial',      className: 'bg-blue-100 text-blue-700 border-blue-200',        icon: <Clock size={11} /> },
+    active:    { label: 'Activo',     className: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: <CheckCircle2 size={11} /> },
+    past_due:  { label: 'Vencido',    className: 'bg-amber-100 text-amber-700 border-amber-200',     icon: <AlertCircle size={11} /> },
+    suspended: { label: 'Suspendido', className: 'bg-red-100 text-red-700 border-red-200',           icon: <AlertCircle size={11} /> },
+    cancelled: { label: 'Cancelado',  className: 'bg-gray-100 text-gray-500 border-gray-200',        icon: <AlertCircle size={11} /> },
+  };
+
+  function calcMonthlyCost(sub: Subscription): number {
+    return sub.price_usd + sub.postventa_projects * 199;
+  }
+
+  function isExpiringSoon(sub: Subscription): boolean {
+    const end = new Date(sub.current_period_end);
+    const diff = (end.getTime() - Date.now()) / 86400000;
+    return diff <= 5 && sub.status === 'active';
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
@@ -390,6 +439,20 @@ export default function UsuariosPage() {
           <Bot size={14} />
           Agente IA
         </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setActiveTab('cobros')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+              activeTab === 'cobros'
+                ? 'bg-white shadow-sm text-gray-900'
+                : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            <CreditCard size={13} />
+            Cobros
+          </button>
+        )}
       </div>
 
       {/* ── USUARIOS TAB ── */}
@@ -767,6 +830,167 @@ export default function UsuariosPage() {
         </div>
       )}
 
+      {/* ===== COBROS ===== */}
+      {activeTab === 'cobros' && isSuperAdmin && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display font-semibold text-gray-900">Cobros y Suscripciones</h2>
+              <p className="text-sm text-muted-foreground">Gestión manual de planes activos por organización</p>
+            </div>
+            <Button onClick={() => {
+              setEditingSub(null);
+              setSubForm({
+                organization_id: '',
+                plan: 'pro',
+                billing_cycle: 'monthly',
+                price_usd: 599,
+                current_period_start: new Date().toISOString().slice(0, 10),
+                current_period_end: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+                postventa_projects: 0,
+                notes: '',
+                status: 'active',
+              });
+              setSubModal('create');
+            }}>
+              <Plus size={14} className="mr-1.5" />
+              Nueva suscripción
+            </Button>
+          </div>
+
+          {subscriptions.filter(isExpiringSoon).length > 0 && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <AlertCircle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  {subscriptions.filter(isExpiringSoon).length} suscripción(es) vencen en los próximos 5 días
+                </p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  {subscriptions.filter(isExpiringSoon).map(s => s.org_name).join(', ')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {subscriptions.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <CreditCard size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No hay suscripciones registradas</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {subscriptions.map((sub) => {
+                const sc = STATUS_CONFIG[sub.status] ?? STATUS_CONFIG.active;
+                const monthlyCost = calcMonthlyCost(sub);
+                const expiringSoon = isExpiringSoon(sub);
+                return (
+                  <div
+                    key={sub.id}
+                    className={cn(
+                      'glass flex items-center gap-4 px-4 py-3 rounded-xl',
+                      expiringSoon && 'border-amber-300'
+                    )}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <CreditCard size={16} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm text-gray-900">{sub.org_name}</span>
+                        <Badge variant="outline" className="text-[10px] font-semibold uppercase">
+                          {PLAN_LABELS[sub.plan]}
+                        </Badge>
+                        <Badge className={cn('text-[10px] flex items-center gap-1', sc.className)}>
+                          {sc.icon}{sc.label}
+                        </Badge>
+                        {expiringSoon && (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
+                            Vence pronto
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <CalendarDays size={10} />
+                          Período: {sub.current_period_start} → {sub.current_period_end}
+                        </span>
+                        {sub.postventa_projects > 0 && (
+                          <span>+ {sub.postventa_projects} postventa</span>
+                        )}
+                      </div>
+                      {sub.notes && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{sub.notes}</p>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-semibold text-sm text-gray-900">USD {monthlyCost.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground">/mes</p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Renovar 30 días"
+                        onClick={async () => {
+                          const start = new Date().toISOString().slice(0, 10);
+                          const end = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+                          await api.updateSubscription(sub.organization_id, {
+                            status: 'active',
+                            current_period_start: start,
+                            current_period_end: end,
+                          });
+                          toast.success('Período renovado — acceso activo por 30 días');
+                          loadSubscriptions();
+                        }}
+                      >
+                        <CheckCircle2 size={13} className="text-emerald-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingSub(sub);
+                          setSubForm({
+                            organization_id: sub.organization_id,
+                            plan: sub.plan,
+                            billing_cycle: sub.billing_cycle,
+                            price_usd: sub.price_usd,
+                            current_period_start: sub.current_period_start,
+                            current_period_end: sub.current_period_end,
+                            postventa_projects: sub.postventa_projects,
+                            notes: sub.notes ?? '',
+                            status: sub.status,
+                          });
+                          setSubModal('edit');
+                        }}
+                      >
+                        <Pencil size={13} />
+                      </Button>
+                      {sub.status === 'active' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Suspender acceso"
+                          className="text-destructive hover:text-destructive"
+                          onClick={async () => {
+                            if (!confirm(`¿Suspender acceso de ${sub.org_name}?`)) return;
+                            await api.updateSubscription(sub.organization_id, { status: 'suspended' });
+                            toast.success('Acceso suspendido');
+                            loadSubscriptions();
+                          }}
+                        >
+                          <AlertCircle size={13} />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Modal crear / editar usuario ── */}
       <Dialog open={modalMode === 'create' || modalMode === 'edit'} onOpenChange={open => !open && setModalMode(null)}>
         <DialogContent className="max-w-md">
@@ -1066,6 +1290,152 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setOrgModalOpen(false)}>Cancelar</Button>
             <Button onClick={handleCreateOrg} disabled={savingOrg || !orgForm.name.trim()}>
               {savingOrg ? 'Guardando...' : editingOrg ? 'Guardar cambios' : 'Crear organización'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog — crear / editar suscripción */}
+      <Dialog open={subModal !== null} onOpenChange={(o) => !o && setSubModal(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {subModal === 'create' ? 'Nueva suscripción' : `Editar — ${editingSub?.org_name}`}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {subModal === 'create' && (
+              <div className="space-y-1.5">
+                <Label>Organización</Label>
+                <Select
+                  value={subForm.organization_id}
+                  onValueChange={(v) => setSubForm(f => ({ ...f, organization_id: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar organización..." /></SelectTrigger>
+                  <SelectContent>
+                    {orgs.map(o => <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Plan</Label>
+                <Select
+                  value={subForm.plan}
+                  onValueChange={(v: 'base' | 'pro' | 'studio') => {
+                    setSubForm(f => ({ ...f, plan: v, price_usd: PLAN_PRICES[v] }));
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="base">Base — USD 349/mes</SelectItem>
+                    <SelectItem value="pro">Pro — USD 599/mes</SelectItem>
+                    <SelectItem value="studio">Studio — USD 1.100/mes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ciclo</Label>
+                <Select
+                  value={subForm.billing_cycle}
+                  onValueChange={(v: 'monthly' | 'annual') => setSubForm(f => ({ ...f, billing_cycle: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensual</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Precio cobrado (USD/mes)</Label>
+              <Input
+                type="number"
+                min={0}
+                value={subForm.price_usd}
+                onChange={e => setSubForm(f => ({ ...f, price_usd: Number(e.target.value) }))}
+              />
+              <p className="text-xs text-muted-foreground">Puede diferir del precio de lista si hay descuento acordado.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Inicio del período</Label>
+                <Input
+                  type="date"
+                  value={subForm.current_period_start}
+                  onChange={e => setSubForm(f => ({ ...f, current_period_start: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fin del período</Label>
+                <Input
+                  type="date"
+                  value={subForm.current_period_end}
+                  onChange={e => setSubForm(f => ({ ...f, current_period_end: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Estado</Label>
+              <Select
+                value={subForm.status}
+                onValueChange={(v) => setSubForm(f => ({ ...f, status: v as SubscriptionCreate['status'] }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="trial">Trial</SelectItem>
+                  <SelectItem value="active">Activo</SelectItem>
+                  <SelectItem value="past_due">Vencido (past_due)</SelectItem>
+                  <SelectItem value="suspended">Suspendido</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Proyectos en postventa</Label>
+              <Input
+                type="number"
+                min={0}
+                value={subForm.postventa_projects}
+                onChange={e => setSubForm(f => ({ ...f, postventa_projects: Number(e.target.value) }))}
+              />
+              <p className="text-xs text-muted-foreground">USD 199/mes cada uno — se suma al total.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notas internas <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input
+                placeholder="Ej: Descuento acordado en reunión, paga el 5 de cada mes..."
+                value={subForm.notes ?? ''}
+                onChange={e => setSubForm(f => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubModal(null)}>Cancelar</Button>
+            <Button
+              disabled={savingSub || (subModal === 'create' && !subForm.organization_id)}
+              onClick={async () => {
+                setSavingSub(true);
+                try {
+                  if (subModal === 'create') {
+                    await api.createSubscription(subForm);
+                    toast.success('Suscripción creada');
+                  } else if (editingSub) {
+                    await api.updateSubscription(editingSub.organization_id, subForm);
+                    toast.success('Suscripción actualizada');
+                  }
+                  setSubModal(null);
+                  loadSubscriptions();
+                } catch (e: unknown) {
+                  toast.error(e instanceof Error ? e.message : 'Error al guardar');
+                } finally {
+                  setSavingSub(false);
+                }
+              }}
+            >
+              {savingSub ? 'Guardando...' : 'Guardar'}
             </Button>
           </DialogFooter>
         </DialogContent>

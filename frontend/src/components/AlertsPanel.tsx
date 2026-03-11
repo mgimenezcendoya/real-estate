@@ -19,6 +19,8 @@ function alertLink(alert: Alert): string | null {
   const pid = alert.project_id;
   const meta = alert.metadata as Record<string, string> | null;
   switch (alert.tipo) {
+    case 'SUSCRIPCION_POR_VENCER':
+      return '/admin/usuarios?tab=cobros';
     case 'LEAD_SIN_ACTIVIDAD':
       return `/proyectos/${pid}/leads`;
     case 'UNIDAD_RESERVADA_SIN_CONVERTIR':

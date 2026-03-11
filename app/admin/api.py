@@ -422,6 +422,31 @@ class AgentConfigUpdate(BaseModel):
     temperature: Optional[float] = None
 
 
+# ── Subscriptions ──────────────────────────────────────────────────────────
+
+class SubscriptionCreate(BaseModel):
+    organization_id: str
+    plan: str  # 'base' | 'pro' | 'studio'
+    billing_cycle: str = "monthly"  # 'monthly' | 'annual'
+    price_usd: float
+    current_period_start: str  # ISO date string YYYY-MM-DD
+    current_period_end: str    # ISO date string YYYY-MM-DD
+    postventa_projects: int = 0
+    notes: Optional[str] = None
+    status: str = "active"
+
+
+class SubscriptionUpdate(BaseModel):
+    plan: Optional[str] = None
+    status: Optional[str] = None
+    billing_cycle: Optional[str] = None
+    price_usd: Optional[float] = None
+    current_period_start: Optional[str] = None
+    current_period_end: Optional[str] = None
+    postventa_projects: Optional[int] = None
+    notes: Optional[str] = None
+
+
 @router.post("/organizations")
 async def create_organization(
     body: OrganizationBody,
@@ -487,6 +512,117 @@ async def toggle_organization_active(
     if not row:
         raise HTTPException(status_code=404, detail="Organización no encontrada")
     logger.info("Organization %s toggled active=%s", org_id, row["activa"])
+    return dict(row)
+
+
+# ── Subscriptions ──────────────────────────────────────────────────────────
+
+
+@router.get("/subscriptions")
+async def list_subscriptions(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Lista todas las suscripciones. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede ver suscripciones")
+    pool = await get_pool()
+    rows = await pool.fetch(
+        """SELECT s.*, o.name AS org_name
+           FROM subscriptions s
+           JOIN organizations o ON o.id = s.organization_id
+           ORDER BY o.name"""
+    )
+    return [dict(r) for r in rows]
+
+
+@router.get("/subscriptions/{org_id}")
+async def get_subscription(
+    org_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Obtiene la suscripción de una organización."""
+    payload = _require_admin(credentials)
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
+    if caller_role != "superadmin" and caller_org != org_id:
+        raise HTTPException(status_code=403)
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """SELECT s.*, o.name AS org_name
+           FROM subscriptions s
+           JOIN organizations o ON o.id = s.organization_id
+           WHERE s.organization_id = $1""",
+        org_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Sin suscripción activa")
+    return dict(row)
+
+
+@router.post("/subscriptions")
+async def create_subscription(
+    body: SubscriptionCreate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Crea una suscripción para una organización. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede crear suscripciones")
+    if body.plan not in ("base", "pro", "studio"):
+        raise HTTPException(status_code=400, detail="plan debe ser base, pro o studio")
+    if body.status not in ("trial", "active", "past_due", "suspended", "cancelled"):
+        raise HTTPException(status_code=400, detail="status inválido")
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        """INSERT INTO subscriptions
+               (organization_id, plan, status, billing_cycle, price_usd,
+                current_period_start, current_period_end, postventa_projects, notes)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *""",
+        body.organization_id, body.plan, body.status, body.billing_cycle,
+        body.price_usd,
+        __import__('datetime').date.fromisoformat(body.current_period_start),
+        __import__('datetime').date.fromisoformat(body.current_period_end),
+        body.postventa_projects, body.notes,
+    )
+    logger.info("Subscription created for org %s: plan=%s", body.organization_id, body.plan)
+    return dict(row)
+
+
+@router.patch("/subscriptions/{org_id}")
+async def update_subscription(
+    org_id: str,
+    body: SubscriptionUpdate,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Actualiza la suscripción de una organización. Superadmin only."""
+    payload = _require_admin(credentials)
+    if payload.get("role") != "superadmin":
+        raise HTTPException(status_code=403, detail="Solo superadmin puede modificar suscripciones")
+    if body.plan and body.plan not in ("base", "pro", "studio"):
+        raise HTTPException(status_code=400, detail="plan debe ser base, pro o studio")
+    if body.status and body.status not in ("trial", "active", "past_due", "suspended", "cancelled"):
+        raise HTTPException(status_code=400, detail="status inválido")
+    from datetime import date as _date
+    pool = await get_pool()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Convertir strings de fecha a datetime.date para asyncpg
+    for date_field in ("current_period_start", "current_period_end"):
+        if date_field in updates and isinstance(updates[date_field], str):
+            updates[date_field] = _date.fromisoformat(updates[date_field])
+    if not updates:
+        row = await pool.fetchrow("SELECT * FROM subscriptions WHERE organization_id = $1", org_id)
+        return dict(row) if row else {}
+    set_clause = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
+    values = list(updates.values())
+    row = await pool.fetchrow(
+        f"UPDATE subscriptions SET {set_clause}, updated_at = NOW() WHERE organization_id = $1 RETURNING *",
+        org_id, *values,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Suscripción no encontrada")
+    logger.info("Subscription updated for org %s: %s", org_id, updates)
     return dict(row)
 
 
@@ -3658,34 +3794,102 @@ async def list_investor_reports(project_id: str):
 # ---------- Módulo 3: Alertas Proactivas ----------
 
 @router.get("/alerts")
-async def list_alerts(project_id: Optional[str] = None):
+async def list_alerts(
+    project_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    payload = _require_admin(credentials)
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
     pool = await get_pool()
+
     if project_id:
+        # Superadmin ve todo; el resto solo si el proyecto pertenece a su org
+        if caller_role != "superadmin":
+            proj = await pool.fetchrow(
+                "SELECT organization_id FROM projects WHERE id = $1", project_id
+            )
+            if not proj or str(proj["organization_id"]) != caller_org:
+                raise HTTPException(status_code=403)
         rows = await pool.fetch(
-            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts WHERE project_id = $1 ORDER BY created_at DESC",
+            """SELECT id, project_id, organization_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at
+               FROM project_alerts
+               WHERE project_id = $1
+               ORDER BY created_at DESC""",
             project_id,
         )
-    else:
+    elif caller_role == "superadmin":
         rows = await pool.fetch(
-            "SELECT id, project_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at FROM project_alerts ORDER BY created_at DESC LIMIT 100",
+            """SELECT id, project_id, organization_id, tipo, titulo, descripcion, severidad, leida, metadata, created_at
+               FROM project_alerts
+               ORDER BY created_at DESC
+               LIMIT 100""",
+        )
+    else:
+        # Admin/vendedor/etc: solo alertas de proyectos de su org + alertas de nivel org propias
+        rows = await pool.fetch(
+            """SELECT pa.id, pa.project_id, pa.organization_id, pa.tipo, pa.titulo,
+                      pa.descripcion, pa.severidad, pa.leida, pa.metadata, pa.created_at
+               FROM project_alerts pa
+               WHERE (
+                   pa.project_id IN (
+                       SELECT id FROM projects WHERE organization_id = $1 AND deleted_at IS NULL
+                   )
+                   OR pa.organization_id = $1
+               )
+               ORDER BY pa.created_at DESC
+               LIMIT 100""",
+            caller_org,
         )
     return [dict(r) for r in rows]
 
 
 @router.post("/alerts/{alert_id}/read")
-async def mark_alert_read(alert_id: str):
+async def mark_alert_read(
+    alert_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    payload = _require_admin(credentials)
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
     pool = await get_pool()
+    if caller_role != "superadmin":
+        alert = await pool.fetchrow(
+            """SELECT pa.id FROM project_alerts pa
+               LEFT JOIN projects p ON p.id = pa.project_id
+               WHERE pa.id = $1
+                 AND (p.organization_id = $2 OR pa.organization_id = $2)""",
+            alert_id, caller_org,
+        )
+        if not alert:
+            raise HTTPException(status_code=403)
     await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE id = $1", alert_id)
     return {"ok": True}
 
 
 @router.post("/alerts/read-all")
-async def mark_all_alerts_read(project_id: Optional[str] = None):
+async def mark_all_alerts_read(
+    project_id: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    payload = _require_admin(credentials)
+    caller_role = payload.get("role")
+    caller_org = payload.get("organization_id")
     pool = await get_pool()
     if project_id:
         await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE project_id = $1 AND leida = FALSE", project_id)
-    else:
+    elif caller_role == "superadmin":
         await pool.execute("UPDATE project_alerts SET leida = TRUE WHERE leida = FALSE")
+    else:
+        await pool.execute(
+            """UPDATE project_alerts SET leida = TRUE
+               WHERE leida = FALSE
+                 AND (
+                     project_id IN (SELECT id FROM projects WHERE organization_id = $1 AND deleted_at IS NULL)
+                     OR organization_id = $1
+                 )""",
+            caller_org,
+        )
     return {"ok": True}
 
 

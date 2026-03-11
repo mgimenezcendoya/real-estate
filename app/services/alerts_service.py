@@ -207,5 +207,42 @@ async def evaluate_alerts(project_id: Optional[str] = None) -> int:
     except Exception as e:
         logger.debug("Inversor sin reporte check skipped (tables may not exist): %s", e)
 
+    # 8. SUSCRIPCION_POR_VENCER: subscriptions expiring within 5 days
+    try:
+        subs = await pool.fetch(
+            """SELECT s.organization_id, s.current_period_end, o.name AS org_name
+               FROM subscriptions s
+               JOIN organizations o ON o.id = s.organization_id
+               WHERE s.status = 'active'
+                 AND s.current_period_end BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '5 days'"""
+        )
+        for sub in subs:
+            dias = (sub["current_period_end"] - __import__("datetime").date.today()).days
+            label = "hoy" if dias == 0 else f"en {dias} día{'s' if dias > 1 else ''}"
+            org_id = str(sub["organization_id"])
+            existing = await pool.fetchval(
+                """SELECT id FROM project_alerts
+                   WHERE organization_id = $1
+                     AND tipo = 'SUSCRIPCION_POR_VENCER'
+                     AND created_at > NOW() - INTERVAL '24 hours'""",
+                org_id,
+            )
+            if existing:
+                continue
+            await pool.execute(
+                """INSERT INTO project_alerts
+                       (organization_id, tipo, titulo, descripcion, severidad, metadata)
+                   VALUES ($1, $2, $3, $4, $5, $6)""",
+                org_id,
+                "SUSCRIPCION_POR_VENCER",
+                f"Suscripción por vencer — {sub['org_name']}",
+                f"La suscripción de {sub['org_name']} vence {label} ({sub['current_period_end'].strftime('%d/%m/%Y')}). Renovar para mantener el acceso.",
+                "critical",
+                __import__("json").dumps({"resource_id": org_id, "org_name": sub["org_name"], "dias_restantes": dias}),
+            )
+            created += 1
+    except Exception as e:
+        logger.debug("Suscripcion por vencer check skipped: %s", e)
+
     logger.info("Alerts evaluated: %d new alerts created", created)
     return created
