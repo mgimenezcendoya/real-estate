@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, Project, Metrics, Organization, CashFlowRow } from '@/lib/api';
-import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import NewProjectModal from '@/components/NewProjectModal';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -18,6 +20,7 @@ const STATUS_CONFIG = {
   active: { label: 'Activo', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   paused: { label: 'Pausado', className: 'bg-amber-50 text-amber-700 border-amber-200' },
   completed: { label: 'Terminado', className: 'bg-blue-50 text-blue-800 border-blue-200' },
+  deleted: { label: 'Eliminado', className: 'bg-red-50 text-red-600 border-red-200' },
 };
 
 const DELIVERY_LABELS: Record<string, string> = {
@@ -82,6 +85,14 @@ export default function ProyectosPage() {
   const [orgFilter, setOrgFilter] = useState<string>('');
   const filterRef = useRef<HTMLDivElement>(null);
 
+  // Rename dialog
+  const [renameProject, setRenameProject] = useState<Project | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  // Delete dialog
+  const [deleteProject, setDeleteProjectState] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // Consolidated cash flow
   const [cashFlow, setCashFlow] = useState<CashFlowRow[]>([]);
   const [loadingCF, setLoadingCF] = useState(false);
@@ -91,8 +102,9 @@ export default function ProyectosPage() {
 
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
+      const isDeleted = !!p.deleted_at;
       const matchName = !searchQuery.trim() || p.name.toLowerCase().includes(searchQuery.trim().toLowerCase());
-      const matchStatus = !statusFilter || p.status === statusFilter;
+      const matchStatus = statusFilter === 'deleted' ? isDeleted : (!statusFilter ? !isDeleted : (!isDeleted && p.status === statusFilter));
       const matchDelivery = !deliveryFilter || (p.delivery_status || '') === deliveryFilter;
       const matchOrg = !orgFilter || p.organization_id === orgFilter;
       return matchName && matchStatus && matchDelivery && matchOrg;
@@ -107,10 +119,12 @@ export default function ProyectosPage() {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [filterOpen]);
 
+  const showingDeleted = statusFilter === 'deleted';
+
   const loadProjects = useCallback(() => {
     setLoading(true);
     const fetches: Promise<void>[] = [
-      api.getProjects()
+      api.getProjects(true)
         .then(async (list) => {
           setProjects(list);
           const metrics: Record<string, Metrics> = {};
@@ -147,6 +161,36 @@ export default function ProyectosPage() {
   useEffect(() => {
     if (activeTab === 'flujo') loadCashFlow(cfDesde, cfHasta);
   }, [cfDesde, cfHasta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRenameConfirm = async () => {
+    if (!renameProject || !renameName.trim()) return;
+    setRenaming(true);
+    try {
+      await api.updateProject(renameProject.id, { name: renameName.trim() });
+      toast.success('Proyecto renombrado');
+      setRenameProject(null);
+      loadProjects();
+    } catch {
+      toast.error('No se pudo renombrar el proyecto');
+    } finally {
+      setRenaming(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteProject) return;
+    setDeleting(true);
+    try {
+      await api.deleteProject(deleteProject.id);
+      toast.success('Proyecto eliminado');
+      setDeleteProjectState(null);
+      loadProjects();
+    } catch {
+      toast.error('No se pudo eliminar el proyecto');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // For superadmin: no org restriction; for others: scoped to their org
   // When superadmin has an org filter active, use that org for new projects
@@ -263,14 +307,16 @@ export default function ProyectosPage() {
               <div className="space-y-1.5 mb-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Estado</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(['', 'active', 'paused', 'completed'] as const).map((s) => (
+                  {(['', 'active', 'paused', 'completed', 'deleted'] as const).map((s) => (
                     <button
                       key={s || 'all'}
-                      onClick={() => setStatusFilter(s)}
+                      onClick={() => { setStatusFilter(s); if (s !== 'deleted') setDeliveryFilter(''); }}
                       className={cn(
                         'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border',
                         statusFilter === s
-                          ? 'bg-blue-50 text-blue-800 border-blue-300'
+                          ? s === 'deleted'
+                            ? 'bg-red-50 text-red-700 border-red-300'
+                            : 'bg-blue-50 text-blue-800 border-blue-300'
                           : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-100 hover:text-gray-900'
                       )}
                     >
@@ -349,23 +395,68 @@ export default function ProyectosPage() {
           {!loading && filteredProjects.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredProjects.map((project, idx) => {
-                const statusConf = STATUS_CONFIG[project.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active;
+                const isDeleted = !!project.deleted_at;
+                const statusConf = isDeleted
+                  ? STATUS_CONFIG.deleted
+                  : (STATUS_CONFIG[project.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.active);
                 return (
-                  <Link
+                  <div
                     key={project.id}
-                    href={`/proyectos/${project.id}`}
-                    className="group block animate-fade-in-up"
+                    className={cn('group animate-fade-in-up relative', isDeleted && 'opacity-60')}
                     style={{ animationDelay: `${idx * 45}ms`, animationFillMode: 'both' }}
                   >
-                    <div className="card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl group-hover:border-blue-200 group-hover:shadow-lg group-hover:shadow-blue-500/[0.06] transition-all duration-200 flex flex-col">
+                    <Link
+                      href={isDeleted ? '#' : `/proyectos/${project.id}`}
+                      onClick={isDeleted ? (e) => e.preventDefault() : undefined}
+                      className="block"
+                    >
+                    <div className={cn(
+                      'card-top-accent relative h-full bg-white border border-gray-200 rounded-2xl transition-all duration-200 flex flex-col',
+                      !isDeleted && 'group-hover:border-blue-200 group-hover:shadow-lg group-hover:shadow-blue-500/[0.06]',
+                      isDeleted && 'border-dashed border-red-200 bg-red-50/20'
+                    )}>
                       <div className="p-5 flex flex-col flex-1">
                         <div className="flex items-start justify-between mb-5">
                           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/70 flex items-center justify-center shadow-sm">
                             <Building2 size={20} className="text-blue-700" />
                           </div>
-                          <Badge className={cn('text-[10px] font-semibold border', statusConf.className)}>
-                            {statusConf.label}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge className={cn('text-[10px] font-semibold border', statusConf.className)}>
+                              {statusConf.label}
+                            </Badge>
+                            {!isReader && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    onClick={(e) => e.preventDefault()}
+                                    className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                  >
+                                    <MoreVertical size={14} />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-44">
+                                  {!isDeleted && (
+                                    <DropdownMenuItem
+                                      onClick={(e) => { e.preventDefault(); setRenameProject(project); setRenameName(project.name); }}
+                                      className="gap-2 cursor-pointer"
+                                    >
+                                      <Pencil size={13} />
+                                      Renombrar
+                                    </DropdownMenuItem>
+                                  )}
+                                  {!isDeleted && <DropdownMenuSeparator />}
+                                  <DropdownMenuItem
+                                    onClick={(e) => { e.preventDefault(); setDeleteProjectState(project); }}
+                                    className={cn('gap-2 cursor-pointer', isDeleted ? 'text-gray-500' : 'text-red-600 focus:text-red-600 focus:bg-red-50')}
+                                    disabled={isDeleted}
+                                  >
+                                    <Trash2 size={13} />
+                                    {isDeleted ? 'Eliminado' : 'Eliminar'}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
                         </div>
 
                         <div className="mb-5 flex-1">
@@ -397,18 +488,24 @@ export default function ProyectosPage() {
                           <span className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
                             <span className={cn(
                               'w-1.5 h-1.5 rounded-full',
+                              isDeleted ? 'bg-red-400' :
                               project.delivery_status === 'terminado' ? 'bg-emerald-500' :
                               project.delivery_status === 'en_construccion' ? 'bg-blue-500' : 'bg-amber-500'
                             )} />
-                            {DELIVERY_LABELS[project.delivery_status] ?? project.delivery_status ?? 'En planificación'}
+                            {isDeleted
+                              ? `Eliminado ${new Date(project.deleted_at!).toLocaleDateString('es-AR')}`
+                              : (DELIVERY_LABELS[project.delivery_status] ?? project.delivery_status ?? 'En planificación')}
                           </span>
-                          <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-blue-700 group-hover:text-white group-hover:border-blue-700 transition-all duration-200">
-                            <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-                          </div>
+                          {!isDeleted && (
+                            <div className="w-7 h-7 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-blue-700 group-hover:text-white group-hover:border-blue-700 transition-all duration-200">
+                              <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </Link>
+                    </Link>
+                  </div>
                 );
               })}
             </div>
@@ -581,6 +678,51 @@ export default function ProyectosPage() {
         onClose={() => setShowNewModal(false)}
         onCreated={loadProjects}
       />
+
+      {/* Rename dialog */}
+      <Dialog open={!!renameProject} onOpenChange={(o) => { if (!o) setRenameProject(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Renombrar proyecto</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameName}
+            onChange={(e) => setRenameName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleRenameConfirm(); }}
+            placeholder="Nombre del proyecto"
+            className="mt-2"
+            autoFocus
+          />
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setRenameProject(null)} disabled={renaming}>
+              Cancelar
+            </Button>
+            <Button onClick={handleRenameConfirm} disabled={renaming || !renameName.trim()}>
+              {renaming ? 'Guardando…' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={!!deleteProject} onOpenChange={(o) => { if (!o) setDeleteProjectState(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Eliminar proyecto</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 mt-1">
+            ¿Seguro que querés eliminar <span className="font-semibold text-gray-800">{deleteProject?.name}</span>? El proyecto se ocultará pero su información se conserva.
+          </p>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setDeleteProjectState(null)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={deleting}>
+              {deleting ? 'Eliminando…' : 'Eliminar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
