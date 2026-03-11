@@ -29,7 +29,7 @@ class TenantChannel:
     """Credentials and metadata for one tenant's messaging channel."""
     id: str                          # UUID from tenant_channels table
     organization_id: str             # UUID of the tenant
-    provider: str                    # 'twilio' | 'meta'
+    provider: str                    # 'twilio' | 'meta' | 'ycloud' | 'kapso'
     phone_number: str                # E.164, e.g. '+14155238886'
     display_name: Optional[str] = None
     # Twilio

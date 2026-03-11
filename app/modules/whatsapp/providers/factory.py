@@ -159,7 +159,7 @@ class YCloudProvider:
         return await _dl(media_url)
 
 
-def get_provider(channel: TenantChannel) -> TwilioProvider | MetaProvider | YCloudProvider:
+def get_provider(channel: TenantChannel) -> "TwilioProvider | MetaProvider | YCloudProvider | KapsoProvider":
     """Return a tenant-aware provider instance for the given channel."""
     if channel.provider == "twilio":
         return TwilioProvider(channel)
@@ -167,4 +167,7 @@ def get_provider(channel: TenantChannel) -> TwilioProvider | MetaProvider | YClo
         return MetaProvider(channel)
     elif channel.provider == "ycloud":
         return YCloudProvider(channel)
+    elif channel.provider == "kapso":
+        from app.modules.whatsapp.providers.kapso import KapsoProvider
+        return KapsoProvider(channel)
     raise ValueError(f"Unknown provider: {channel.provider!r}")

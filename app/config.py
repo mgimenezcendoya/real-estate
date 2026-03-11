@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ycloud_api_key: str = ""
     ycloud_webhook_secret: str = ""
 
+    # Kapso WhatsApp Platform API
+    kapso_api_key: str = ""
+    kapso_webhook_secret: str = ""  # for verifying onboarding callbacks
+
     # WhatsApp Cloud API (Meta) — used when whatsapp_provider=meta
     whatsapp_token: str = ""
     whatsapp_phone_number_id: str = ""
