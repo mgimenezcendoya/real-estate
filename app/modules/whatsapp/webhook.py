@@ -111,3 +111,63 @@ async def receive_message(request: Request):
             logger.exception("Error processing message from %s: %s", msg.sender_phone, e)
 
     return {"status": "ok"}
+
+
+@router.post("/webhook/kapso")
+async def receive_kapso_message(request: Request):
+    """Receive incoming WhatsApp messages forwarded by Kapso in Meta format.
+    Kapso always forwards to this dedicated endpoint — no provider detection needed."""
+    from app.modules.agent.router import resolve_tenant_channel, route_message
+    from app.modules.whatsapp.providers.kapso import KapsoProvider
+
+    try:
+        body = await request.json()
+    except Exception:
+        return {"status": "ok"}
+
+    # Extract phone_number_id from Meta-format payload
+    try:
+        phone_number_id = body["entry"][0]["changes"][0]["value"]["metadata"]["phone_number_id"]
+    except (KeyError, IndexError):
+        logger.warning("Kapso webhook: could not extract phone_number_id from payload")
+        return {"status": "ok"}
+
+    channel = await resolve_tenant_channel(phone_number_id, "kapso")
+    if not channel:
+        logger.warning("No kapso tenant_channel for phone_number_id=%r", phone_number_id)
+        return {"status": "ok"}
+
+    provider_instance = KapsoProvider(channel)
+    messages = await provider_instance.parse_webhook(request)
+    pool = await get_pool()
+
+    for msg in messages:
+        inserted = await pool.fetchval(
+            """
+            INSERT INTO processed_messages (message_id, provider, organization_id)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (message_id, provider) DO NOTHING
+            RETURNING message_id
+            """,
+            msg.message_id, "kapso", channel.organization_id,
+        )
+        if not inserted:
+            continue
+
+        logger.info(
+            "Incoming [kapso/%s] from %s: type=%s text=%s",
+            channel.organization_id[:8], msg.sender_phone,
+            msg.message_type, msg.text[:80] if msg.text else "(media)",
+        )
+        try:
+            await route_message(
+                channel=channel,
+                sender_phone=msg.sender_phone,
+                message_id=msg.message_id,
+                message_type=msg.message_type,
+                message=msg,
+            )
+        except Exception as e:
+            logger.exception("Error processing Kapso message from %s: %s", msg.sender_phone, e)
+
+    return {"status": "ok"}
