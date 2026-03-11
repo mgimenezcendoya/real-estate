@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Settings, Wifi, WifiOff, ExternalLink, Loader2, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { createKapsoSetupLink, getKapsoChannel, disconnectKapsoChannel, type KapsoChannel } from '@/lib/api';
+import { createKapsoSetupLink, getKapsoChannel, disconnectKapsoChannel, connectKapsoChannel, type KapsoChannel } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 type Tab = 'general' | 'canales';
 
 export default function ConfiguracionPage() {
   const { organizationName } = useAuth();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('canales');
   const [channel, setChannel] = useState<KapsoChannel | null>(null);
   const [loadingChannel, setLoadingChannel] = useState(true);
@@ -32,6 +34,29 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     fetchChannel();
   }, [fetchChannel]);
+
+  // Read Kapso query params after success_redirect_url callback
+  useEffect(() => {
+    const phoneNumberId = searchParams.get('phone_number_id');
+    const displayPhoneNumber = searchParams.get('display_phone_number');
+    const businessAccountId = searchParams.get('business_account_id') ?? undefined;
+
+    if (!phoneNumberId) return;
+
+    // Auto-connect channel from Kapso redirect params
+    setActiveTab('canales');
+    setConnecting(true);
+    connectKapsoChannel({
+      phone_number_id: phoneNumberId,
+      display_phone_number: displayPhoneNumber ?? undefined,
+      business_account_id: businessAccountId,
+    })
+      .then(() => fetchChannel())
+      .then(() => toast.success('¡WhatsApp conectado con éxito!'))
+      .catch(() => toast.error('Error al registrar el canal'))
+      .finally(() => setConnecting(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Poll every 3s while waiting for onboarding callback (max 2 min = 40 attempts)
   useEffect(() => {
@@ -85,7 +110,7 @@ export default function ConfiguracionPage() {
   const orgDisplayName = organizationName ?? 'Tu organización';
 
   return (
-    <div className="flex-1 min-h-screen bg-[#f5f5f7]">
+    <div className="flex-1 min-h-screen bg-background">
       <div className="max-w-3xl mx-auto px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">

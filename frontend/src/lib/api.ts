@@ -949,10 +949,22 @@ export async function createKapsoSetupLink(displayName?: string): Promise<{ url:
 }
 
 export async function getKapsoChannel(): Promise<KapsoChannel | null> {
-  const channels = await fetcher<KapsoChannel[]>('/admin/tenant-channels');
-  return channels.find((c) => c.provider === 'kapso' && c.activo) ?? null;
+  const channels = await fetcher<{ provider: string; activo: boolean; [key: string]: unknown }[]>('/admin/tenant-channels');
+  const match = channels.find((c) => c.provider === 'kapso' && c.activo);
+  return (match as unknown as KapsoChannel) ?? null;
 }
 
 export async function disconnectKapsoChannel(channelId: string): Promise<void> {
   await fetcher(`/admin/tenant-channels/${channelId}`, { method: 'DELETE' });
+}
+
+export async function connectKapsoChannel(params: {
+  phone_number_id: string;
+  display_phone_number?: string;
+  business_account_id?: string;
+}): Promise<void> {
+  await fetcher('/admin/kapso/connect', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
 }

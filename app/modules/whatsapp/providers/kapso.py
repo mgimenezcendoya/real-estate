@@ -36,7 +36,7 @@ class KapsoProvider:
         return None  # Kapso handles Meta verification internally
 
     async def send_text(self, to: str, text: str) -> dict:
-        headers = {"x-api-key": _api_key(), "Content-Type": "application/json"}
+        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         payload = {
             "phoneNumberId": self.channel.phone_number_id,
             "to": to,
@@ -52,7 +52,7 @@ class KapsoProvider:
             return response.json()
 
     async def send_document(self, to: str, document_url: str, filename: str, caption: str | None = None) -> dict:
-        headers = {"x-api-key": _api_key(), "Content-Type": "application/json"}
+        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         doc_payload: dict = {"link": document_url, "filename": filename}
         if caption:
             doc_payload["caption"] = caption
@@ -71,7 +71,7 @@ class KapsoProvider:
             return response.json()
 
     async def send_image(self, to: str, image_url: str, caption: str | None = None) -> dict:
-        headers = {"x-api-key": _api_key(), "Content-Type": "application/json"}
+        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         img_payload: dict = {"link": image_url}
         if caption:
             img_payload["caption"] = caption
@@ -91,7 +91,7 @@ class KapsoProvider:
 
     async def download_media(self, media_id: str | None = None, media_url: str | None = None) -> bytes:
         """Kapso forwards Meta-format media — same as MetaProvider but using platform key."""
-        headers = {"x-api-key": _api_key()}
+        headers = {"X-API-Key": _api_key()}
         async with httpx.AsyncClient() as client:
             if not media_url and media_id:
                 url_resp = await client.get(

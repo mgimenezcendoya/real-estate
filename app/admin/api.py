@@ -417,6 +417,12 @@ class KapsoSetupLinkRequest(BaseModel):
     display_name: Optional[str] = None
 
 
+class KapsoConnectRequest(BaseModel):
+    phone_number_id: str
+    display_phone_number: Optional[str] = None
+    business_account_id: Optional[str] = None
+
+
 class AgentConfigUpdate(BaseModel):
     agent_name: Optional[str] = None
     system_prompt_override: Optional[str] = None
@@ -772,7 +778,9 @@ async def create_kapso_setup_link(
     body: KapsoSetupLinkRequest,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
-    """Generate a Kapso setup link so an org admin can connect their WhatsApp number."""
+    """Generate a Kapso setup link so an org admin can connect their WhatsApp number.
+    Gets or creates a Kapso customer for the org (using org_id as external_customer_id),
+    then creates a setup link with success_redirect_url pointing back to /configuracion."""
     import httpx as _httpx
     from app.config import get_settings
 
@@ -788,28 +796,101 @@ async def create_kapso_setup_link(
     if caller_role not in ("superadmin", "admin"):
         raise HTTPException(403, detail="Solo admin puede generar setup links")
 
-    kapso_payload = {
-        "metadata": {
-            "org_id": caller_org,
-            "display_name": body.display_name or "",
-        }
-    }
+    pool = await get_pool()
+    headers = {"X-API-Key": settings.kapso_api_key, "Content-Type": "application/json"}
+    KAPSO_BASE = "https://api.kapso.ai/platform/v1"
+
     async with _httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://api.kapso.ai/setup-links",
-            json=kapso_payload,
-            headers={"x-api-key": settings.kapso_api_key, "Content-Type": "application/json"},
+        # --- Get or create Kapso customer for this org ---
+        org_row = await pool.fetchrow(
+            "SELECT id, name, kapso_customer_id FROM organizations WHERE id = $1", caller_org
         )
-    if resp.status_code not in (200, 201):
-        logger.error("Kapso setup-link error: %s %s", resp.status_code, resp.text)
+        if not org_row:
+            raise HTTPException(404, detail="Organización no encontrada")
+
+        kapso_customer_id = org_row["kapso_customer_id"]
+
+        if not kapso_customer_id:
+            # Check if already exists in Kapso by external_customer_id
+            lookup = await client.get(
+                f"{KAPSO_BASE}/customers",
+                params={"external_customer_id": caller_org},
+                headers=headers,
+            )
+            existing = lookup.json().get("data", [])
+            if existing:
+                kapso_customer_id = existing[0]["id"]
+            else:
+                # Create new customer
+                create_resp = await client.post(
+                    f"{KAPSO_BASE}/customers",
+                    json={"customer": {"name": org_row["name"], "external_customer_id": caller_org}},
+                    headers=headers,
+                )
+                if create_resp.status_code not in (200, 201):
+                    logger.error("Kapso create customer error: %s %s", create_resp.status_code, create_resp.text)
+                    raise HTTPException(502, detail="Error al crear customer en Kapso")
+                kapso_customer_id = create_resp.json()["data"]["id"]
+
+            # Persist the kapso_customer_id
+            await pool.execute(
+                "UPDATE organizations SET kapso_customer_id = $1 WHERE id = $2",
+                kapso_customer_id, caller_org,
+            )
+
+        # --- Create setup link ---
+        setup_resp = await client.post(
+            f"{KAPSO_BASE}/customers/{kapso_customer_id}/setup_links",
+            json={"setup_link": {
+                "success_redirect_url": "https://realia.up.railway.app/configuracion",
+                "language": "es",
+            }},
+            headers=headers,
+        )
+
+    if setup_resp.status_code not in (200, 201):
+        logger.error("Kapso setup-link error: %s %s", setup_resp.status_code, setup_resp.text)
         raise HTTPException(502, detail="Error al crear setup link en Kapso")
 
-    data = resp.json()
-    setup_url = data.get("url") or data.get("setupUrl") or data.get("link")
+    setup_url = setup_resp.json().get("data", {}).get("url")
     if not setup_url:
         raise HTTPException(502, detail="Kapso no devolvió URL de setup")
 
     return {"url": setup_url}
+
+
+@router.post("/kapso/connect")
+async def kapso_connect(
+    body: KapsoConnectRequest,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Called by frontend after customer completes setup link (success_redirect_url).
+    Receives phone_number_id and display_phone_number from Kapso query params,
+    creates the TenantChannel for the authenticated org."""
+    payload = _require_admin(credentials)
+    caller_org = payload.get("organization_id")
+
+    phone_number_id = body.phone_number_id
+    phone_number = body.display_phone_number or phone_number_id
+    waba_id = body.business_account_id
+
+    pool = await get_pool()
+    await pool.execute(
+        """
+        INSERT INTO tenant_channels
+            (organization_id, provider, phone_number, display_name, phone_number_id, waba_id, activo)
+        VALUES ($1, 'kapso', $2, $3, $4, $5, true)
+        ON CONFLICT (organization_id, phone_number, provider)
+        DO UPDATE SET
+            phone_number_id = EXCLUDED.phone_number_id,
+            waba_id = EXCLUDED.waba_id,
+            activo = true,
+            updated_at = NOW()
+        """,
+        caller_org, phone_number, "WhatsApp (Kapso)", phone_number_id, waba_id,
+    )
+    logger.info("Kapso channel connected: org=%s phone_number_id=%s", caller_org, phone_number_id)
+    return {"status": "ok"}
 
 
 @router.post("/kapso/webhook/onboarding")
@@ -824,7 +905,7 @@ async def kapso_onboarding_webhook(request: Request):
     body_bytes = await request.body()
 
     if settings.kapso_webhook_secret:
-        sig_header = request.headers.get("x-kapso-signature", "")
+        sig_header = request.headers.get("X-Webhook-Signature", "")
         expected = _hmac.new(
             settings.kapso_webhook_secret.encode(),
             body_bytes,
@@ -839,35 +920,40 @@ async def kapso_onboarding_webhook(request: Request):
     except Exception:
         return {"status": "ok"}
 
-    phone_number_id = data.get("phoneNumberId") or data.get("phone_number_id")
-    phone_number = data.get("phoneNumber") or data.get("phone_number", "")
-    waba_id = data.get("wabaId") or data.get("waba_id")
-    metadata = data.get("metadata", {})
-    org_id = metadata.get("org_id")
-    display_name = metadata.get("display_name") or "WhatsApp (Kapso)"
+    # Real Kapso webhook payload: { phone_number_id, customer: { id }, project: { id } }
+    phone_number_id = data.get("phone_number_id")
+    kapso_customer_id = (data.get("customer") or {}).get("id")
 
-    if not phone_number_id or not org_id:
-        logger.warning("Kapso onboarding webhook missing phone_number_id or org_id: %s", data)
+    if not phone_number_id or not kapso_customer_id:
+        logger.warning("Kapso webhook missing fields: %s", data)
         return {"status": "ok"}
 
     pool = await get_pool()
 
+    # Look up org by kapso_customer_id
+    org_row = await pool.fetchrow(
+        "SELECT id, name FROM organizations WHERE kapso_customer_id = $1", kapso_customer_id
+    )
+    if not org_row:
+        logger.warning("Kapso webhook: no org found for kapso_customer_id=%r", kapso_customer_id)
+        return {"status": "ok"}
+
+    org_id = str(org_row["id"])
+
     await pool.execute(
         """
         INSERT INTO tenant_channels
-            (organization_id, provider, phone_number, display_name, phone_number_id, waba_id, activo)
-        VALUES ($1, 'kapso', $2, $3, $4, $5, true)
+            (organization_id, provider, phone_number, display_name, phone_number_id, activo)
+        VALUES ($1, 'kapso', $2, $3, $4, true)
         ON CONFLICT (organization_id, phone_number, provider)
         DO UPDATE SET
             phone_number_id = EXCLUDED.phone_number_id,
-            waba_id = EXCLUDED.waba_id,
-            display_name = EXCLUDED.display_name,
             activo = true,
             updated_at = NOW()
         """,
-        org_id, phone_number or phone_number_id, display_name, phone_number_id, waba_id,
+        org_id, phone_number_id, "WhatsApp (Kapso)", phone_number_id,
     )
-    logger.info("Kapso onboarding complete: org=%s phone_number_id=%s", org_id, phone_number_id)
+    logger.info("Kapso webhook: channel connected org=%s phone_number_id=%s", org_id, phone_number_id)
     return {"status": "ok"}
 
 

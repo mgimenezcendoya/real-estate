@@ -159,7 +159,7 @@ class YCloudProvider:
         return await _dl(media_url)
 
 
-def get_provider(channel: TenantChannel) -> TwilioProvider | MetaProvider | YCloudProvider:
+def get_provider(channel: TenantChannel) -> "TwilioProvider | MetaProvider | YCloudProvider | KapsoProvider":
     """Return a tenant-aware provider instance for the given channel."""
     if channel.provider == "twilio":
         return TwilioProvider(channel)

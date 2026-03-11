@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Building2, HardHat, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard } from 'lucide-react';
+import { Building2, HardHat, MessageSquare, LogOut, Menu, Bell, Wrench, Users, KeyRound, BookOpen, CreditCard, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/cobranza', label: 'Cobranza', icon: CreditCard },
   { href: '/inbox', label: 'Inbox', icon: MessageSquare },
   { href: '/tools', label: 'Tools', icon: Wrench },
+  { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
 function NavContent({
