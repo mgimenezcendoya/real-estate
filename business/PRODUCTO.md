@@ -38,7 +38,7 @@ Cada unidad no vendida representa **$60.000–$100.000 USD** de inventario inmov
 
 ## 3. Stack Técnico
 
-> Detalle completo de costos, planes y análisis de migración en [STACK.md](./STACK.md)
+> Detalle completo de costos, planes y análisis de migración en [INFRAESTRUCTURA.md](./INFRAESTRUCTURA.md)
 
 | Capa | Tecnología | Dev (actual) | Producción (objetivo) |
 |---|---|---|---|
