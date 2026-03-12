@@ -454,21 +454,6 @@ async def _generate_response(
 
     messages = []
 
-    # Unit context as user/assistant message pair (not in system prompt)
-    messages.append({
-        "role": "user",
-        "content": (
-            f"⚠️ ESTADO ACTUAL DE UNIDADES (fuente de verdad — invalida cualquier mensaje anterior):\n"
-            f"{developer_context}\n"
-            f"IMPORTANTE: Si una unidad NO aparece en la lista de disponibles, "
-            f"significa que ya fue reservada o vendida. No la ofrezcas."
-        ),
-    })
-    messages.append({
-        "role": "assistant",
-        "content": "Entendido, tengo el estado actualizado de todas las unidades.",
-    })
-
     # Only attach PDFs when the message is relevant (saves tokens)
     if _should_attach_pdfs(user_message, conversation_history):
         doc_blocks = await get_developer_document_blocks(developer_id)
@@ -488,6 +473,22 @@ async def _generate_response(
     for msg in conversation_history[:-1]:
         role = "user" if msg["sender_type"] == "lead" else "assistant"
         messages.append({"role": role, "content": msg["content"]})
+
+    # Unit context injected AFTER history so it overrides any stale data in old messages
+    messages.append({
+        "role": "user",
+        "content": (
+            f"⚠️ ESTADO ACTUAL DE UNIDADES (fuente de verdad — invalida cualquier dato anterior):\n"
+            f"{developer_context}\n"
+            f"IMPORTANTE: Usá SOLO esta información para responder preguntas sobre disponibilidad. "
+            f"Si una unidad NO aparece en la lista de disponibles, ya fue reservada o vendida."
+        ),
+    })
+    messages.append({
+        "role": "assistant",
+        "content": "Entendido, tengo el estado actualizado de todas las unidades.",
+    })
+
     messages.append({"role": "user", "content": user_message})
 
     response = await client.messages.create(
