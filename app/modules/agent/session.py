@@ -208,7 +208,7 @@ async def get_developer_context(developer_id: str) -> str:
 
     for proj in projects:
         proj_id = str(proj["id"])
-        lines.append(f"### {proj['name']}")
+        lines.append(f"### {proj['name']} (slug: {proj['slug']})")
 
         if proj["address"]:
             location = proj["address"]

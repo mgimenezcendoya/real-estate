@@ -367,6 +367,13 @@ async def _send_document(
         )
         if not doc:
             logger.warning("Document not found: %s", doc_request)
+            fallback = "Disculpá, no tengo ese documento disponible todavía. Te lo paso en cuanto lo tengamos."
+            if channel:
+                provider = _get_provider(channel)
+                await provider.send_text(to_phone, fallback)
+            else:
+                from app.modules.whatsapp.sender import send_text_message
+                await send_text_message(to=to_phone, text=fallback)
             return
 
         document_url = doc["file_url"]

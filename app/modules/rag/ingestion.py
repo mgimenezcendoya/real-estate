@@ -83,7 +83,7 @@ async def find_document_for_sharing(
 
     if project_slug:
         idx = len(params) + 1
-        base += f" AND LOWER(REPLACE(p.name, ' ', '-')) = ${idx}"
+        base += f" AND p.slug = ${idx}"
         params.append(project_slug.lower())
 
     base += " ORDER BY d.version DESC LIMIT 1"
