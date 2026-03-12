@@ -21,7 +21,8 @@ interface FacturaModalProps {
   projectId: string;
   editingFactura?: Factura | null;
   prefilledEtapaId?: string;
-  prefilledEtapaNombre?: string;
+  defaultCategoria?: 'egreso' | 'ingreso';
+  prefilledPaymentRecordId?: string | null;
 }
 
 const FACTURA_EMPTY = {
@@ -54,6 +55,8 @@ export default function FacturaModal({
   projectId,
   editingFactura,
   prefilledEtapaId,
+  defaultCategoria,
+  prefilledPaymentRecordId,
 }: FacturaModalProps) {
   const [form, setForm] = useState<typeof FACTURA_EMPTY>({ ...FACTURA_EMPTY });
   const [saving, setSaving] = useState(false);
@@ -109,9 +112,14 @@ export default function FacturaModal({
         reservation_id: editingFactura.reservation_id || null,
       });
     } else {
-      setForm({ ...FACTURA_EMPTY, fecha_emision: new Date().toISOString().split('T')[0] });
+      setForm({
+        ...FACTURA_EMPTY,
+        fecha_emision: new Date().toISOString().split('T')[0],
+        categoria: defaultCategoria ?? 'egreso',
+        payment_record_id: prefilledPaymentRecordId ?? null,
+      });
     }
-  }, [editingFactura, open]);
+  }, [editingFactura, open, defaultCategoria, prefilledPaymentRecordId]);
 
   // Auto-calculate monto_neto from total and IVA
   useEffect(() => {

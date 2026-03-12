@@ -854,7 +854,6 @@ const load = async () => {
         onSuccess={() => { load(); setShowFacturaModal(false); setSelectedEtapa(null); }}
         projectId={projectId}
         prefilledEtapaId={selectedEtapa?.id}
-        prefilledEtapaNombre={selectedEtapa?.nombre}
       />
     </div>
   );

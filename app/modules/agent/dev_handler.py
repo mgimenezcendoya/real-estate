@@ -513,7 +513,13 @@ async def _build_developer_context(developer_id: str) -> str:
         lines.append(f"Estado obra: {proj['delivery_status']} | Entrega: {proj['estimated_delivery'] or '?'}")
 
         units = await pool.fetch(
-            "SELECT id, identifier, floor, bedrooms, area_m2, price_usd, status FROM units WHERE project_id = $1 ORDER BY floor, identifier",
+            """SELECT u.id, u.identifier, u.floor, u.bedrooms, u.area_m2, u.price_usd,
+                      CASE
+                        WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'converted') THEN 'sold'
+                        WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'active')    THEN 'reserved'
+                        ELSE 'available'
+                      END AS status
+               FROM units u WHERE u.project_id = $1 ORDER BY u.floor, u.identifier""",
             pid,
         )
         if units:
