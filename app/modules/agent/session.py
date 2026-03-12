@@ -237,7 +237,13 @@ async def get_developer_context(developer_id: str) -> str:
             lines.append(f"Formas de pago: {proj['payment_info']}")
 
         units = await pool.fetch(
-            "SELECT identifier, floor, bedrooms, area_m2, price_usd, status FROM units WHERE project_id = $1 ORDER BY floor, identifier",
+            """SELECT u.identifier, u.floor, u.bedrooms, u.area_m2, u.price_usd,
+                      CASE
+                        WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'converted') THEN 'sold'
+                        WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.unit_id = u.id AND r.status = 'active')    THEN 'reserved'
+                        ELSE 'available'
+                      END AS status
+               FROM units u WHERE u.project_id = $1 ORDER BY u.floor, u.identifier""",
             proj_id,
         )
         if units:
