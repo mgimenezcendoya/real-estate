@@ -243,7 +243,7 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - [x] Endpoints `PATCH`/`UPDATE` incluyen `AND deleted_at IS NULL` en el `WHERE` para no operar sobre registros eliminados
 - [x] `reservations` ya tenía soft delete nativo vía campo `status` (`active`/`cancelled`/`converted`) — sin cambios
 - [x] `app/services/alerts_service.py` actualizado: JOIN con `project_expenses` e `investors` filtra `deleted_at IS NULL`
-- [x] Convención documentada en `CONTEXT.md § 10. Convenciones de Base de Datos`
+- [x] Convención documentada en `business/PRODUCTO.md § 10. Convenciones de Base de Datos`
 
 ---
 
@@ -255,7 +255,7 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 - [x] Todos los endpoints de escritura de esas tablas reciben `credentials` y llaman `_audit` post-operación
 - [x] Endpoint `GET /admin/audit-log` con filtros `project_id`, `table_name`, `record_id`, `user_id`; paginado; acceso `admin`/`superadmin`
 - [x] Tipo `AuditLogEntry` y método `api.getAuditLog()` en `frontend/src/lib/api.ts`
-- [x] Convención documentada en `CONTEXT.md § 10. Convenciones de Base de Datos`
+- [x] Convención documentada en `business/PRODUCTO.md § 10. Convenciones de Base de Datos`
 
 ---
 

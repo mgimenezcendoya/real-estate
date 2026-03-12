@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Realia — One Pager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    @page {
+      size: A4;
+      margin: 0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
+      font-family: 'DM Sans', sans-serif;
+      color: #0f172a;
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      padding: 36px 40px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ─── HEADER ───────────────────────── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, #1d4ed8, #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-mark svg { width: 18px; height: 18px; fill: #fff; }
+    .logo-text {
+      font-family: 'Outfit', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .header-right {
+      text-align: right;
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .header-right a {
+      color: #1d4ed8;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    /* ─── HERO STRIP ──────────────────── */
+    .hero-strip {
+      background: linear-gradient(135deg, #1d4ed8 0%, #6366f1 100%);
+      border-radius: 14px;
+      padding: 24px 28px;
+      color: #fff;
+      margin-bottom: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-strip::after {
+      content: '';
+      position: absolute;
+      top: -40px; right: -20px;
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.06);
+    }
+    .hero-strip h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .hero-strip p {
+      font-size: 13px;
+      line-height: 1.55;
+      opacity: 0.88;
+      max-width: 520px;
+      position: relative;
+    }
+
+    /* ─── PROBLEM ─────────────────────── */
+    .section-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #1d4ed8;
+      margin-bottom: 6px;
+    }
+    .problem-section {
+      margin-bottom: 20px;
+    }
+    .problem-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .problem-card {
+      background: #fef2f2;
+      border: 1px solid rgba(239,68,68,0.15);
+      border-radius: 10px;
+      padding: 10px 13px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .problem-icon {
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .problem-text {
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: #991b1b;
+    }
+    .problem-text strong { font-weight: 600; }
+
+    /* ─── SOLUTION ────────────────────── */
+    .solution-section {
+      margin-bottom: 20px;
+    }
+    .solution-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 10px;
+    }
+    .solution-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .solution-card {
+      background: #f0fdf4;
+      border: 1px solid rgba(5,150,105,0.18);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .solution-card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #065f46;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .solution-card-title span { font-size: 15px; }
+    .solution-card p {
+      font-size: 11px;
+      line-height: 1.45;
+      color: #14532d;
+    }
+
+    /* ─── STATS ROW ───────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .stat-number {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #1d4ed8, #6366f1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-desc {
+      font-size: 10.5px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    /* ─── DIFFERENTIATORS ─────────────── */
+    .diff-section {
+      margin-bottom: 20px;
+    }
+    .diff-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      font-size: 11.5px;
+    }
+    .diff-table thead th {
+      background: #f8fafc;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 9px 14px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      color: #64748b;
+    }
+    .diff-table thead th:first-child { color: #1d4ed8; }
+    .diff-table tbody td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      line-height: 1.4;
+      vertical-align: top;
+    }
+    .diff-table tbody tr:last-child td { border-bottom: none; }
+    .diff-table tbody td:first-child {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .diff-table tbody td:last-child {
+      color: #94a3b8;
+    }
+
+    /* ─── PRICING STRIP ───────────────── */
+    .pricing-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .price-box {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: center;
+      background: #fff;
+      position: relative;
+    }
+    .price-box.featured {
+      border-color: rgba(29,78,216,0.35);
+      background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+      box-shadow: 0 2px 12px rgba(29,78,216,0.1);
+    }
+    .price-box-label {
+      font-family: 'Outfit', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    .price-box.featured .price-box-label { color: #1d4ed8; }
+    .price-box-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1;
+      margin-bottom: 2px;
+    }
+    .price-box-per {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .price-box-desc {
+      font-size: 10.5px;
+      color: #64748b;
+      line-height: 1.4;
+    }
+    .popular-badge {
+      position: absolute;
+      top: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #1d4ed8, #6366f1);
+      color: #fff;
+      font-size: 8px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 2px 10px;
+      border-radius: 100px;
+      white-space: nowrap;
+    }
+
+    /* ─── CTA FOOTER ──────────────────── */
+    .cta-footer {
+      background: #0f172a;
+      border-radius: 14px;
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-top: auto;
+    }
+    .cta-left h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .cta-left p {
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+    }
+    .cta-right {
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .cta-btn-primary {
+      background: #fff;
+      color: #1d4ed8;
+    }
+    .cta-btn-wa {
+      background: #25D366;
+      color: #fff;
+    }
+
+    /* ─── VALUE ANCHOR ────────────────── */
+    .value-anchor {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #fffbeb;
+      border: 1px solid rgba(217,119,6,0.2);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 11px;
+      margin-bottom: 10px;
+      color: #92400e;
+    }
+    .value-anchor strong { color: #0f172a; }
+    .value-anchor-label {
+      font-weight: 700;
+      color: #d97706;
+      white-space: nowrap;
+    }
+
+    @media print {
+      body { padding: 32px 36px 28px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo-row">
+      <div class="logo-mark">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><polyline points="9 22 9 12 15 12 15 22" style="fill:rgba(255,255,255,0.5)"/></svg>
+      </div>
+      <span class="logo-text">Realia</span>
+    </div>
+    <div class="header-right">
+      <a href="https://www.realia.lat">www.realia.lat</a><br>
+      Marzo 2026
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero-strip">
+    <h1>El copiloto de IA para<br>desarrolladoras inmobiliarias.</h1>
+    <p>Respondé leads 24/7, calificá prospectos automáticamente y mantené informados a compradores e inversores sobre el avance de obra — todo desde un solo panel. Listo en 48 horas.</p>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-number">40%</div>
+      <div class="stat-desc">de las consultas llegan fuera de horario. Sin respuesta automática, se pierden.</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-number">USD 80K</div>
+      <div class="stat-desc">valor promedio de una unidad en pozo. Cada lead perdido es inventario parado.</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-number">48 hs</div>
+      <div class="stat-desc">de setup y tu agente IA ya está atendiendo leads en WhatsApp por vos.</div>
+    </div>
+  </div>
+
+  <!-- PROBLEM -->
+  <div class="problem-section">
+    <div class="section-label">El problema</div>
+    <div class="problem-title">Las desarrolladoras pierden 30-60% de sus leads porque:</div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-icon">🕐</div>
+        <div class="problem-text"><strong>No responden fuera de horario.</strong> El 40% de las consultas llegan en ese momento y nadie contesta.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📉</div>
+        <div class="problem-text"><strong>No hay seguimiento sistemático.</strong> Los leads se enfrían y terminan comprando en otro desarrollo.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🔄</div>
+        <div class="problem-text"><strong>Compradores preguntan cada semana</strong> por avance de obra y nadie responde rápido ni de forma consistente.</div>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">📊</div>
+        <div class="problem-text"><strong>Inversores esperan reportes</strong> que se arman manualmente entre Excel, fotos y WhatsApp. Horas perdidas.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOLUTION -->
+  <div class="solution-section">
+    <div class="section-label">La solución</div>
+    <div class="solution-title">Todo lo que necesitás en un solo lugar.</div>
+    <div class="solution-grid">
+      <div class="solution-card">
+        <div class="solution-card-title"><span>🤖</span> Agente IA 24/7 en WhatsApp</div>
+        <p>Responde con información real del proyecto (memoria, planos, precios). Califica presupuesto, intención y timeline automáticamente.</p>
+      </div>
+      <div class="solution-card">
+        <div class="solution-card-title"><span>🔥</span> Handoff inteligente al vendedor</div>
+        <p>Cuando el lead está listo, el agente avisa y el vendedor toma el control con todo el contexto. Solo tiene que cerrar.</p>
+      </div>
+      <div class="solution-card">
+        <div class="solution-card-title"><span>🏗️</span> Obra + notificaciones automáticas</div>
+        <p>Actualizá el avance y 18 compradores reciben el update por WhatsApp con fotos. Sin grupos, sin manuales.</p>
+      </div>
+      <div class="solution-card">
+        <div class="solution-card-title"><span>💼</span> Reportes para inversores en 1 clic</div>
+        <p>Avance de obra, financiero y fotos enviados por WhatsApp. Tus inversores lo reciben en segundos.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- DIFFERENTIATORS -->
+  <div class="diff-section">
+    <div class="section-label">¿Por qué Realia?</div>
+    <table class="diff-table">
+      <thead>
+        <tr>
+          <th>Realia</th>
+          <th>La alternativa (CRM genérico / Chatbot)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Nicho ultra-específico: solo "en pozo"</td>
+          <td>Genérico para cualquier inmobiliaria</td>
+        </tr>
+        <tr>
+          <td>Respuestas basadas en documentos reales (RAG)</td>
+          <td>Chatbot con respuestas predefinidas</td>
+        </tr>
+        <tr>
+          <td>WhatsApp nativo (donde están los leads)</td>
+          <td>Web-first, WhatsApp como add-on</td>
+        </tr>
+        <tr>
+          <td>Obra + inversores + ventas incluido</td>
+          <td>Solo CRM de leads</td>
+        </tr>
+        <tr>
+          <td>Setup en 48 hs, sin contrato anual</td>
+          <td>Implementación de semanas, contratos anuales</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- VALUE ANCHOR + PRICING -->
+  <div class="value-anchor">
+    <span class="value-anchor-label">Referencia →</span>
+    Un coordinador + administrativo cuesta <strong>USD 1.200–2.000/mes</strong>. Realia arranca en <strong>USD 349</strong>.
+  </div>
+
+  <div class="pricing-strip">
+    <div class="price-box">
+      <div class="price-box-label">Base</div>
+      <div class="price-box-num">USD 349</div>
+      <div class="price-box-per">/mes · 1 proyecto</div>
+      <div class="price-box-desc">Chatbot IA, dashboard, seguimiento de compradores.</div>
+    </div>
+    <div class="price-box featured">
+      <div class="popular-badge">Más popular</div>
+      <div class="price-box-label">Pro</div>
+      <div class="price-box-num">USD 599</div>
+      <div class="price-box-per">/mes · 2-5 proyectos</div>
+      <div class="price-box-desc">Multi-proyecto, handoff al vendedor, reportes por inversor.</div>
+    </div>
+    <div class="price-box">
+      <div class="price-box-label">Studio</div>
+      <div class="price-box-num">USD 1.100</div>
+      <div class="price-box-per">/mes · 6-15 proyectos</div>
+      <div class="price-box-desc">White label, SLA, account manager dedicado.</div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-footer">
+    <div class="cta-left">
+      <h3>¿Listo para no perder más leads?</h3>
+      <p>Pedí una demo personalizada con tu proyecto. En 15 minutos ves tu desarrollo funcionando con IA.</p>
+    </div>
+    <div class="cta-right">
+      <a href="https://wa.me/5491100000000?text=Hola%2C+quiero+una+demo+de+Realia" class="cta-btn cta-btn-wa">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        WhatsApp
+      </a>
+      <a href="https://www.realia.lat/#contacto" class="cta-btn cta-btn-primary">Pedí una demo →</a>
+    </div>
+  </div>
+
+</body>
+</html>

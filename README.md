@@ -13,7 +13,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Fill in your keys in .env (all variables centralized here)
-# See docs/CONTEXT.md section 8 for all env vars
+# See business/PRODUCTO.md section 8 for all env vars
 
 # Run database migration (requires PostgreSQL with pgvector)
 psql $DATABASE_URL < migrations/001_initial_schema.sql
@@ -185,5 +185,9 @@ psql $DATABASE_URL < migrations/009_reservations.sql
 
 ## Docs
 
-- [CONTEXT.md](docs/CONTEXT.md) — Full project context, architecture, design decisions
-- [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — Step-by-step implementation plan with progress tracking
+- [PRODUCTO.md](business/PRODUCTO.md) — Contexto del producto, arquitectura, decisiones de diseño
+- [INFRAESTRUCTURA.md](business/INFRAESTRUCTURA.md) — Stack técnico, costos, análisis de migración
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — Arquitectura multi-tenant detallada
+- [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — Plan de implementación con progreso
+- [ESTRATEGIA.md](marketing/ESTRATEGIA.md) — Estrategia de captación de clientes
+- [HERRAMIENTAS.md](marketing/HERRAMIENTAS.md) — Stack de herramientas de marketing
