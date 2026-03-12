@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, ObraEtapa } from '@/lib/api';
+import { api, FinancialSummary, BudgetItem, Expense, CashFlowRow, ObraEtapa } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, FileText, ArrowUpCircle, ArrowDownCircle, ExternalLink } from 'lucide-react';
+import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import InversoresContent from '../inversores/InversoresContent';
-import FacturaModal from '@/components/FacturaModal';
+import MovimientosTab from './MovimientosTab';
 
 function formatUSD(v: number) {
   if (Math.abs(v) >= 1_000_000) return `USD ${(v / 1_000_000).toFixed(1)}M`;
@@ -87,14 +87,6 @@ export default function FinancieroPage() {
   const [budgetForm, setBudgetForm] = useState({ categoria: '', descripcion: '', monto_usd: '', etapa_id: '' });
   const [savingBudget, setSavingBudget] = useState(false);
   const [etapas, setEtapas] = useState<ObraEtapa[]>([]);
-
-  // Facturas
-  const [facturas, setFacturas] = useState<Factura[]>([]);
-  const [loadingFacturas, setLoadingFacturas] = useState(false);
-  const [showFacturaModal, setShowFacturaModal] = useState(false);
-  const [editingFactura, setEditingFactura] = useState<Factura | null>(null);
-  const [facturaFilterCat, setFacturaFilterCat] = useState('');
-  const [facturaFilterProveedor, setFacturaFilterProveedor] = useState('');
 
   // Cash flow
   const [cashFlow, setCashFlow] = useState<CashFlowRow[]>([]);
@@ -213,19 +205,6 @@ export default function FinancieroPage() {
     }
   };
 
-  const loadFacturas = async () => {
-    if (!id) return;
-    setLoadingFacturas(true);
-    try {
-      const f = await api.getFacturas(id, {
-        categoria: facturaFilterCat || undefined,
-        proveedor: facturaFilterProveedor || undefined,
-      });
-      setFacturas(f);
-    } catch { toast.error('Error cargando facturas'); }
-    finally { setLoadingFacturas(false); }
-  };
-
   const loadCashFlow = async (desde?: string, hasta?: string) => {
     if (!id) return;
     setLoadingCF(true);
@@ -234,26 +213,16 @@ export default function FinancieroPage() {
     finally { setLoadingCF(false); }
   };
 
-  const deleteFactura = async (f: Factura) => {
-    if (!confirm(`¿Eliminar factura ${f.numero_factura || f.id.slice(0, 8)}?`)) return;
-    try {
-      await api.deleteFactura(f.id);
-      toast.success('Factura eliminada');
-      loadFacturas();
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : 'Error'); }
-  };
-
   const categorias = [...budget.map((b) => b.categoria), 'Pagos de Obra'];
 
   return (
     <div className="p-6 md:p-8">
       <Tabs defaultValue="resumen" onValueChange={(v) => {
-        if (v === 'facturas' && facturas.length === 0 && !loadingFacturas) loadFacturas();
         if (v === 'cashflow' && cashFlow.length === 0 && !loadingCF) loadCashFlow();
       }}>
       <TabsList className="mb-6">
         <TabsTrigger value="resumen">Resumen</TabsTrigger>
-        <TabsTrigger value="facturas">Facturas</TabsTrigger>
+        <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
         <TabsTrigger value="cashflow">Flujo de Caja</TabsTrigger>
         {(isAdmin || role === 'gerente') && (
           <TabsTrigger value="inversores">Inversores</TabsTrigger>
@@ -437,120 +406,9 @@ export default function FinancieroPage() {
 
       </TabsContent>
 
-      {/* ─── Tab: Facturas ─── */}
-      <TabsContent value="facturas" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none"
-              value={facturaFilterCat}
-              onChange={(e) => setFacturaFilterCat(e.target.value)}
-            >
-              <option value="">Todas</option>
-              <option value="egreso">Egresos</option>
-              <option value="ingreso">Ingresos</option>
-            </select>
-            <input
-              type="text"
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none w-36"
-              placeholder="Proveedor..."
-              value={facturaFilterProveedor}
-              onChange={(e) => setFacturaFilterProveedor(e.target.value)}
-            />
-            <button onClick={loadFacturas} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">Filtrar</button>
-            {(facturaFilterCat || facturaFilterProveedor) && (
-              <button onClick={() => { setFacturaFilterCat(''); setFacturaFilterProveedor(''); loadFacturas(); }} className="text-gray-400 hover:text-gray-700">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-          {!isReader && (
-            <button onClick={() => { setEditingFactura(null); setShowFacturaModal(true); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800">
-              <Plus size={13} /> + Agregar
-            </button>
-          )}
-        </div>
-
-        {loadingFacturas ? (
-          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full bg-gray-100" />)}</div>
-        ) : facturas.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center shadow-sm">
-            <FileText size={32} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500">Sin facturas registradas.</p>
-          </div>
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Fecha</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Tipo</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">N°</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Proveedor</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Categoría</th>
-                  <th className="text-right text-xs font-medium text-gray-400 px-4 py-3">Total</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 py-3">Estado</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {facturas.map((f) => (
-                  <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {new Date(f.fecha_emision + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: '2-digit' })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center flex-wrap gap-1">
-                        <Badge className="text-[10px] bg-gray-50 text-gray-700 border-gray-200">Fact. {f.tipo.toUpperCase()}</Badge>
-                        {f.etapa_id && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Obra</span>}
-                        {!f.etapa_id && f.numero_factura && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Factura</span>}
-                        {!f.etapa_id && !f.numero_factura && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">Gasto</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{f.numero_factura || '—'}</td>
-                    <td className="px-4 py-3 text-gray-800 max-w-[140px] truncate">{f.proveedor_nombre || f.proveedor_supplier || '—'}</td>
-                    <td className="px-4 py-3">
-                      <Badge className={cn('text-[10px]', f.categoria === 'egreso' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200')}>
-                        {f.categoria === 'egreso' ? 'Egreso' : 'Ingreso'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-800 whitespace-nowrap">
-                      {f.moneda} {Number(f.monto_total).toLocaleString('es-AR')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge className={cn('text-[10px]',
-                        f.estado === 'cargada' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        f.estado === 'vinculada' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                        'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      )}>
-                        {f.estado === 'cargada' ? 'Cargada' : f.estado === 'vinculada' ? 'Vinculada' : 'Pagada'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        {f.file_url && (
-                          <a href={f.file_url} target="_blank" rel="noreferrer" className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
-                            <ExternalLink size={13} />
-                          </a>
-                        )}
-                        {!isReader && (
-                          <>
-                            <button onClick={() => { setEditingFactura(f); setShowFacturaModal(true); }} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => deleteFactura(f)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* ─── Tab: Movimientos ─── */}
+      <TabsContent value="movimientos">
+        <MovimientosTab projectId={id} isReader={isReader} />
       </TabsContent>
 
       {/* ─── Tab: Flujo de Caja ─── */}
@@ -751,13 +609,6 @@ export default function FinancieroPage() {
         </DialogContent>
       </Dialog>
 
-      <FacturaModal
-        open={showFacturaModal}
-        onClose={() => { setShowFacturaModal(false); setEditingFactura(null); }}
-        onSuccess={() => { loadFacturas(); setShowFacturaModal(false); setEditingFactura(null); }}
-        projectId={id}
-        editingFactura={editingFactura}
-      />
     </div>
   );
 }

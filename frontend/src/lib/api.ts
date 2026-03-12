@@ -373,6 +373,29 @@ export interface CashFlowRow {
   acumulado: number;
 }
 
+export interface Movimiento {
+  tipo: 'cobro' | 'egreso';
+  id: string;
+  fecha: string | null;
+  contraparte: string;
+  unidad: string | null;
+  concepto: string | null;
+  numero_cuota: number | null;
+  monto: number | null;
+  moneda: 'USD' | 'ARS';
+  metodo_pago: string | null;
+  // cobro-specific
+  comprobante_id: string | null;
+  comprobante_numero: string | null;
+  comprobante_tipo: string | null;
+  installment_id: string | null;
+  reservation_id: string | null;
+  // egreso-specific
+  factura_estado: string | null;
+  etapa_nombre: string | null;
+  budget_categoria: string | null;
+}
+
 export interface CobranzaItem {
   installment_id: string;
   buyer_name: string;
@@ -825,6 +848,18 @@ export const api = {
     if (params?.fecha_hasta) qs.set('fecha_hasta', params.fecha_hasta);
     const q = qs.toString();
     return fetcher<Factura[]>(`/admin/facturas/${projectId}${q ? `?${q}` : ''}`);
+  },
+  getMovimientos: (
+    projectId: string,
+    params?: { tipo?: 'cobro' | 'egreso'; sin_comprobante?: boolean; desde?: string; hasta?: string }
+  ) => {
+    const q = new URLSearchParams();
+    if (params?.tipo) q.set('tipo', params.tipo);
+    if (params?.sin_comprobante) q.set('sin_comprobante', 'true');
+    if (params?.desde) q.set('desde', params.desde);
+    if (params?.hasta) q.set('hasta', params.hasta);
+    const qs = q.toString();
+    return fetcher<Movimiento[]>(`/admin/movimientos/${projectId}${qs ? `?${qs}` : ''}`);
   },
   createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at' | 'gasto_id' | 'linked_buyer_name' | 'linked_cuota' | 'linked_monto' | 'linked_moneda' | 'linked_fecha_pago' | 'etapa_nombre' | 'budget_categoria'> & { gasto_id?: string | null; etapa_id?: string | null; budget_id?: string | null; supplier_id?: string | null; monto_usd?: number | null }) =>
     fetcher<{ factura_id: string }>(`/admin/facturas/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),

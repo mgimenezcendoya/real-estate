@@ -143,6 +143,108 @@ async def get_cash_flow(
     return result
 
 
+@router.get("/movimientos/{project_id}")
+async def get_movimientos(
+    project_id: str,
+    tipo: Optional[str] = None,          # 'cobro' | 'egreso' | None (all)
+    sin_comprobante: Optional[bool] = None,  # True = cobros without linked factura
+    desde: Optional[str] = None,         # YYYY-MM-DD
+    hasta: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Unified movimientos: cobros (payment_records) + egresos (facturas)."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    verify_token(credentials.credentials)
+    pool = await get_pool()
+
+    rows = await pool.fetch(
+        """
+        SELECT
+          'cobro'::text AS tipo,
+          pr.id::text AS id,
+          pr.fecha_pago AS fecha,
+          COALESCE(r.buyer_name, l.name, l.phone) AS contraparte,
+          COALESCE(u.floor::text || ' ' || u.identifier, u.identifier, '') AS unidad,
+          pi.concepto::text AS concepto,
+          pi.numero_cuota,
+          pr.monto_pagado AS monto,
+          pr.moneda::text AS moneda,
+          pr.metodo_pago,
+          f_link.id::text AS comprobante_id,
+          f_link.numero_factura AS comprobante_numero,
+          f_link.tipo::text AS comprobante_tipo,
+          pi.id::text AS installment_id,
+          r.id::text AS reservation_id,
+          NULL::text AS factura_estado,
+          NULL::text AS etapa_nombre,
+          NULL::text AS budget_categoria
+        FROM payment_records pr
+        JOIN payment_installments pi ON pi.id = pr.installment_id
+        JOIN payment_plans pp ON pp.id = pi.plan_id
+        JOIN reservations r ON r.id = pp.reservation_id
+        LEFT JOIN leads l ON l.id = r.lead_id
+        LEFT JOIN units u ON u.id = r.unit_id
+        LEFT JOIN facturas f_link ON f_link.payment_record_id = pr.id
+          AND f_link.deleted_at IS NULL
+        WHERE r.project_id = $1
+          AND pr.deleted_at IS NULL
+          AND ($2::text IS NULL OR pr.fecha_pago >= $2::date)
+          AND ($3::text IS NULL OR pr.fecha_pago <= $3::date)
+          AND ($4::bool IS NULL OR $4 = FALSE OR f_link.id IS NULL)
+
+        UNION ALL
+
+        SELECT
+          'egreso'::text AS tipo,
+          f.id::text AS id,
+          f.fecha_emision AS fecha,
+          COALESCE(f.proveedor_nombre, s.nombre, '—') AS contraparte,
+          NULL AS unidad,
+          NULL AS concepto,
+          NULL AS numero_cuota,
+          COALESCE(f.monto_usd, CASE WHEN f.moneda='USD' THEN f.monto_total ELSE NULL END) AS monto,
+          'USD'::text AS moneda,
+          NULL AS metodo_pago,
+          NULL AS comprobante_id,
+          f.numero_factura AS comprobante_numero,
+          f.tipo::text AS comprobante_tipo,
+          NULL AS installment_id,
+          NULL AS reservation_id,
+          f.estado::text AS factura_estado,
+          oe.nombre AS etapa_nombre,
+          pb.categoria AS budget_categoria
+        FROM facturas f
+        LEFT JOIN suppliers s ON s.id = f.proveedor_id
+        LEFT JOIN obra_etapas oe ON oe.id = f.etapa_id
+        LEFT JOIN project_budget pb ON pb.id = f.budget_id
+        WHERE f.project_id = $1
+          AND f.categoria = 'egreso'
+          AND f.deleted_at IS NULL
+          AND ($2::text IS NULL OR f.fecha_emision >= $2::date)
+          AND ($3::text IS NULL OR f.fecha_emision <= $3::date)
+
+        ORDER BY fecha DESC NULLS LAST
+        """,
+        project_id, desde, hasta, sin_comprobante,
+    )
+
+    # Apply tipo filter in Python (simpler than SQL UNION filter)
+    result = []
+    for r in rows:
+        row = dict(r)
+        row["fecha"] = str(row["fecha"]) if row["fecha"] else None
+        row["numero_cuota"] = int(row["numero_cuota"]) if row["numero_cuota"] is not None else None
+        row["monto"] = float(row["monto"]) if row["monto"] is not None else None
+        if tipo and row["tipo"] != tipo:
+            continue
+        # sin_comprobante=True → only cobros without linked factura (egresos are always comprobantes)
+        if sin_comprobante and row["tipo"] == "egreso":
+            continue
+        result.append(row)
+    return result
+
+
 @router.get("/cash-flow-consolidated")
 async def get_cash_flow_consolidated(
     desde: Optional[str] = None,
