@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, LinkablePayment, ObraEtapa } from '@/lib/api';
+import { api, FinancialSummary, BudgetItem, Expense, Factura, CashFlowRow, ObraEtapa } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, FileText, Receipt, ArrowUpCircle, ArrowDownCircle, ExternalLink } from 'lucide-react';
+import { DollarSign, TrendingDown, TrendingUp, BarChart2, Plus, Pencil, Trash2, X, FileText, ArrowUpCircle, ArrowDownCircle, ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import InversoresContent from '../inversores/InversoresContent';
+import FacturaModal from '@/components/FacturaModal';
 
 function formatUSD(v: number) {
   if (Math.abs(v) >= 1_000_000) return `USD ${(v / 1_000_000).toFixed(1)}M`;
@@ -60,36 +61,6 @@ function KpiCard({
   );
 }
 
-const EXPENSE_EMPTY: Omit<Expense, 'id' | 'created_at' | 'categoria'> = {
-  budget_id: null,
-  proveedor: null,
-  descripcion: '',
-  monto_usd: null,
-  monto_ars: null,
-  fecha: new Date().toISOString().slice(0, 10),
-  comprobante_url: null,
-};
-
-const FACTURA_EMPTY = {
-  tipo: 'otro' as Factura['tipo'],
-  numero_factura: '',
-  proveedor_nombre: '',
-  cuit_emisor: '',
-  fecha_emision: new Date().toISOString().slice(0, 10),
-  fecha_vencimiento: '',
-  monto_neto: '',
-  iva_pct: '21',
-  monto_total: '',
-  moneda: 'ARS' as 'USD' | 'ARS',
-  categoria: 'egreso' as 'egreso' | 'ingreso',
-  file_url: '',
-  estado: 'cargada' as Factura['estado'],
-  notas: '',
-  crear_gasto: false,
-  gasto_descripcion: '',
-  gasto_budget_id: '',
-  payment_record_id: '',
-};
 
 function fmtMes(mes: string) {
   const [y, m] = mes.split('-');
@@ -104,19 +75,11 @@ export default function FinancieroPage() {
   const [budget, setBudget] = useState<BudgetItem[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tipoCambio, setTipoCambio] = useState('');
-  const [savingTC, setSavingTC] = useState(false);
 
   // Filters (expenses)
   const [filterCat, setFilterCat] = useState('');
   const [filterDesde, setFilterDesde] = useState('');
   const [filterHasta, setFilterHasta] = useState('');
-
-  // Expense modal
-  const [showModal, setShowModal] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [form, setForm] = useState<typeof EXPENSE_EMPTY>(EXPENSE_EMPTY);
-  const [saving, setSaving] = useState(false);
 
   // Budget modal
   const [showBudgetModal, setShowBudgetModal] = useState(false);
@@ -129,13 +92,7 @@ export default function FinancieroPage() {
   const [facturas, setFacturas] = useState<Factura[]>([]);
   const [loadingFacturas, setLoadingFacturas] = useState(false);
   const [showFacturaModal, setShowFacturaModal] = useState(false);
-  const [uploadingPdf, setUploadingPdf] = useState(false);
-  const [linkablePayments, setLinkablePayments] = useState<LinkablePayment[]>([]);
-  const [paymentSearch, setPaymentSearch] = useState('');
-  const [loadingPayments, setLoadingPayments] = useState(false);
   const [editingFactura, setEditingFactura] = useState<Factura | null>(null);
-  const [facturaForm, setFacturaForm] = useState<typeof FACTURA_EMPTY>(FACTURA_EMPTY);
-  const [savingFactura, setSavingFactura] = useState(false);
   const [facturaFilterCat, setFacturaFilterCat] = useState('');
   const [facturaFilterProveedor, setFacturaFilterProveedor] = useState('');
 
@@ -167,7 +124,6 @@ export default function FinancieroPage() {
       setSummary(s);
       setBudget(b);
       setExpenses(e);
-      setTipoCambio(String(s.tipo_cambio));
     } catch {
       toast.error('Error cargando datos financieros');
     } finally {
@@ -196,74 +152,6 @@ export default function FinancieroPage() {
       setExpenses(e);
     } catch {
       toast.error('Error filtrando gastos');
-    }
-  };
-
-  const saveTipoCambio = async () => {
-    if (!id) return;
-    const val = parseFloat(tipoCambio);
-    if (isNaN(val) || val <= 0) return toast.error('Tipo de cambio inválido');
-    setSavingTC(true);
-    try {
-      await api.patchFinancialsConfig(id, val);
-      toast.success('Tipo de cambio actualizado');
-      await load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setSavingTC(false);
-    }
-  };
-
-  const openNew = () => {
-    setEditingExpense(null);
-    setForm(EXPENSE_EMPTY);
-    setShowModal(true);
-  };
-
-  const openEdit = (exp: Expense) => {
-    setEditingExpense(exp);
-    setForm({
-      budget_id: exp.budget_id,
-      proveedor: exp.proveedor,
-      descripcion: exp.descripcion,
-      monto_usd: exp.monto_usd,
-      monto_ars: exp.monto_ars,
-      fecha: exp.fecha,
-      comprobante_url: exp.comprobante_url,
-    });
-    setShowModal(true);
-  };
-
-  const saveExpense = async () => {
-    if (!id || !form.descripcion || !form.fecha) return toast.error('Descripción y fecha son requeridos');
-    setSaving(true);
-    try {
-      if (editingExpense) {
-        await api.patchExpense(id, editingExpense.id, form);
-        toast.success('Gasto actualizado');
-      } else {
-        await api.createExpense(id, form);
-        toast.success('Gasto creado');
-      }
-      setShowModal(false);
-      await load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const deleteExpense = async (exp: Expense) => {
-    if (!id) return;
-    if (!confirm(`¿Eliminar gasto "${exp.descripcion}"?`)) return;
-    try {
-      await api.deleteExpense(id, exp.id);
-      toast.success('Gasto eliminado');
-      await load();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error');
     }
   };
 
@@ -346,110 +234,6 @@ export default function FinancieroPage() {
     finally { setLoadingCF(false); }
   };
 
-  const openNewFactura = () => {
-    setEditingFactura(null);
-    setFacturaForm(FACTURA_EMPTY);
-    setPaymentSearch('');
-    setLinkablePayments([]);
-    setShowFacturaModal(true);
-  };
-
-  const openEditFactura = (f: Factura) => {
-    setEditingFactura(f);
-    setFacturaForm({
-      tipo: f.tipo,
-      numero_factura: f.numero_factura || '',
-      proveedor_nombre: f.proveedor_nombre || '',
-      cuit_emisor: f.cuit_emisor || '',
-      fecha_emision: f.fecha_emision,
-      fecha_vencimiento: f.fecha_vencimiento || '',
-      monto_neto: f.monto_neto != null ? String(f.monto_neto) : '',
-      iva_pct: f.iva_pct != null ? String(f.iva_pct) : '21',
-      monto_total: String(f.monto_total),
-      moneda: f.moneda,
-      categoria: f.categoria,
-      file_url: f.file_url || '',
-      estado: f.estado,
-      notas: f.notas || '',
-      crear_gasto: false,
-      gasto_descripcion: '',
-      gasto_budget_id: '',
-      payment_record_id: f.payment_record_id || '',
-    });
-    setPaymentSearch('');
-    setLinkablePayments([]);
-    if (f.categoria === 'ingreso') {
-      searchLinkablePayments('');
-    }
-    setShowFacturaModal(true);
-  };
-
-  const searchLinkablePayments = async (q: string) => {
-    if (!id) return;
-    setLoadingPayments(true);
-    try {
-      const results = await api.getLinkablePayments(id as string, q || undefined);
-      setLinkablePayments(results);
-    } catch {
-      // silently fail
-    } finally {
-      setLoadingPayments(false);
-    }
-  };
-
-  const handlePdfUpload = async (file: File) => {
-    if (!file || !id) return;
-    setUploadingPdf(true);
-    try {
-      const { file_url } = await api.uploadFacturaPdf(id as string, file);
-      setFacturaForm(f => ({ ...f, file_url }));
-      toast.success('PDF subido correctamente');
-    } catch {
-      toast.error('Error subiendo el PDF');
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
-
-  const saveFactura = async () => {
-    if (!id) return;
-    if (!facturaForm.fecha_emision || !facturaForm.monto_total) {
-      toast.error('Fecha de emisión y monto total son requeridos');
-      return;
-    }
-    setSavingFactura(true);
-    try {
-      const data = {
-        ...facturaForm,
-        numero_factura: facturaForm.numero_factura || null,
-        proveedor_nombre: facturaForm.proveedor_nombre || null,
-        cuit_emisor: facturaForm.cuit_emisor || null,
-        fecha_vencimiento: facturaForm.fecha_vencimiento || null,
-        monto_neto: facturaForm.monto_neto ? parseFloat(facturaForm.monto_neto) : null,
-        iva_pct: facturaForm.iva_pct ? parseFloat(facturaForm.iva_pct) : null,
-        monto_total: parseFloat(facturaForm.monto_total),
-        file_url: facturaForm.file_url || null,
-        notas: facturaForm.notas || null,
-        gasto_budget_id: facturaForm.gasto_budget_id || undefined,
-        gasto_descripcion: facturaForm.gasto_descripcion || undefined,
-        payment_record_id: facturaForm.payment_record_id || null,
-      };
-      if (editingFactura) {
-        await api.patchFactura(editingFactura.id, data);
-        toast.success('Factura actualizada');
-      } else {
-        await api.createFactura(id, data);
-        toast.success(data.crear_gasto ? 'Factura creada y gasto registrado' : 'Factura creada');
-      }
-      setShowFacturaModal(false);
-      loadFacturas();
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setSavingFactura(false);
-    }
-  };
-
   const deleteFactura = async (f: Factura) => {
     if (!confirm(`¿Eliminar factura ${f.numero_factura || f.id.slice(0, 8)}?`)) return;
     try {
@@ -480,29 +264,11 @@ export default function FinancieroPage() {
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900">Dashboard Financiero</h2>
-        {!isReader && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">USD/ARS</label>
-            <input
-              className="w-28 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500"
-              value={tipoCambio}
-              onChange={(e) => setTipoCambio(e.target.value)}
-              type="number"
-              min="1"
-            />
-            <button
-              onClick={saveTipoCambio}
-              disabled={savingTC}
-              className="text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800 disabled:opacity-50"
-            >
-              {savingTC ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-        )}
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <KpiCard label="Ingreso bruto esperado" value={summary ? formatUSD(summary.revenue_esperado_usd) : '-'} icon={TrendingUp} iconClass="bg-emerald-50 text-emerald-600" loading={loading} />
         <KpiCard label="Presupuesto total" value={summary ? formatUSD(summary.presupuesto_total_usd) : '-'} icon={DollarSign} iconClass="bg-blue-50 text-blue-700" loading={loading} />
         <KpiCard label="Ejecutado" value={summary ? formatUSD(summary.ejecutado_usd) : '-'} icon={BarChart2} iconClass="bg-blue-50 text-blue-600" loading={loading} />
         <KpiCard
@@ -615,14 +381,6 @@ export default function FinancieroPage() {
                 <X size={14} />
               </button>
             )}
-            {!isReader && (
-              <button
-                onClick={openNew}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800"
-              >
-                <Plus size={13} /> Nuevo gasto
-              </button>
-            )}
           </div>
         </div>
 
@@ -669,22 +427,6 @@ export default function FinancieroPage() {
                     <td className="py-3 pr-4 text-right font-medium text-gray-800 whitespace-nowrap">
                       {exp.monto_usd != null ? formatUSD(exp.monto_usd) : '—'}
                     </td>
-                    {!isReader && (
-                      <td className="py-3 text-right">
-                        {exp.source !== 'obra' ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <button onClick={() => openEdit(exp)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
-                              <Pencil size={13} />
-                            </button>
-                            <button onClick={() => deleteExpense(exp)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-[10px] text-gray-300 pr-1">Obra</span>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -723,8 +465,8 @@ export default function FinancieroPage() {
             )}
           </div>
           {!isReader && (
-            <button onClick={openNewFactura} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800">
-              <Plus size={13} /> Nueva factura
+            <button onClick={() => { setEditingFactura(null); setShowFacturaModal(true); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800">
+              <Plus size={13} /> + Agregar
             </button>
           )}
         </div>
@@ -758,7 +500,12 @@ export default function FinancieroPage() {
                       {new Date(f.fecha_emision + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: '2-digit' })}
                     </td>
                     <td className="px-4 py-3">
-                      <Badge className="text-[10px] bg-gray-50 text-gray-700 border-gray-200">Fact. {f.tipo.toUpperCase()}</Badge>
+                      <div className="flex items-center flex-wrap gap-1">
+                        <Badge className="text-[10px] bg-gray-50 text-gray-700 border-gray-200">Fact. {f.tipo.toUpperCase()}</Badge>
+                        {f.etapa_id && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded">Obra</span>}
+                        {!f.etapa_id && f.numero_factura && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">Factura</span>}
+                        {!f.etapa_id && !f.numero_factura && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded">Gasto</span>}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{f.numero_factura || '—'}</td>
                     <td className="px-4 py-3 text-gray-800 max-w-[140px] truncate">{f.proveedor_nombre || f.proveedor_supplier || '—'}</td>
@@ -788,7 +535,7 @@ export default function FinancieroPage() {
                         )}
                         {!isReader && (
                           <>
-                            <button onClick={() => openEditFactura(f)} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
+                            <button onClick={() => { setEditingFactura(f); setShowFacturaModal(true); }} className="p-1.5 text-gray-400 hover:text-blue-700 rounded-lg hover:bg-blue-50 transition-colors">
                               <Pencil size={13} />
                             </button>
                             <button onClick={() => deleteFactura(f)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors">
@@ -937,106 +684,6 @@ export default function FinancieroPage() {
 
       </Tabs>
 
-      {/* Expense modal */}
-      <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingExpense ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción *</label>
-              <input
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                value={form.descripcion}
-                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
-                placeholder="Descripción del gasto"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Proveedor</label>
-                <input
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  value={form.proveedor || ''}
-                  onChange={(e) => setForm({ ...form, proveedor: e.target.value || null })}
-                  placeholder="Nombre proveedor"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Categoría</label>
-                <select
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none"
-                  value={form.budget_id || ''}
-                  onChange={(e) => setForm({ ...form, budget_id: e.target.value || null })}
-                >
-                  <option value="">Sin categoría</option>
-                  {budget.map((b) => <option key={b.id} value={b.id}>{b.categoria}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Monto USD</label>
-                <input
-                  type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  value={form.monto_usd ?? ''}
-                  onChange={(e) => setForm({ ...form, monto_usd: e.target.value ? parseFloat(e.target.value) : null })}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Monto ARS</label>
-                <input
-                  type="number"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  value={form.monto_ars ?? ''}
-                  onChange={(e) => setForm({ ...form, monto_ars: e.target.value ? parseFloat(e.target.value) : null })}
-                  placeholder="0.00"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha *</label>
-                <input
-                  type="date"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  value={form.fecha}
-                  onChange={(e) => setForm({ ...form, fecha: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Comprobante URL</label>
-                <input
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  value={form.comprobante_url || ''}
-                  onChange={(e) => setForm({ ...form, comprobante_url: e.target.value || null })}
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50">
-                Cancelar
-              </button>
-              <button
-                onClick={saveExpense}
-                disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50"
-              >
-                {saving ? 'Guardando...' : editingExpense ? 'Actualizar' : 'Crear gasto'}
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Budget modal */}
       <Dialog open={showBudgetModal} onOpenChange={(open) => { setShowBudgetModal(open); if (!open) setEditingBudget(null); }}>
         <DialogContent className="sm:max-w-sm">
@@ -1104,232 +751,13 @@ export default function FinancieroPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Factura modal */}
-      <Dialog open={showFacturaModal} onOpenChange={setShowFacturaModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editingFactura ? 'Editar factura' : 'Nueva factura'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 mt-2 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Tipo</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none" value={facturaForm.tipo} onChange={(e) => setFacturaForm(f => ({ ...f, tipo: e.target.value as Factura['tipo'] }))}>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="recibo">Recibo</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Número</label>
-                <input className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.numero_factura} onChange={(e) => setFacturaForm(f => ({ ...f, numero_factura: e.target.value }))} placeholder="0001-00012345" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Categoría</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none" value={facturaForm.categoria} onChange={(e) => setFacturaForm(f => ({ ...f, categoria: e.target.value as 'egreso' | 'ingreso' }))}>
-                  <option value="egreso">Egreso</option>
-                  <option value="ingreso">Ingreso</option>
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Proveedor</label>
-                <input className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.proveedor_nombre} onChange={(e) => setFacturaForm(f => ({ ...f, proveedor_nombre: e.target.value }))} placeholder="Nombre proveedor" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">CUIT emisor</label>
-                <input className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.cuit_emisor} onChange={(e) => setFacturaForm(f => ({ ...f, cuit_emisor: e.target.value }))} placeholder="20-12345678-9" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha emisión *</label>
-                <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.fecha_emision} onChange={(e) => setFacturaForm(f => ({ ...f, fecha_emision: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Fecha vencimiento</label>
-                <input type="date" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.fecha_vencimiento} onChange={(e) => setFacturaForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Monto neto</label>
-                <input type="number" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.monto_neto} onChange={(e) => setFacturaForm(f => ({ ...f, monto_neto: e.target.value }))} placeholder="0" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">IVA %</label>
-                <input type="number" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.iva_pct} onChange={(e) => setFacturaForm(f => ({ ...f, iva_pct: e.target.value }))} placeholder="21" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Total *</label>
-                <input type="number" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.monto_total} onChange={(e) => setFacturaForm(f => ({ ...f, monto_total: e.target.value }))} placeholder="0" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Moneda</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none" value={facturaForm.moneda} onChange={(e) => setFacturaForm(f => ({ ...f, moneda: e.target.value as 'USD' | 'ARS' }))}>
-                  <option value="ARS">ARS</option>
-                  <option value="USD">USD</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600 mb-1 block">Estado</label>
-                <select className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none" value={facturaForm.estado} onChange={(e) => setFacturaForm(f => ({ ...f, estado: e.target.value as Factura['estado'] }))}>
-                  <option value="cargada">Cargada</option>
-                  <option value="vinculada">Vinculada</option>
-                  <option value="pagada">Pagada</option>
-                </select>
-              </div>
-            </div>
-            {facturaForm.categoria === 'ingreso' && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vincular a pago registrado
-                </label>
-                <input
-                  type="text"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500"
-                  placeholder="Buscar comprador..."
-                  value={paymentSearch}
-                  onChange={(e) => {
-                    setPaymentSearch(e.target.value);
-                    searchLinkablePayments(e.target.value);
-                  }}
-                  onFocus={() => { if (!linkablePayments.length) searchLinkablePayments(''); }}
-                />
-                {loadingPayments && (
-                  <p className="text-xs text-gray-400 px-1">Buscando...</p>
-                )}
-                {linkablePayments.length > 0 && (
-                  <div className="border border-gray-100 rounded-xl overflow-hidden divide-y divide-gray-50 max-h-48 overflow-y-auto">
-                    {linkablePayments.map((pr) => (
-                      <button
-                        key={pr.id}
-                        type="button"
-                        onClick={() =>
-                          setFacturaForm(f => ({
-                            ...f,
-                            payment_record_id: f.payment_record_id === pr.id ? '' : pr.id,
-                          }))
-                        }
-                        className={cn(
-                          'w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors',
-                          facturaForm.payment_record_id === pr.id
-                            ? 'bg-blue-50 text-blue-800'
-                            : 'hover:bg-gray-50 text-gray-700',
-                        )}
-                      >
-                        <span className="font-medium">{pr.buyer_name || 'Comprador'}</span>
-                        <span className="text-gray-400">
-                          Cuota #{pr.numero_cuota} · {pr.moneda} {Number(pr.monto_pagado).toLocaleString('es-AR')} · {new Date(pr.fecha_pago).toLocaleDateString('es-AR')}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {facturaForm.payment_record_id && (
-                  <p className="text-xs text-blue-700 font-medium px-1 flex items-center gap-1">
-                    ✓ Pago vinculado
-                    <button
-                      type="button"
-                      className="ml-1 text-gray-400 hover:text-red-500"
-                      onClick={() => setFacturaForm(f => ({ ...f, payment_record_id: '' }))}
-                    >
-                      (quitar)
-                    </button>
-                  </p>
-                )}
-              </div>
-            )}
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">URL archivo (PDF)</label>
-              <div className="space-y-2">
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  className="hidden"
-                  id="factura-pdf-input"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handlePdfUpload(file);
-                    e.target.value = '';
-                  }}
-                />
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor="factura-pdf-input"
-                    className={cn(
-                      'flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors flex-shrink-0',
-                      uploadingPdf && 'opacity-50 pointer-events-none',
-                    )}
-                  >
-                    <FileText size={14} className="text-gray-400" />
-                    {uploadingPdf ? 'Subiendo...' : 'Subir PDF'}
-                  </label>
-                  {facturaForm.file_url && (
-                    <a
-                      href={facturaForm.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1 text-xs text-blue-700 hover:underline truncate"
-                    >
-                      <ExternalLink size={12} />
-                      Ver PDF
-                    </a>
-                  )}
-                  {facturaForm.file_url && (
-                    <button
-                      type="button"
-                      onClick={() => setFacturaForm(f => ({ ...f, file_url: '' }))}
-                      className="ml-auto p-1 text-gray-300 hover:text-red-500 rounded transition-colors"
-                      title="Quitar PDF"
-                    >
-                      <X size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1 block">Notas</label>
-              <input className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" value={facturaForm.notas} onChange={(e) => setFacturaForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones opcionales" />
-            </div>
-            {!editingFactura && (
-              <div className="rounded-lg bg-blue-50 border border-blue-100 px-3 py-3">
-                <label className="flex items-center gap-2 text-sm text-blue-800 font-medium cursor-pointer">
-                  <input type="checkbox" checked={facturaForm.crear_gasto} onChange={(e) => setFacturaForm(f => ({ ...f, crear_gasto: e.target.checked }))} className="rounded" />
-                  Registrar también como gasto
-                </label>
-                {facturaForm.crear_gasto && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-xs font-medium text-gray-600 mb-1 block">Descripción del gasto</label>
-                      <input className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none" value={facturaForm.gasto_descripcion} onChange={(e) => setFacturaForm(f => ({ ...f, gasto_descripcion: e.target.value }))} placeholder="Descripción..." />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-600 mb-1 block">Categoría presupuesto</label>
-                      <select className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none" value={facturaForm.gasto_budget_id} onChange={(e) => setFacturaForm(f => ({ ...f, gasto_budget_id: e.target.value }))}>
-                        <option value="">Sin categoría</option>
-                        {budget.map((b) => <option key={b.id} value={b.id}>{b.categoria}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter className="mt-4">
-            <button onClick={() => setShowFacturaModal(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 rounded-lg border border-gray-200 hover:bg-gray-50">Cancelar</button>
-            <button onClick={saveFactura} disabled={savingFactura} className="px-4 py-2 text-sm bg-blue-700 text-white rounded-lg font-medium hover:bg-blue-800 disabled:opacity-50">
-              {savingFactura ? 'Guardando...' : editingFactura ? 'Actualizar' : 'Crear factura'}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FacturaModal
+        open={showFacturaModal}
+        onClose={() => { setShowFacturaModal(false); setEditingFactura(null); }}
+        onSuccess={() => { loadFacturas(); setShowFacturaModal(false); setEditingFactura(null); }}
+        projectId={id}
+        editingFactura={editingFactura}
+      />
     </div>
   );
 }

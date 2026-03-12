@@ -32,11 +32,13 @@ class FacturaBody(BaseModel):
     gasto_id: Optional[str] = None
     estado: str = "cargada"
     notas: Optional[str] = None
-    # Auto-create expense
-    crear_gasto: bool = False
-    gasto_descripcion: Optional[str] = None
-    gasto_budget_id: Optional[str] = None
     payment_record_id: Optional[str] = None
+    # Campos unificados (antes en project_expenses / obra_payments)
+    etapa_id: Optional[str] = None
+    budget_id: Optional[str] = None
+    supplier_id: Optional[str] = None
+    monto_usd: Optional[float] = None
+    reservation_id: Optional[str] = None
 
 
 class PatchFacturaBody(BaseModel):
@@ -55,6 +57,11 @@ class PatchFacturaBody(BaseModel):
     estado: Optional[str] = None
     notas: Optional[str] = None
     payment_record_id: Optional[str] = None
+    etapa_id: Optional[str] = None
+    budget_id: Optional[str] = None
+    supplier_id: Optional[str] = None
+    monto_usd: Optional[float] = None
+    reservation_id: Optional[str] = None
 
 
 @router.get("/facturas/{project_id}")
@@ -86,7 +93,10 @@ async def list_facturas(
         conditions.append(f"f.fecha_emision <= ${i}"); params.append(datetime.strptime(fecha_hasta, "%Y-%m-%d").date()); i += 1
     where = " AND ".join(conditions)
     rows = await pool.fetch(
-        f"""SELECT f.*, s.nombre AS proveedor_supplier,
+        f"""SELECT f.*,
+                   s.nombre AS proveedor_supplier,
+                   oe.nombre AS etapa_nombre,
+                   pb.categoria AS budget_categoria,
                    r.buyer_name AS linked_buyer_name,
                    pi.numero_cuota AS linked_cuota,
                    pr.monto_pagado AS linked_monto,
@@ -94,6 +104,8 @@ async def list_facturas(
                    pr.fecha_pago AS linked_fecha_pago
             FROM facturas f
             LEFT JOIN suppliers s ON s.id = f.proveedor_id
+            LEFT JOIN obra_etapas oe ON oe.id = f.etapa_id
+            LEFT JOIN project_budget pb ON pb.id = f.budget_id
             LEFT JOIN payment_records pr ON pr.id = f.payment_record_id
             LEFT JOIN payment_installments pi ON pi.id = pr.installment_id
             LEFT JOIN payment_plans pp ON pp.id = pi.plan_id
@@ -111,25 +123,44 @@ async def list_linkable_payments(
     q: Optional[str] = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ):
-    """List payment_records for a project, optionally filtered by buyer name."""
+    """List payment_records (plan-based) and direct-sale reservations, optionally filtered by buyer name."""
     pool = await get_pool()
-    conditions = ["r.project_id = $1"]
-    params: list = [project_id]
-    if q:
-        conditions.append(f"r.buyer_name ILIKE $2")
-        params.append(f"%{q}%")
-    where = " AND ".join(conditions)
+    name_filter = f"%{q}%" if q else "%"
+
     rows = await pool.fetch(
-        f"""SELECT pr.id, r.buyer_name, pi.numero_cuota, pi.concepto,
-                   pr.monto_pagado, pr.moneda, pr.fecha_pago
-            FROM payment_records pr
-            JOIN payment_installments pi ON pi.id = pr.installment_id
-            JOIN payment_plans pp ON pp.id = pi.plan_id
-            JOIN reservations r ON r.id = pp.reservation_id
-            WHERE {where} AND pr.deleted_at IS NULL
-            ORDER BY pr.fecha_pago DESC
-            LIMIT 20""",
-        *params,
+        """-- Plan-based payment records
+           SELECT pr.id::text AS id,
+                  'payment_record' AS kind,
+                  r.buyer_name,
+                  pi.numero_cuota,
+                  pr.monto_pagado AS monto,
+                  pr.moneda::text AS moneda,
+                  pr.fecha_pago AS fecha
+           FROM payment_records pr
+           JOIN payment_installments pi ON pi.id = pr.installment_id
+           JOIN payment_plans pp ON pp.id = pi.plan_id
+           JOIN reservations r ON r.id = pp.reservation_id
+           WHERE r.project_id = $1
+             AND pr.deleted_at IS NULL
+             AND r.buyer_name ILIKE $2
+           UNION ALL
+           -- Direct-sale reservations (no payment plan)
+           SELECT r.id::text AS id,
+                  'reservation' AS kind,
+                  r.buyer_name,
+                  NULL AS numero_cuota,
+                  r.amount_usd AS monto,
+                  'USD'::text AS moneda,
+                  r.signed_at AS fecha
+           FROM reservations r
+           WHERE r.project_id = $1
+             AND r.buyer_name ILIKE $2
+             AND NOT EXISTS (
+               SELECT 1 FROM payment_plans pp WHERE pp.reservation_id = r.id
+             )
+           ORDER BY fecha DESC
+           LIMIT 30""",
+        project_id, name_filter,
     )
     return [dict(r) for r in rows]
 
@@ -144,51 +175,34 @@ async def create_factura(
     user_id, user_nombre = _get_actor(credentials)
     async with pool.acquire() as conn:
         async with conn.transaction():
-            gasto_id = body.gasto_id
-            if body.crear_gasto:
-                # Auto-create expense from factura
-                monto_usd = body.monto_total if body.moneda == "USD" else None
-                monto_ars = body.monto_total if body.moneda == "ARS" else None
-                desc = body.gasto_descripcion or f"Factura {body.numero_factura or ''} - {body.proveedor_nombre or ''}"
-                gasto_row = await conn.fetchrow(
-                    """INSERT INTO project_expenses
-                       (project_id, budget_id, proveedor, descripcion, monto_usd, monto_ars, fecha)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
-                    project_id,
-                    body.gasto_budget_id or None,
-                    body.proveedor_nombre,
-                    desc,
-                    monto_usd,
-                    monto_ars,
-                    datetime.strptime(body.fecha_emision, "%Y-%m-%d").date(),
-                )
-                gasto_id = str(gasto_row["id"])
             payment_record_id = body.payment_record_id or None
             row = await conn.fetchrow(
                 """INSERT INTO facturas
-                   (project_id, tipo, numero_factura, proveedor_nombre, cuit_emisor,
-                    fecha_emision, fecha_vencimiento, monto_neto, iva_pct, monto_total,
-                    moneda, categoria, file_url, gasto_id, payment_record_id, estado, notas)
-                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+                   (project_id, tipo, numero_factura, proveedor_nombre, proveedor_id, cuit_emisor,
+                    fecha_emision, fecha_vencimiento, monto_neto, iva_pct, monto_total, monto_usd,
+                    moneda, categoria, file_url, payment_record_id, reservation_id, estado, notas,
+                    etapa_id, budget_id)
+                   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
                    RETURNING id""",
                 project_id, body.tipo, body.numero_factura, body.proveedor_nombre,
+                body.supplier_id or None,
                 body.cuit_emisor,
                 datetime.strptime(body.fecha_emision, "%Y-%m-%d").date(),
                 datetime.strptime(body.fecha_vencimiento, "%Y-%m-%d").date() if body.fecha_vencimiento else None,
-                body.monto_neto, body.iva_pct, body.monto_total,
+                body.monto_neto, body.iva_pct, body.monto_total, body.monto_usd,
                 body.moneda, body.categoria, body.file_url,
-                gasto_id, payment_record_id, body.estado, body.notas,
+                payment_record_id, body.reservation_id or None, body.estado, body.notas,
+                body.etapa_id or None, body.budget_id or None,
             )
-            estado_final = "vinculada" if (gasto_id or payment_record_id) else "cargada"
-            if gasto_id:
+            if payment_record_id or body.reservation_id:
                 await conn.execute(
-                    "UPDATE facturas SET estado=$1 WHERE id=$2", estado_final, row["id"]
+                    "UPDATE facturas SET estado='vinculada' WHERE id=$1", row["id"]
                 )
     await _audit(pool, user_id=user_id, user_nombre=user_nombre, action="INSERT",
                  table_name="facturas", record_id=str(row["id"]), project_id=project_id,
                  details={"numero_factura": body.numero_factura, "proveedor_nombre": body.proveedor_nombre,
                           "monto_total": body.monto_total, "moneda": body.moneda})
-    return {"factura_id": str(row["id"]), "gasto_id": gasto_id}
+    return {"factura_id": str(row["id"])}
 
 
 @router.patch("/facturas/{factura_id}")
@@ -200,6 +214,9 @@ async def patch_factura(
     pool = await get_pool()
     user_id, user_nombre = _get_actor(credentials)
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    # Renombrar supplier_id → proveedor_id para la BD
+    if "supplier_id" in updates:
+        updates["proveedor_id"] = updates.pop("supplier_id")
     if "fecha_emision" in updates:
         updates["fecha_emision"] = datetime.strptime(updates["fecha_emision"], "%Y-%m-%d").date()
     if "fecha_vencimiento" in updates:

@@ -77,31 +77,22 @@ async def get_cash_flow(
            ORDER BY mes""",
         project_id, desde, hasta,
     )
-    # Gastos (project_expenses)
-    gastos_rows = await pool.fetch(
+    # Egresos unificados desde facturas
+    egresos_rows = await pool.fetch(
         """SELECT
-             to_char(fecha, 'YYYY-MM') AS mes,
-             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
-           FROM project_expenses pe
-           LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
-           WHERE pe.project_id = $1 AND pe.deleted_at IS NULL
-             AND ($2::text IS NULL OR to_char(fecha, 'YYYY-MM') >= $2)
-             AND ($3::text IS NULL OR to_char(fecha, 'YYYY-MM') <= $3)
-           GROUP BY mes
-           ORDER BY mes""",
-        project_id, desde, hasta,
-    )
-    # Obra payments
-    obra_rows = await pool.fetch(
-        """SELECT
-             to_char(op.fecha_pago, 'YYYY-MM') AS mes,
-             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
-           FROM obra_payments op
-           JOIN obra_etapas oe ON oe.id = op.etapa_id
-           LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
-           WHERE oe.project_id = $1 AND op.fecha_pago IS NOT NULL
-             AND ($2::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') >= $2)
-             AND ($3::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') <= $3)
+             to_char(f.fecha_emision, 'YYYY-MM') AS mes,
+             SUM(CASE
+               WHEN f.moneda = 'USD' THEN f.monto_total
+               WHEN f.monto_usd IS NOT NULL THEN f.monto_usd
+               ELSE f.monto_total / COALESCE(fc.tipo_cambio_usd_ars, 1)
+             END) AS total
+           FROM facturas f
+           LEFT JOIN project_financials_config fc ON fc.project_id = f.project_id
+           WHERE f.project_id = $1
+             AND f.categoria = 'egreso'
+             AND f.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(f.fecha_emision, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(f.fecha_emision, 'YYYY-MM') <= $3)
            GROUP BY mes
            ORDER BY mes""",
         project_id, desde, hasta,
@@ -131,11 +122,7 @@ async def get_cash_flow(
         mes = r["mes"]
         meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
         meses[mes]["ingresos"] += float(r["total"] or 0)
-    for r in gastos_rows:
-        mes = r["mes"]
-        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
-        meses[mes]["egresos"] += float(r["total"] or 0)
-    for r in obra_rows:
+    for r in egresos_rows:
         mes = r["mes"]
         meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
         meses[mes]["egresos"] += float(r["total"] or 0)
@@ -199,28 +186,21 @@ async def get_cash_flow_consolidated(
            GROUP BY mes ORDER BY mes""",
         project_ids, desde, hasta,
     )
-    gastos_rows = await pool.fetch(
+    egresos_rows = await pool.fetch(
         """SELECT
-             to_char(fecha, 'YYYY-MM') AS mes,
-             SUM(COALESCE(monto_usd, monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
-           FROM project_expenses pe
-           LEFT JOIN project_financials_config fc ON fc.project_id = pe.project_id
-           WHERE pe.project_id = ANY($1::uuid[]) AND pe.deleted_at IS NULL
-             AND ($2::text IS NULL OR to_char(fecha, 'YYYY-MM') >= $2)
-             AND ($3::text IS NULL OR to_char(fecha, 'YYYY-MM') <= $3)
-           GROUP BY mes ORDER BY mes""",
-        project_ids, desde, hasta,
-    )
-    obra_rows = await pool.fetch(
-        """SELECT
-             to_char(op.fecha_pago, 'YYYY-MM') AS mes,
-             SUM(COALESCE(op.monto_usd, op.monto_ars / COALESCE(fc.tipo_cambio_usd_ars,1), 0)) AS total
-           FROM obra_payments op
-           JOIN obra_etapas oe ON oe.id = op.etapa_id
-           LEFT JOIN project_financials_config fc ON fc.project_id = oe.project_id
-           WHERE oe.project_id = ANY($1::uuid[]) AND op.fecha_pago IS NOT NULL
-             AND ($2::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') >= $2)
-             AND ($3::text IS NULL OR to_char(op.fecha_pago, 'YYYY-MM') <= $3)
+             to_char(f.fecha_emision, 'YYYY-MM') AS mes,
+             SUM(CASE
+               WHEN f.moneda = 'USD' THEN f.monto_total
+               WHEN f.monto_usd IS NOT NULL THEN f.monto_usd
+               ELSE f.monto_total / COALESCE(fc.tipo_cambio_usd_ars, 1)
+             END) AS total
+           FROM facturas f
+           LEFT JOIN project_financials_config fc ON fc.project_id = f.project_id
+           WHERE f.project_id = ANY($1::uuid[])
+             AND f.categoria = 'egreso'
+             AND f.deleted_at IS NULL
+             AND ($2::text IS NULL OR to_char(f.fecha_emision, 'YYYY-MM') >= $2)
+             AND ($3::text IS NULL OR to_char(f.fecha_emision, 'YYYY-MM') <= $3)
            GROUP BY mes ORDER BY mes""",
         project_ids, desde, hasta,
     )
@@ -247,11 +227,7 @@ async def get_cash_flow_consolidated(
         mes = r["mes"]
         meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
         meses[mes]["ingresos"] += float(r["total"] or 0)
-    for r in gastos_rows:
-        mes = r["mes"]
-        meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
-        meses[mes]["egresos"] += float(r["total"] or 0)
-    for r in obra_rows:
+    for r in egresos_rows:
         mes = r["mes"]
         meses.setdefault(mes, {"mes": mes, "ingresos": 0.0, "egresos": 0.0, "proyeccion": 0.0})
         meses[mes]["egresos"] += float(r["total"] or 0)
@@ -432,38 +408,28 @@ async def get_financials_summary(
     verify_token(credentials.credentials)
     pool = await get_pool()
 
-    config_row = await pool.fetchrow(
-        "SELECT tipo_cambio_usd_ars FROM project_financials_config WHERE project_id = $1",
-        project_id,
-    )
-    tipo_cambio = float(config_row["tipo_cambio_usd_ars"]) if config_row else 1000.0
-
     budget_rows = await pool.fetch(
         "SELECT id, categoria, monto_usd FROM project_budget WHERE project_id = $1",
         project_id,
     )
     presupuesto_total = sum(float(r["monto_usd"] or 0) for r in budget_rows)
 
+    # monto_usd is stored per-factura at time of entry (exchange rate captured on creation)
     expenses_rows = await pool.fetch(
-        """SELECT e.monto_usd, b.categoria
-           FROM project_expenses e
-           LEFT JOIN project_budget b ON b.id = e.budget_id
-           WHERE e.project_id = $1 AND e.deleted_at IS NULL""",
+        """SELECT
+             COALESCE(f.monto_usd,
+               CASE WHEN f.moneda = 'USD' THEN f.monto_total ELSE 0 END
+             ) AS monto_usd,
+             pb.categoria
+           FROM facturas f
+           LEFT JOIN project_budget pb ON pb.id = f.budget_id
+           WHERE f.project_id = $1
+             AND f.categoria = 'egreso'
+             AND f.deleted_at IS NULL""",
         project_id,
     )
 
-    obra_payments_rows = await pool.fetch(
-        """SELECT COALESCE(op.monto_usd, op.monto_ars / NULLIF($2, 0), 0) AS monto_usd,
-                  pb.categoria
-           FROM obra_payments op
-           LEFT JOIN project_budget pb ON pb.etapa_id = op.etapa_id AND pb.project_id = $1
-           WHERE op.project_id = $1""",
-        project_id, tipo_cambio,
-    )
-
-    ejecutado_expenses = sum(float(r["monto_usd"] or 0) for r in expenses_rows)
-    ejecutado_obra = sum(float(r["monto_usd"] or 0) for r in obra_payments_rows)
-    ejecutado_total = ejecutado_expenses + ejecutado_obra
+    ejecutado_total = sum(float(r["monto_usd"] or 0) for r in expenses_rows)
 
     revenue_row = await pool.fetchrow(
         "SELECT COALESCE(SUM(price_usd), 0) as revenue FROM units WHERE project_id = $1",
@@ -479,9 +445,6 @@ async def get_financials_summary(
     cat_exec: dict = {}
     for r in expenses_rows:
         cat = r["categoria"] or "Sin categoría"
-        cat_exec[cat] = cat_exec.get(cat, 0.0) + float(r["monto_usd"] or 0)
-    for r in obra_payments_rows:
-        cat = r["categoria"] or "Pagos de Obra"
         cat_exec[cat] = cat_exec.get(cat, 0.0) + float(r["monto_usd"] or 0)
 
     por_categoria = []
@@ -504,7 +467,6 @@ async def get_financials_summary(
         "desvio_pct": round(desvio_pct, 1),
         "revenue_esperado_usd": revenue,
         "margen_esperado_pct": round(margen_pct, 1),
-        "tipo_cambio": tipo_cambio,
         "por_categoria": por_categoria,
     }
 
@@ -517,72 +479,42 @@ async def list_expenses(
     fecha_hasta: Optional[str] = None,
 ):
     pool = await get_pool()
-    fecha_desde_date = datetime.strptime(fecha_desde, "%Y-%m-%d").date() if fecha_desde else None
-    fecha_hasta_date = datetime.strptime(fecha_hasta, "%Y-%m-%d").date() if fecha_hasta else None
-
-    # --- project_expenses ---
-    conditions = ["e.project_id = $1", "e.deleted_at IS NULL"]
+    conditions = ["f.project_id = $1", "f.categoria = 'egreso'", "f.deleted_at IS NULL"]
     params: list = [project_id]
+    i = 2
     if categoria and categoria != OBRA_CATEGORIA:
-        params.append(categoria)
-        conditions.append(f"b.categoria = ${len(params)}")
+        conditions.append(f"pb.categoria = ${i}"); params.append(categoria); i += 1
     elif categoria == OBRA_CATEGORIA:
-        conditions.append("1=0")  # exclude regular expenses when filtering by obra
-    if fecha_desde_date:
-        params.append(fecha_desde_date)
-        conditions.append(f"e.fecha >= ${len(params)}")
-    if fecha_hasta_date:
-        params.append(fecha_hasta_date)
-        conditions.append(f"e.fecha <= ${len(params)}")
-
+        conditions.append("f.etapa_id IS NOT NULL")
+    if fecha_desde:
+        fecha_desde_date = datetime.strptime(fecha_desde, "%Y-%m-%d").date()
+        conditions.append(f"f.fecha_emision >= ${i}"); params.append(fecha_desde_date); i += 1
+    if fecha_hasta:
+        fecha_hasta_date = datetime.strptime(fecha_hasta, "%Y-%m-%d").date()
+        conditions.append(f"f.fecha_emision <= ${i}"); params.append(fecha_hasta_date); i += 1
+    where = " AND ".join(conditions)
     rows = await pool.fetch(
-        f"""SELECT e.id::text, e.budget_id, e.proveedor, e.descripcion,
-                   e.monto_usd, e.monto_ars, e.fecha, e.comprobante_url, e.created_at,
-                   b.categoria, 'expense' AS source, NULL::text AS etapa_nombre
-            FROM project_expenses e
-            LEFT JOIN project_budget b ON b.id = e.budget_id
-            WHERE {" AND ".join(conditions)}
-            ORDER BY e.fecha DESC, e.created_at DESC""",
+        f"""SELECT f.id::text, f.budget_id, f.proveedor_nombre AS proveedor,
+                   f.notas AS descripcion, f.monto_usd, f.monto_total AS monto_ars,
+                   f.fecha_emision AS fecha, f.file_url AS comprobante_url,
+                   f.created_at, pb.categoria,
+                   CASE WHEN f.etapa_id IS NOT NULL THEN 'obra' ELSE 'expense' END AS source,
+                   oe.nombre AS etapa_nombre
+            FROM facturas f
+            LEFT JOIN project_budget pb ON pb.id = f.budget_id
+            LEFT JOIN obra_etapas oe ON oe.id = f.etapa_id
+            WHERE {where}
+            ORDER BY f.fecha_emision DESC, f.created_at DESC""",
         *params,
     )
-
-    # --- obra_payments (only if not filtering by a different category) ---
-    obra_rows = []
-    if not categoria or categoria == OBRA_CATEGORIA:
-        obra_conds = ["op.project_id = $1"]
-        obra_params: list = [project_id]
-        if fecha_desde_date:
-            obra_params.append(fecha_desde_date)
-            obra_conds.append(f"COALESCE(op.fecha_pago, op.fecha_vencimiento) >= ${len(obra_params)}")
-        if fecha_hasta_date:
-            obra_params.append(fecha_hasta_date)
-            obra_conds.append(f"COALESCE(op.fecha_pago, op.fecha_vencimiento) <= ${len(obra_params)}")
-
-        obra_rows = await pool.fetch(
-            f"""SELECT op.id::text, NULL::uuid AS budget_id, s.nombre AS proveedor, op.descripcion,
-                       op.monto_usd, op.monto_ars,
-                       COALESCE(op.fecha_pago, op.fecha_vencimiento) AS fecha,
-                       op.comprobante_url, op.created_at,
-                       COALESCE(pb.categoria, '{OBRA_CATEGORIA}') AS categoria, 'obra' AS source,
-                       oe.nombre AS etapa_nombre
-                FROM obra_payments op
-                LEFT JOIN suppliers s ON s.id = op.supplier_id
-                LEFT JOIN obra_etapas oe ON oe.id = op.etapa_id
-                LEFT JOIN project_budget pb ON pb.etapa_id = op.etapa_id AND pb.project_id = op.project_id
-                WHERE {" AND ".join(obra_conds)}""",
-            *obra_params,
-        )
-
     result = []
-    for r in list(rows) + list(obra_rows):
+    for r in rows:
         d = dict(r)
         if d.get("monto_usd") is not None:
             d["monto_usd"] = float(d["monto_usd"])
         if d.get("monto_ars") is not None:
             d["monto_ars"] = float(d["monto_ars"])
         result.append(d)
-
-    result.sort(key=lambda x: (str(x.get("fecha") or ""), str(x.get("created_at") or "")), reverse=True)
     return result
 
 
