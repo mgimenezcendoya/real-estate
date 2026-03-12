@@ -334,25 +334,34 @@ export interface Factura {
   categoria: 'egreso' | 'ingreso';
   file_url: string | null;
   gasto_id: string | null;
-  estado: 'cargada' | 'vinculada' | 'pagada';
+  estado: 'cargada' | 'aprobada' | 'vinculada' | 'pagada';
   notas: string | null;
   created_at: string;
   payment_record_id: string | null;
+  reservation_id: string | null;
   linked_buyer_name: string | null;
   linked_cuota: number | null;
   linked_monto: number | null;
   linked_moneda: string | null;
   linked_fecha_pago: string | null;
+  // Campos unificados
+  etapa_id: string | null;
+  etapa_nombre: string | null;
+  budget_id: string | null;
+  budget_categoria: string | null;
+  supplier_id: string | null;
+  monto_usd: number | null;
 }
 
 export interface LinkablePayment {
   id: string;
+  kind: 'payment_record' | 'reservation';
   buyer_name: string | null;
-  numero_cuota: number;
-  concepto: string;
-  monto_pagado: number;
+  numero_cuota: number | null;
+  concepto: string | null;
+  monto: number;
   moneda: 'USD' | 'ARS';
-  fecha_pago: string;
+  fecha: string;
 }
 
 export interface CashFlowRow {
@@ -414,7 +423,6 @@ export interface FinancialSummary {
   desvio_pct: number;
   revenue_esperado_usd: number;
   margen_esperado_pct: number;
-  tipo_cambio: number;
   por_categoria: Array<{
     categoria: string;
     presupuesto_usd: number;
@@ -671,6 +679,8 @@ export const api = {
     fetcher(`/admin/obra/${projectId}/init`, { method: 'POST' }),
   getObra: (projectId: string) =>
     fetcher<ObraData>(`/admin/obra/${projectId}`),
+  getObraEtapas: (projectId: string): Promise<ObraEtapa[]> =>
+    fetcher<ObraData>(`/admin/obra/${projectId}`).then(d => d.etapas ?? []),
   patchEtapa: (etapaId: string, data: Partial<Pick<ObraEtapa, 'nombre' | 'peso_pct' | 'porcentaje_completado' | 'activa'>>) =>
     fetcher(`/admin/obra/etapas/${etapaId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   updatePesos: (projectId: string, pesos: Array<{ id: string; peso_pct: number }>) =>
@@ -816,8 +826,8 @@ export const api = {
     const q = qs.toString();
     return fetcher<Factura[]>(`/admin/facturas/${projectId}${q ? `?${q}` : ''}`);
   },
-  createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at' | 'gasto_id' | 'linked_buyer_name' | 'linked_cuota' | 'linked_monto' | 'linked_moneda' | 'linked_fecha_pago'> & { gasto_id?: string | null; crear_gasto?: boolean; gasto_descripcion?: string; gasto_budget_id?: string }) =>
-    fetcher<{ factura_id: string; gasto_id: string | null }>(`/admin/facturas/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
+  createFactura: (projectId: string, data: Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at' | 'gasto_id' | 'linked_buyer_name' | 'linked_cuota' | 'linked_monto' | 'linked_moneda' | 'linked_fecha_pago' | 'etapa_nombre' | 'budget_categoria'> & { gasto_id?: string | null; etapa_id?: string | null; budget_id?: string | null; supplier_id?: string | null; monto_usd?: number | null }) =>
+    fetcher<{ factura_id: string }>(`/admin/facturas/${projectId}`, { method: 'POST', body: JSON.stringify(data) }),
   patchFactura: (facturaId: string, data: Partial<Omit<Factura, 'id' | 'project_id' | 'proveedor_supplier' | 'created_at'>>) =>
     fetcher<{ ok: boolean }>(`/admin/facturas/${facturaId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteFactura: (facturaId: string) =>
@@ -833,6 +843,10 @@ export const api = {
   getLinkablePayments: (projectId: string, q?: string) =>
     fetcher<LinkablePayment[]>(
       `/admin/facturas/${projectId}/linkable-payments${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    ),
+  getFacturasEgresosObra: (projectId: string): Promise<Factura[]> =>
+    fetcher<Factura[]>(`/admin/facturas/${projectId}?categoria=egreso`).then(
+      rows => rows.filter((f: Factura) => f.etapa_id !== null)
     ),
 
   // --- Cash Flow ---
