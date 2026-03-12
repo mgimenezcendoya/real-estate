@@ -68,6 +68,61 @@ class UpdatePaymentRecordBody(BaseModel):
     notas: Optional[str] = None
 
 
+async def _auto_create_seña(
+    conn,
+    reservation_id: str,
+    amount_usd: float,
+    payment_method: Optional[str],
+    signed_at,  # date or None
+) -> None:
+    """Atomically creates plan + señal installment + payment_record.
+    Must be called inside an existing asyncpg transaction.
+    No-op if amount_usd is falsy or a plan already exists.
+    """
+    if not amount_usd:
+        return
+
+    # Idempotency: skip if plan already exists
+    existing = await conn.fetchval(
+        "SELECT id FROM payment_plans WHERE reservation_id = $1",
+        reservation_id,
+    )
+    if existing:
+        return
+
+    from datetime import date as _date
+    fecha = signed_at if signed_at else _date.today()
+    metodo = payment_method or "transferencia"
+
+    # 1. Create payment plan
+    plan = await conn.fetchrow(
+        """INSERT INTO payment_plans
+           (reservation_id, descripcion, moneda_base, monto_total, tipo_ajuste)
+           VALUES ($1, 'Seña', 'USD', $2, 'ninguno')
+           RETURNING id""",
+        reservation_id, amount_usd,
+    )
+    plan_id = str(plan["id"])
+
+    # 2. Create installment #0 — Señal (already paid)
+    inst = await conn.fetchrow(
+        """INSERT INTO payment_installments
+           (plan_id, numero_cuota, concepto, monto, moneda, fecha_vencimiento, estado)
+           VALUES ($1, 0, 'anticipo', $2, 'USD', $3, 'pagado')
+           RETURNING id""",
+        plan_id, amount_usd, fecha,
+    )
+    installment_id = str(inst["id"])
+
+    # 3. Create payment_record for the señal
+    await conn.execute(
+        """INSERT INTO payment_records
+           (installment_id, fecha_pago, monto_pagado, moneda, metodo_pago)
+           VALUES ($1, $2, $3, 'USD', $4)""",
+        installment_id, fecha, amount_usd, metodo,
+    )
+
+
 @router.post("/reservations/{project_id}/direct-sale")
 async def create_direct_sale(project_id: str, body: ReservationBody):
     """Create a reservation already converted (direct sale). Atomic: unit → sold + reservation → converted + buyer created."""
@@ -108,6 +163,15 @@ async def create_direct_sale(project_id: str, body: ReservationBody):
                 body.amount_usd, body.payment_method, body.notes, signed,
             )
             reservation_id = str(res["id"])
+
+            # Auto-create señal payment record if amount provided
+            await _auto_create_seña(
+                conn,
+                reservation_id,
+                body.amount_usd,
+                body.payment_method,
+                signed,
+            )
 
             # 3. Create buyer record
             await conn.execute(
@@ -172,6 +236,15 @@ async def create_reservation(
                 project_id, body.unit_id, body.lead_id or None,
                 body.buyer_name, body.buyer_phone, body.buyer_email,
                 body.amount_usd, body.payment_method, body.notes,
+                signed_at_val,
+            )
+
+            # Auto-create señal payment record if amount provided
+            await _auto_create_seña(
+                conn,
+                str(row["id"]),
+                body.amount_usd,
+                body.payment_method,
                 signed_at_val,
             )
 
@@ -387,13 +460,28 @@ async def create_payment_plan(reservation_id: str, body: PaymentPlanBody):
     if not res:
         raise HTTPException(status_code=404, detail="Reserva no encontrada")
 
-    # Delete existing plan if any (replace)
-    await pool.execute(
-        "DELETE FROM payment_plans WHERE reservation_id = $1", reservation_id
-    )
-
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Snapshot paid installments before deleting — keyed by (concepto, monto)
+            paid_records = await conn.fetch(
+                """SELECT pi.concepto, pi.monto, pr.fecha_pago, pr.monto_pagado,
+                          pr.moneda, pr.metodo_pago, pr.referencia, pr.notas
+                   FROM payment_plans pp
+                   JOIN payment_installments pi ON pi.plan_id = pp.id
+                   JOIN payment_records pr ON pr.installment_id = pi.id AND pr.deleted_at IS NULL
+                   WHERE pp.reservation_id = $1 AND pi.estado = 'pagado'""",
+                reservation_id,
+            )
+            paid_map: dict[tuple, list] = {}
+            for r in paid_records:
+                key = (r["concepto"], float(r["monto"]))
+                paid_map.setdefault(key, []).append(r)
+
+            # Delete existing plan (cascades to installments + records)
+            await conn.execute(
+                "DELETE FROM payment_plans WHERE reservation_id = $1", reservation_id
+            )
+
             plan = await conn.fetchrow(
                 """INSERT INTO payment_plans
                    (reservation_id, descripcion, moneda_base, monto_total, tipo_ajuste, porcentaje_ajuste)
@@ -403,13 +491,28 @@ async def create_payment_plan(reservation_id: str, body: PaymentPlanBody):
             )
             plan_id = str(plan["id"])
             for inst in body.installments:
-                await conn.execute(
+                inst_row = await conn.fetchrow(
                     """INSERT INTO payment_installments
                        (plan_id, numero_cuota, concepto, monto, moneda, fecha_vencimiento, notas)
-                       VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id""",
                     plan_id, inst.numero_cuota, inst.concepto, inst.monto,
                     inst.moneda, datetime.strptime(inst.fecha_vencimiento, "%Y-%m-%d").date(), inst.notas,
                 )
+                inst_id = str(inst_row["id"])
+                # Re-attach payment_records from matching paid installment
+                key = (inst.concepto, float(inst.monto))
+                if key in paid_map and paid_map[key]:
+                    prev = paid_map[key].pop(0)
+                    await conn.execute(
+                        """INSERT INTO payment_records
+                           (installment_id, fecha_pago, monto_pagado, moneda, metodo_pago, referencia, notas)
+                           VALUES ($1,$2,$3,$4,$5,$6,$7)""",
+                        inst_id, prev["fecha_pago"], prev["monto_pagado"],
+                        prev["moneda"], prev["metodo_pago"], prev["referencia"], prev["notas"],
+                    )
+                    await conn.execute(
+                        "UPDATE payment_installments SET estado = 'pagado' WHERE id = $1", inst_id
+                    )
 
     return {"plan_id": plan_id, "installments_created": len(body.installments)}
 
