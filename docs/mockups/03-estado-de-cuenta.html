@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estado de Cuenta — Ejemplo</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  @media print {
+    .no-print { display: none !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    color: #111827; background: #f3f4f6; line-height: 1.5;
+  }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    font-size: 13px; color: #6b7280;
+  }
+  .toolbar-btns { display: flex; gap: 8px; }
+  .toolbar button {
+    padding: 8px 20px; font-size: 13px; font-weight: 600;
+    border-radius: 8px; cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .btn-primary { background: #1d4ed8; color: #fff; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-ghost { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+  .btn-ghost:hover { background: #f9fafb; }
+
+  .page-wrap { max-width: 700px; margin: 32px auto; padding: 0 16px; }
+  @media print { .page-wrap { max-width: none; margin: 0; padding: 0; } }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 28px;
+  }
+  .org-brand h1 { font-size: 22px; font-weight: 900; color: #1d4ed8; letter-spacing: -0.5px; }
+  .org-detail { font-size: 11px; color: #9ca3af; margin-top: 3px; line-height: 1.5; }
+  .doc-badge { text-align: right; }
+  .doc-badge .title { font-size: 17px; font-weight: 800; color: #111827; }
+  .doc-badge .meta { font-size: 11px; color: #9ca3af; margin-top: 3px; line-height: 1.6; }
+
+  /* Cards */
+  .card {
+    border: 1px solid #e5e7eb; border-radius: 16px;
+    overflow: hidden; background: #fff;
+    margin-bottom: 16px;
+  }
+  .sec {
+    padding: 18px 24px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .sec:last-child { border-bottom: none; }
+  .sec-label {
+    font-size: 10px; font-weight: 700; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: 1.8px;
+    margin-bottom: 8px;
+  }
+
+  /* Data grid */
+  .data-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .data-cell { padding: 18px 24px; }
+  .data-cell:first-child { border-right: 1px solid #e5e7eb; }
+  .data-name { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+  .data-info { font-size: 12px; color: #6b7280; line-height: 1.7; }
+  .data-value { font-size: 14px; font-weight: 700; color: #111827; }
+  .data-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .data-footer {
+    padding: 12px 24px; border-top: 1px solid #f3f4f6;
+    background: #f9fafb; font-size: 12px; color: #6b7280;
+  }
+  .data-footer strong { color: #374151; }
+
+  /* Progress bar */
+  .progress-section { padding: 18px 24px; border-bottom: 1px solid #e5e7eb; }
+  .progress-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .progress-header span { font-size: 13px; font-weight: 600; color: #374151; }
+  .progress-header .pct { font-size: 15px; font-weight: 800; color: #1d4ed8; }
+  .progress-bar { height: 10px; background: #e5e7eb; border-radius: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; background: #1d4ed8; border-radius: 8px; transition: width 0.3s; }
+  .etapa-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 24px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .etapa-row:last-child { border-bottom: none; }
+  .etapa-name { font-size: 12.5px; color: #374151; }
+  .etapa-right { display: flex; align-items: center; gap: 10px; min-width: 140px; }
+  .etapa-bar { flex: 1; height: 6px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+  .etapa-fill { height: 100%; background: #60a5fa; border-radius: 4px; }
+  .etapa-pct { font-size: 11px; font-weight: 700; color: #6b7280; width: 32px; text-align: right; }
+
+  /* Plan table */
+  .plan-header {
+    padding: 14px 24px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;
+  }
+  .plan-header .sec-label { margin-bottom: 0; }
+  .plan-table { width: 100%; border-collapse: collapse; }
+  .plan-table th {
+    padding: 10px 16px; font-size: 10px; font-weight: 700;
+    color: #9ca3af; text-transform: uppercase; letter-spacing: 0.8px;
+    text-align: left; border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+  }
+  .plan-table th:nth-child(3),
+  .plan-table td:nth-child(3) { text-align: right; }
+  .plan-table th:nth-child(4),
+  .plan-table td:nth-child(4) { text-align: center; }
+  .plan-table td {
+    padding: 10px 16px; font-size: 12.5px; color: #374151;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .plan-table tr:last-child td { border-bottom: none; }
+  .mono { font-variant-numeric: tabular-nums; }
+
+  /* Status badges */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 100px;
+    font-size: 10px; font-weight: 700;
+    border: 1px solid;
+  }
+  .badge-pagado { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+  .badge-pendiente { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+  .badge-vencido { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+  .badge-parcial { background: #eff6ff; color: #2563eb; border-color: #bfdbfe; }
+
+  /* Summary */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+  .summary-cell {
+    padding: 18px 16px; text-align: center;
+    border-right: 1px solid #e5e7eb;
+  }
+  .summary-cell:last-child { border-right: none; }
+  .summary-label { font-size: 10px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .summary-val { font-size: 18px; font-weight: 800; }
+  .summary-val.total { color: #111827; }
+  .summary-val.pagado { color: #059669; }
+  .summary-val.pendiente { color: #d97706; }
+
+  .doc-footer { text-align: center; margin-top: 20px; padding-bottom: 32px; }
+  .doc-footer p { font-size: 10px; color: #d1d5db; }
+</style>
+</head>
+<body>
+
+<div class="toolbar no-print">
+  <span>Estado de Cuenta — Ejemplo de diseño</span>
+  <div class="toolbar-btns">
+    <button class="btn-primary" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button class="btn-ghost" onclick="window.close()">Cerrar</button>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="org-brand">
+      <h1>Desarrollos Maipú S.A.</h1>
+      <div class="org-detail">
+        CUIT: 30-71234567-9<br>
+        Av. Santa Fe 2345, Piso 8 — C.A.B.A.
+      </div>
+    </div>
+    <div class="doc-badge">
+      <div class="title">Estado de Cuenta</div>
+      <div class="meta">
+        Edificio Maipú 1240<br>
+        Generado: 12/03/2026
+      </div>
+    </div>
+  </div>
+
+  <!-- DATOS DE LA OPERACIÓN -->
+  <div class="card">
+    <div class="data-grid" style="border-bottom: 1px solid #e5e7eb;">
+      <div class="data-cell">
+        <div class="sec-label">Comprador</div>
+        <div class="data-name">Valentina Roch</div>
+        <div class="data-info">
+          DNI: 35.456.789<br>
+          Tel: 5491144001002<br>
+          vroch@mail.com
+        </div>
+      </div>
+      <div class="data-cell">
+        <div class="sec-label">Unidad</div>
+        <div class="data-value">Unidad 1A · Piso 1</div>
+        <div class="data-sub">1 amb. · 38 m²</div>
+        <div class="data-value" style="margin-top:8px; color:#1d4ed8;">USD 68.000</div>
+      </div>
+    </div>
+    <div class="data-footer">
+      Fecha de reserva: <strong>24/01/2026</strong> · Firma: <strong>24/01/2026</strong>
+    </div>
+  </div>
+
+  <!-- AVANCE DE OBRA -->
+  <div class="card">
+    <div class="progress-section">
+      <div class="sec-label" style="margin-bottom:12px;">Avance de obra</div>
+      <div class="progress-header">
+        <span>Avance general</span>
+        <span class="pct">35%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: 35%;"></div>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Excavación y fundaciones</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:100%"></div></div>
+        <span class="etapa-pct">100%</span>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Estructura de hormigón</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:75%"></div></div>
+        <span class="etapa-pct">75%</span>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Mampostería</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:30%"></div></div>
+        <span class="etapa-pct">30%</span>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Instalaciones eléctricas</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:10%"></div></div>
+        <span class="etapa-pct">10%</span>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Instalaciones sanitarias</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:10%"></div></div>
+        <span class="etapa-pct">10%</span>
+      </div>
+    </div>
+    <div class="etapa-row">
+      <span class="etapa-name">Terminaciones</span>
+      <div class="etapa-right">
+        <div class="etapa-bar"><div class="etapa-fill" style="width:0%"></div></div>
+        <span class="etapa-pct">0%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAN DE PAGOS -->
+  <div class="card">
+    <div class="plan-header">
+      <div class="sec-label">Plan de pagos</div>
+    </div>
+    <table class="plan-table">
+      <thead>
+        <tr>
+          <th>Concepto</th>
+          <th>Vencimiento</th>
+          <th>Monto</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Anticipo</td>
+          <td>24/01/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.000</td>
+          <td style="text-align:center;"><span class="badge badge-pagado">Pagado</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 1</td>
+          <td>01/03/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pagado">Pagado</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 2</td>
+          <td>01/04/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-vencido">Vencido</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 3</td>
+          <td>01/05/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 4</td>
+          <td>01/06/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 5</td>
+          <td>01/07/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 6</td>
+          <td>01/08/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 7</td>
+          <td>01/09/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Cuota 8</td>
+          <td>01/10/2026</td>
+          <td class="mono" style="text-align:right;">USD 5.250</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+        <tr>
+          <td>Saldo contra entrega</td>
+          <td>01/12/2027</td>
+          <td class="mono" style="text-align:right;">USD 20.750</td>
+          <td style="text-align:center;"><span class="badge badge-pendiente">Pendiente</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RESUMEN FINANCIERO -->
+  <div class="card">
+    <div class="summary-grid">
+      <div class="summary-cell">
+        <div class="summary-label">Total del plan</div>
+        <div class="summary-val total mono">USD 68.000</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label">Total pagado</div>
+        <div class="summary-val pagado mono">USD 10.250</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label">Saldo pendiente</div>
+        <div class="summary-val pendiente mono">USD 57.750</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <p>Documento informativo generado el 12/03/2026 por el sistema de gestión de Desarrollos Maipú S.A.</p>
+  </div>
+
+</div>
+
+</body>
+</html>
