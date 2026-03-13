@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boleto de Compraventa — Ejemplo</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  @media print {
+    .no-print { display: none !important; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page-break { page-break-before: always; }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    color: #111827; background: #f3f4f6; line-height: 1.5;
+  }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 24px;
+    background: #fff; border-bottom: 1px solid #e5e7eb;
+    font-size: 13px; color: #6b7280;
+  }
+  .toolbar-btns { display: flex; gap: 8px; }
+  .toolbar button {
+    padding: 8px 20px; font-size: 13px; font-weight: 600;
+    border-radius: 8px; cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .btn-primary { background: #1d4ed8; color: #fff; }
+  .btn-primary:hover { background: #1e40af; }
+  .btn-ghost { background: transparent; color: #6b7280; border: 1px solid #d1d5db; }
+  .btn-ghost:hover { background: #f9fafb; }
+
+  .page-wrap { max-width: 700px; margin: 32px auto; padding: 0 16px; }
+  @media print { .page-wrap { max-width: none; margin: 0; padding: 0; } }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 28px;
+  }
+  .org-brand h1 { font-size: 22px; font-weight: 900; color: #1d4ed8; letter-spacing: -0.5px; }
+  .org-detail { font-size: 11px; color: #9ca3af; margin-top: 3px; line-height: 1.5; }
+  .doc-badge { text-align: right; }
+  .doc-badge .title { font-size: 17px; font-weight: 800; color: #111827; }
+  .doc-badge .meta { font-size: 11px; color: #9ca3af; margin-top: 3px; line-height: 1.6; }
+
+  .card {
+    border: 1px solid #e5e7eb; border-radius: 16px;
+    overflow: hidden; background: #fff;
+    margin-bottom: 16px;
+  }
+  .sec {
+    padding: 18px 24px;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .sec:last-child { border-bottom: none; }
+  .sec-label {
+    font-size: 10px; font-weight: 700; color: #9ca3af;
+    text-transform: uppercase; letter-spacing: 1.8px;
+    margin-bottom: 8px;
+  }
+
+  .parties-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #e5e7eb; }
+  .party { padding: 18px 24px; }
+  .party:first-child { border-right: 1px solid #e5e7eb; }
+  .party .sec-label { margin-bottom: 6px; }
+  .party-name { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+  .party-info { font-size: 12px; color: #6b7280; line-height: 1.7; }
+
+  .object-grid { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #e5e7eb; }
+  .object-cell { padding: 18px 24px; }
+  .object-cell:first-child { border-right: 1px solid #e5e7eb; }
+  .object-cell .sec-label { margin-bottom: 6px; }
+  .object-value { font-size: 14px; font-weight: 700; color: #111827; }
+  .object-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .object-sub-light { font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+  .price-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px;
+    background: #eff6ff;
+  }
+  .price-label { font-size: 13px; font-weight: 600; color: #374151; }
+  .price-value { font-size: 20px; font-weight: 800; color: #1d4ed8; }
+
+  .plan-header {
+    padding: 14px 24px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;
+  }
+  .plan-header .sec-label { margin-bottom: 0; }
+  .plan-table { width: 100%; border-collapse: collapse; }
+  .plan-table thead tr { background: #f9fafb; }
+  .plan-table th {
+    padding: 10px 16px; font-size: 10px; font-weight: 700;
+    color: #9ca3af; text-transform: uppercase; letter-spacing: 0.8px;
+    text-align: left; border-bottom: 1px solid #e5e7eb;
+  }
+  .plan-table th.right, .plan-table td.right { text-align: right; }
+  .plan-table td {
+    padding: 10px 16px; font-size: 12.5px; color: #374151;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .plan-table tbody tr:last-child td { border-bottom: none; }
+  .plan-table .total-row td {
+    font-weight: 700; color: #111827;
+    border-top: 2px solid #e5e7eb; border-bottom: none;
+    background: #f9fafb;
+  }
+  .mono { font-variant-numeric: tabular-nums; }
+
+  .clauses-header {
+    padding: 14px 24px; border-bottom: 1px solid #e5e7eb; background: #f9fafb;
+  }
+  .clauses-header .sec-label { margin-bottom: 0; }
+  .clauses-body { padding: 16px 24px; }
+  .clause {
+    font-size: 11.5px; color: #4b5563; line-height: 1.75;
+    padding: 8px 0; border-bottom: 1px solid #f3f4f6;
+  }
+  .clause:last-child { border-bottom: none; }
+  .clause-num {
+    display: inline-block; width: 22px; height: 22px;
+    background: #eff6ff; color: #1d4ed8; border-radius: 6px;
+    font-size: 10px; font-weight: 800; text-align: center; line-height: 22px;
+    margin-right: 8px; vertical-align: middle;
+  }
+
+  .sig-inner { display: flex; padding: 24px 32px 20px; gap: 48px; }
+  .sig-block { flex: 1; text-align: center; }
+  .sig-line { border-bottom: 1.5px solid #9ca3af; height: 52px; margin-bottom: 8px; }
+  .sig-name { font-size: 13px; font-weight: 700; color: #111827; }
+  .sig-detail { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  .sig-footer {
+    padding: 12px 24px; border-top: 1px solid #f3f4f6; text-align: center;
+  }
+  .sig-footer p { font-size: 10px; color: #d1d5db; }
+
+  .doc-footer { text-align: center; margin-top: 20px; padding-bottom: 32px; }
+  .doc-footer p { font-size: 10px; color: #d1d5db; }
+</style>
+</head>
+<body>
+
+<div class="toolbar no-print">
+  <span>Boleto de Compraventa &mdash; Ejemplo de dise&ntilde;o</span>
+  <div class="toolbar-btns">
+    <button class="btn-primary" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <button class="btn-ghost" onclick="window.close()">Cerrar</button>
+  </div>
+</div>
+
+<div class="page-wrap">
+
+  <div class="header">
+    <div class="org-brand">
+      <h1>Desarrollos Maipu S.A.</h1>
+      <div class="org-detail">
+        CUIT: 30-71234567-9<br>
+        Av. Santa Fe 2345, Piso 8 &mdash; C.A.B.A.
+      </div>
+    </div>
+    <div class="doc-badge">
+      <div class="title">Boleto de Compraventa</div>
+      <div class="meta">
+        N&deg;: CV-934CFC6E<br>
+        Fecha: 11/03/2026
+      </div>
+    </div>
+  </div>
+
+  <!-- PARTES + OBJETO + PRECIO -->
+  <div class="card">
+
+    <div class="parties-grid">
+      <div class="party">
+        <div class="sec-label">Vendedor</div>
+        <div class="party-name">Desarrollos Maipu S.A.</div>
+        <div class="party-info">
+          CUIT: 30-71234567-9<br>
+          Av. Santa Fe 2345, Piso 8<br>
+          Ciudad Autonoma de Buenos Aires
+        </div>
+      </div>
+      <div class="party">
+        <div class="sec-label">Comprador</div>
+        <div class="party-name">Valentina Roch</div>
+        <div class="party-info">
+          DNI: 35.456.789<br>
+          Av. Corrientes 1234, Depto 5B, C.A.B.A.<br>
+          Tel: 5491144001002 &middot; vroch@mail.com
+        </div>
+      </div>
+    </div>
+
+    <div class="object-grid">
+      <div class="object-cell">
+        <div class="sec-label">Proyecto</div>
+        <div class="object-value">Edificio Maipu 1240</div>
+        <div class="object-sub">Maipu 1240, C.A.B.A.</div>
+        <div class="object-sub-light">Entrega estimada: Diciembre 2027</div>
+      </div>
+      <div class="object-cell">
+        <div class="sec-label">Unidad</div>
+        <div class="object-value">Unidad 1A &middot; Piso 1 &middot; 1 amb.</div>
+        <div class="object-sub">Superficie: 38 m&sup2;</div>
+      </div>
+    </div>
+
+    <div class="price-row">
+      <span class="price-label">Precio total de la unidad</span>
+      <span class="price-value">USD 68.000</span>
+    </div>
+
+  </div>
+
+  <!-- PLAN DE PAGOS -->
+  <div class="card">
+    <div class="plan-header">
+      <div class="sec-label">Plan de pagos</div>
+    </div>
+    <table class="plan-table">
+      <thead>
+        <tr>
+          <th>Concepto</th>
+          <th>Vencimiento</th>
+          <th class="right">Monto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Anticipo (se&ntilde;a imputada)</td>
+          <td>24/01/2026</td>
+          <td class="right mono">USD 5.000</td>
+        </tr>
+        <tr>
+          <td>Cuota 1</td>
+          <td>01/03/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 2</td>
+          <td>01/04/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 3</td>
+          <td>01/05/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 4</td>
+          <td>01/06/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 5</td>
+          <td>01/07/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 6</td>
+          <td>01/08/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 7</td>
+          <td>01/09/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Cuota 8</td>
+          <td>01/10/2026</td>
+          <td class="right mono">USD 5.250</td>
+        </tr>
+        <tr>
+          <td>Saldo contra entrega</td>
+          <td>01/12/2027</td>
+          <td class="right mono">USD 20.750</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="2">Total</td>
+          <td class="right mono">USD 68.000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CLAUSULAS -->
+  <div class="card">
+    <div class="clauses-header">
+      <div class="sec-label">Clausulas del contrato</div>
+    </div>
+    <div class="clauses-body">
+      <div class="clause">
+        <span class="clause-num">1</span>
+        El VENDEDOR se compromete a entregar la unidad descripta en las condiciones establecidas en la memoria descriptiva del proyecto, la cual el COMPRADOR declara conocer y aceptar. La <strong>fecha estimada de entrega</strong> es Diciembre de 2027, pudiendo extenderse hasta seis (6) meses por causas de fuerza mayor.
+      </div>
+      <div class="clause">
+        <span class="clause-num">2</span>
+        El precio pactado es en <strong>dolares estadounidenses (USD)</strong>. Los pagos podran realizarse en pesos argentinos al tipo de cambio MEP del dia de pago, salvo acuerdo expreso entre las partes.
+      </div>
+      <div class="clause">
+        <span class="clause-num">3</span>
+        La mora en el pago de cualquier cuota operara de pleno derecho, sin necesidad de interpelacion judicial o extrajudicial, devengando un interes punitorio del <strong>2% mensual</strong> sobre el monto adeudado.
+      </div>
+      <div class="clause">
+        <span class="clause-num">4</span>
+        El incumplimiento de <strong>tres (3) cuotas consecutivas</strong> facultara al VENDEDOR a resolver el presente contrato, reteniendo el 20% de los montos abonados en concepto de clausula penal, reintegrando el saldo restante dentro de los sesenta (60) dias.
+      </div>
+      <div class="clause">
+        <span class="clause-num">5</span>
+        El COMPRADOR no podra ceder, transferir ni gravar los derechos emergentes del presente boleto sin el consentimiento previo y por escrito del VENDEDOR.
+      </div>
+      <div class="clause">
+        <span class="clause-num">6</span>
+        Los gastos de escrituracion, incluyendo honorarios notariales, impuesto de sellos y tasas registrales, estaran a cargo del COMPRADOR. El VENDEDOR se compromete a otorgar la escritura traslativa de dominio dentro de los <strong>ciento ochenta (180) dias</strong> de finalizada la obra.
+      </div>
+      <div class="clause">
+        <span class="clause-num">7</span>
+        Para cualquier controversia derivada del presente contrato, las partes se someten a la jurisdiccion de los <strong>Tribunales Ordinarios en lo Civil y Comercial</strong> de la Ciudad Autonoma de Buenos Aires, renunciando a cualquier otro fuero o jurisdiccion.
+      </div>
+    </div>
+  </div>
+
+  <!-- FIRMAS -->
+  <div class="card">
+    <div class="sig-inner">
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-name">Valentina Roch</div>
+        <div class="sig-detail">DNI: 35.456.789 &mdash; Comprador</div>
+      </div>
+      <div class="sig-block">
+        <div class="sig-line"></div>
+        <div class="sig-name">Desarrollos Maipu S.A.</div>
+        <div class="sig-detail">CUIT: 30-71234567-9 &mdash; Vendedor</div>
+      </div>
+    </div>
+    <div class="sig-footer">
+      <p>Se firman dos (2) ejemplares de un mismo tenor y a un solo efecto, en la Ciudad Autonoma de Buenos Aires, a los 11 dias del mes de Marzo de 2026.</p>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    <p>Documento generado el 11/03/2026 por el sistema de gestion de Desarrollos Maipu S.A.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

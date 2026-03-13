@@ -118,7 +118,7 @@ export default function AlertsPanel({
   const unreadCount = alerts.filter((a) => !a.leida).length;
 
   const grouped = alerts.reduce<Record<Alert['severidad'], Alert[]>>(
-    (acc, a) => { acc[a.severidad].push(a); return acc; },
+    (acc, a) => { const sev = a.severidad in acc ? a.severidad : 'info'; acc[sev].push(a); return acc; },
     { critical: [], warning: [], info: [] },
   );
 
