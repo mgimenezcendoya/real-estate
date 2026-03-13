@@ -7,15 +7,15 @@ All API calls are authenticated with the platform-level KAPSO_API_KEY.
 Kapso forwards incoming webhooks in Meta format — so parse_webhook() reuses
 the existing MetaProvider parsing logic unchanged.
 
-Sending endpoint: POST https://api.kapso.ai/meta/whatsapp/messages/send-a-message
-Auth header: x-api-key: <KAPSO_API_KEY>
+Sending endpoint: POST https://api.kapso.ai/meta/whatsapp/v24.0/{phone_number_id}/messages
+Auth header: X-API-Key: <KAPSO_API_KEY>
 """
 
 import httpx
 from fastapi import Request
 from .base import IncomingMessage, TenantChannel
 
-KAPSO_API_BASE = "https://api.kapso.ai/meta/whatsapp"
+KAPSO_API_BASE = "https://api.kapso.ai/meta/whatsapp/v24.0"
 
 
 def _api_key() -> str:
@@ -27,6 +27,12 @@ class KapsoProvider:
     def __init__(self, channel: TenantChannel):
         self.channel = channel
 
+    def _send_url(self) -> str:
+        return f"{KAPSO_API_BASE}/{self.channel.phone_number_id}/messages"
+
+    def _headers(self) -> dict:
+        return {"X-API-Key": _api_key(), "Content-Type": "application/json"}
+
     async def parse_webhook(self, request: Request) -> list[IncomingMessage]:
         """Kapso forwards Meta-format payloads — reuse Meta parser."""
         from app.modules.whatsapp.providers.meta import parse_webhook as _parse
@@ -36,57 +42,45 @@ class KapsoProvider:
         return None  # Kapso handles Meta verification internally
 
     async def send_text(self, to: str, text: str) -> dict:
-        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         payload = {
-            "phoneNumberId": self.channel.phone_number_id,
+            "messaging_product": "whatsapp",
             "to": to,
             "type": "text",
             "text": {"body": text},
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{KAPSO_API_BASE}/messages/send-a-message",
-                json=payload,
-                headers=headers,
-            )
+            response = await client.post(self._send_url(), json=payload, headers=self._headers())
+            response.raise_for_status()
             return response.json()
 
     async def send_document(self, to: str, document_url: str, filename: str, caption: str | None = None) -> dict:
-        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         doc_payload: dict = {"link": document_url, "filename": filename}
         if caption:
             doc_payload["caption"] = caption
         payload = {
-            "phoneNumberId": self.channel.phone_number_id,
+            "messaging_product": "whatsapp",
             "to": to,
             "type": "document",
             "document": doc_payload,
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{KAPSO_API_BASE}/messages/send-a-message",
-                json=payload,
-                headers=headers,
-            )
+            response = await client.post(self._send_url(), json=payload, headers=self._headers())
+            response.raise_for_status()
             return response.json()
 
     async def send_image(self, to: str, image_url: str, caption: str | None = None) -> dict:
-        headers = {"X-API-Key": _api_key(), "Content-Type": "application/json"}
         img_payload: dict = {"link": image_url}
         if caption:
             img_payload["caption"] = caption
         payload = {
-            "phoneNumberId": self.channel.phone_number_id,
+            "messaging_product": "whatsapp",
             "to": to,
             "type": "image",
             "image": img_payload,
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{KAPSO_API_BASE}/messages/send-a-message",
-                json=payload,
-                headers=headers,
-            )
+            response = await client.post(self._send_url(), json=payload, headers=self._headers())
+            response.raise_for_status()
             return response.json()
 
     async def download_media(self, media_id: str | None = None, media_url: str | None = None) -> bytes:
