@@ -4,12 +4,52 @@ Handoff Manager: orchestrates the handoff flow between leads and sales team via 
 
 import asyncio
 import logging
+from datetime import datetime
 
 from app.database import get_pool
 # from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message  # TODO: re-enable per-tenant
 from app.modules.whatsapp.sender import send_text_message
 
 logger = logging.getLogger(__name__)
+
+
+async def _send_hitl_notification(org_id: str, lead_name: str, lead_id: str) -> None:
+    """Send WhatsApp template to advisor when HITL is activated."""
+    try:
+        from zoneinfo import ZoneInfo
+        pool = await get_pool()
+        channel_row = await pool.fetchrow(
+            "SELECT * FROM tenant_channels WHERE organization_id = $1 AND activo = true LIMIT 1",
+            org_id,
+        )
+        if not channel_row or not channel_row.get("notify_phone"):
+            return
+
+        notify_phone = channel_row["notify_phone"]
+        ba_time = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M")
+
+        provider = channel_row["provider"]
+        if provider == "kapso":
+            from app.modules.whatsapp.providers.base import TenantChannel
+            from app.modules.whatsapp.providers.kapso import KapsoProvider
+            tc = TenantChannel(
+                id=str(channel_row["id"]),
+                organization_id=str(channel_row["organization_id"]),
+                provider="kapso",
+                phone_number=channel_row["phone_number"],
+                phone_number_id=channel_row.get("phone_number_id"),
+            )
+            await KapsoProvider(tc).send_template(notify_phone, lead_name, lead_id, ba_time)
+        elif provider == "twilio":
+            from app.config import get_settings
+            from app.modules.whatsapp.providers.twilio import send_template
+            settings = get_settings()
+            account_sid = channel_row.get("account_sid") or settings.twilio_account_sid
+            auth_token = channel_row.get("auth_token") or settings.twilio_auth_token
+            from_number = channel_row["phone_number"]
+            await send_template(notify_phone, account_sid, auth_token, from_number, lead_name, lead_id, ba_time)
+    except Exception as exc:
+        logger.error("_send_hitl_notification failed: %s", exc)
 
 
 async def check_active_handoff(phone: str, project_id: str) -> dict | None:
@@ -142,10 +182,11 @@ async def initiate_handoff(
         "SELECT organization_id FROM projects WHERE id = $1", project_id
     )
     if project_org:
+        org_id = str(project_org["organization_id"])
         from app.core.sse import connection_manager
         asyncio.create_task(
             connection_manager.broadcast(
-                str(project_org["organization_id"]),
+                org_id,
                 "handoff_update",
                 {
                     "lead_id": lead_id,
@@ -157,6 +198,9 @@ async def initiate_handoff(
                 },
             )
         )
+        # Send WhatsApp notification to advisor if configured
+        lead_name_str = (lead["name"] or lead["phone"]) if lead else "Lead"
+        asyncio.create_task(_send_hitl_notification(org_id, lead_name_str, lead_id))
 
     return dict(handoff)
 

@@ -38,6 +38,7 @@ class TenantChannelUpdate(BaseModel):
     verify_token: Optional[str] = None
     waba_id: Optional[str] = None
     activo: Optional[bool] = None
+    notify_phone: Optional[str] = None
 
 
 class KapsoSetupLinkRequest(BaseModel):

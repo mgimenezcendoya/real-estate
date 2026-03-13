@@ -113,6 +113,33 @@ async def send_image(to: str, image_url: str, caption: str | None = None) -> dic
         return response.json()
 
 
+async def send_template(
+    to: str,
+    account_sid: str,
+    auth_token: str,
+    from_number: str,
+    lead_name: str,
+    lead_id: str,
+    time_str: str,
+) -> dict:
+    """Send the hitl_notification Content template via Twilio Content API."""
+    import json as _json
+    CONTENT_SID = "HX0f9192b5114e3d85b56673531b9dc6cb"
+    url = f"{TWILIO_API_BASE}/Accounts/{account_sid}/Messages.json"
+    # Ensure from_number is E.164-like (add + if needed)
+    from_fmt = from_number if from_number.startswith("+") else f"+{from_number}"
+    to_fmt = to if to.startswith("+") else f"+{to}"
+    payload = {
+        "From": f"whatsapp:{from_fmt}",
+        "To": f"whatsapp:{to_fmt}",
+        "ContentSid": CONTENT_SID,
+        "ContentVariables": _json.dumps({"1": lead_name, "2": lead_id, "3": time_str}),
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, data=payload, auth=(account_sid, auth_token))
+        return response.json()
+
+
 async def download_media(media_id: str | None = None, media_url: str | None = None) -> bytes:
     """Download media from Twilio. Media URLs return a 307 redirect to the actual file."""
     settings = get_settings()

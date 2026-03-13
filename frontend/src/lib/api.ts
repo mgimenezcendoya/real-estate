@@ -1128,6 +1128,7 @@ export interface KapsoChannel {
   phone_number: string;
   phone_number_id: string;
   display_name: string | null;
+  notify_phone: string | null;
   activo: boolean;
   created_at: string;
 }
@@ -1157,5 +1158,12 @@ export async function connectKapsoChannel(params: {
   await fetcher('/admin/kapso/connect', {
     method: 'POST',
     body: JSON.stringify(params),
+  });
+}
+
+export async function patchTenantChannel(channelId: string, data: { notify_phone?: string | null }): Promise<KapsoChannel> {
+  return fetcher(`/admin/tenant-channels/${channelId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 }

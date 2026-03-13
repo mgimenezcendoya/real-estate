@@ -83,6 +83,32 @@ class KapsoProvider:
             response.raise_for_status()
             return response.json()
 
+    async def send_template(self, to: str, lead_name: str, lead_id: str, time_str: str) -> dict:
+        """Send the hitl_notification template to the advisor."""
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "template",
+            "template": {
+                "name": "hitl_notification",
+                "language": {"code": "es_AR"},
+                "components": [
+                    {
+                        "type": "body",
+                        "parameters": [
+                            {"type": "text", "text": lead_name},
+                            {"type": "text", "text": lead_id},
+                            {"type": "text", "text": time_str},
+                        ],
+                    }
+                ],
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self._send_url(), json=payload, headers=self._headers())
+            response.raise_for_status()
+            return response.json()
+
     async def download_media(self, media_id: str | None = None, media_url: str | None = None) -> bytes:
         """Kapso forwards Meta-format media — same as MetaProvider but using platform key."""
         headers = {"X-API-Key": _api_key()}
