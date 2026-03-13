@@ -75,6 +75,10 @@ export default function ReservasPage() {
   const [creatingPortalFor, setCreatingPortalFor] = useState<string | null>(null);
   const [portalCredentials, setPortalCredentials] = useState<PortalCredentials | null>(null);
   const [copied, setCopied] = useState(false);
+  // Email prompt (when reservation has no buyer_email)
+  const [emailPrompt, setEmailPrompt] = useState<{ reservation: Reservation } | null>(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -109,20 +113,46 @@ export default function ReservasPage() {
     }
   };
 
-  const handleCreatePortalAccess = async (reservation: Reservation) => {
+  const doCreatePortalAccess = async (reservation: Reservation) => {
     setCreatingPortalFor(reservation.id);
     try {
       const result = await api.createPortalAccess(reservation.id);
       setPortalCredentials(result);
-      if (result.already_existed) {
-        toast.success('Acceso regenerado exitosamente');
-      } else {
-        toast.success('Acceso creado exitosamente');
-      }
+      toast.success(result.already_existed ? 'Acceso regenerado exitosamente' : 'Acceso creado exitosamente');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al crear el acceso');
     } finally {
       setCreatingPortalFor(null);
+    }
+  };
+
+  const handleCreatePortalAccess = (reservation: Reservation) => {
+    if (!reservation.buyer_email) {
+      setEmailInput('');
+      setEmailPrompt({ reservation });
+    } else {
+      doCreatePortalAccess(reservation);
+    }
+  };
+
+  const handleEmailPromptSubmit = async () => {
+    if (!emailPrompt) return;
+    const email = emailInput.trim();
+    if (!email) return;
+    setSavingEmail(true);
+    try {
+      await api.updateBuyerEmail(emailPrompt.reservation.id, email);
+      // Update local state so the row reflects the new email
+      setReservations((prev) =>
+        prev.map((r) => r.id === emailPrompt.reservation.id ? { ...r, buyer_email: email } : r)
+      );
+      const updatedReservation = { ...emailPrompt.reservation, buyer_email: email };
+      setEmailPrompt(null);
+      await doCreatePortalAccess(updatedReservation);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar el email');
+    } finally {
+      setSavingEmail(false);
     }
   };
 
@@ -315,6 +345,50 @@ export default function ReservasPage() {
             >
               {patching && <Loader2 size={14} className="animate-spin" />}
               {pendingAction?.action === 'converted' ? 'Confirmar venta' : 'Cancelar reserva'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Prompt Dialog */}
+      <Dialog
+        open={!!emailPrompt}
+        onOpenChange={(v) => { if (!v) setEmailPrompt(null); }}
+      >
+        <DialogContent className="sm:max-w-[400px] bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <KeyRound size={16} className="text-indigo-600" />
+              Email del comprador
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 -mt-1">
+            Esta reserva no tiene email registrado. Ingresalo para crear el acceso al portal.
+          </p>
+          <input
+            type="email"
+            autoFocus
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleEmailPromptSubmit(); }}
+            placeholder="comprador@email.com"
+            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-500"
+            disabled={savingEmail}
+          />
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setEmailPrompt(null)}
+              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleEmailPromptSubmit}
+              disabled={savingEmail || !emailInput.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50"
+            >
+              {savingEmail && <Loader2 size={14} className="animate-spin" />}
+              Guardar y crear acceso
             </button>
           </DialogFooter>
         </DialogContent>

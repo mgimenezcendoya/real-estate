@@ -1078,6 +1078,11 @@ export const api = {
     fetcher<{ ok: boolean }>('/admin/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
 
   // --- Portal access ---
+  updateBuyerEmail: (reservationId: string, email: string) =>
+    fetcher<{ ok: boolean }>(
+      `/admin/reservations/${reservationId}/buyer-email`,
+      { method: 'PATCH', body: JSON.stringify({ buyer_email: email }) }
+    ),
   createPortalAccess: (reservationId: string) =>
     fetcher<{ email: string; temp_password: string; user_id: string; already_existed: boolean }>(
       `/admin/reservations/${reservationId}/portal-access`,

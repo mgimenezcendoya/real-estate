@@ -33,6 +33,10 @@ class ReservationPatchBody(BaseModel):
     status: str   # cancelled | converted
 
 
+class BuyerEmailBody(BaseModel):
+    buyer_email: str
+
+
 class InstallmentBody(BaseModel):
     numero_cuota: int
     concepto: str = "cuota"
@@ -666,6 +670,29 @@ async def delete_payment_record(
     await pool.execute(
         "UPDATE payment_installments SET estado = $1 WHERE id = $2",
         new_estado, installment_id,
+    )
+    return {"ok": True}
+
+
+@router.patch("/reservations/{reservation_id}/buyer-email")
+async def patch_buyer_email(
+    reservation_id: str,
+    body: BuyerEmailBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Update buyer_email on a reservation."""
+    _require_admin(credentials)
+    email = body.buyer_email.strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido")
+    pool = await get_pool()
+    reservation = await pool.fetchrow(
+        "SELECT id FROM reservations WHERE id = $1", reservation_id
+    )
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    await pool.execute(
+        "UPDATE reservations SET buyer_email = $1 WHERE id = $2", email, reservation_id
     )
     return {"ok": True}
 
