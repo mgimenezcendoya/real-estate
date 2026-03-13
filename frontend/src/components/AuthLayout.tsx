@@ -12,6 +12,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const { isAuthenticated, loading, mustChangePassword, setMustChangePassword, logout } = useAuth();
 
+  if (pathname.startsWith('/portal')) {
+    return <>{children}</>;
+  }
+
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) {

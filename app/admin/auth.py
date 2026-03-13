@@ -104,7 +104,8 @@ async def authenticate_user_db(pool, email: str, password: str) -> Optional[dict
             row = await conn.fetchrow(
                 """
                 SELECT u.id, u.email, u.password_hash, u.nombre, u.apellido,
-                       u.role, u.activo, u.debe_cambiar_password, u.organization_id
+                       u.role, u.activo, u.debe_cambiar_password, u.organization_id,
+                       u.reservation_id
                 FROM users u
                 WHERE u.email = $1
                 """,

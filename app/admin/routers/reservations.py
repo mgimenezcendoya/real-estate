@@ -1,5 +1,7 @@
 # app/admin/routers/reservations.py
 import logging
+import secrets
+import string
 from datetime import datetime
 from typing import Optional
 
@@ -7,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
-from app.admin.auth import verify_token
+from app.admin.auth import hash_password, verify_token
 from app.admin.deps import _audit, _get_actor, _require_admin, security
 from app.database import get_pool
 
@@ -29,6 +31,10 @@ class ReservationBody(BaseModel):
 
 class ReservationPatchBody(BaseModel):
     status: str   # cancelled | converted
+
+
+class BuyerEmailBody(BaseModel):
+    buyer_email: str
 
 
 class InstallmentBody(BaseModel):
@@ -666,3 +672,109 @@ async def delete_payment_record(
         new_estado, installment_id,
     )
     return {"ok": True}
+
+
+@router.patch("/reservations/{reservation_id}/buyer-email")
+async def patch_buyer_email(
+    reservation_id: str,
+    body: BuyerEmailBody,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Update buyer_email on a reservation."""
+    _require_admin(credentials)
+    email = body.buyer_email.strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido")
+    pool = await get_pool()
+    reservation = await pool.fetchrow(
+        "SELECT id FROM reservations WHERE id = $1", reservation_id
+    )
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    await pool.execute(
+        "UPDATE reservations SET buyer_email = $1 WHERE id = $2", email, reservation_id
+    )
+    return {"ok": True}
+
+
+@router.post("/reservations/{reservation_id}/portal-access")
+async def create_portal_access(
+    reservation_id: str,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+):
+    """Create or reset portal access for a buyer (comprador role).
+
+    Only for reservations with status='converted' and a buyer_email.
+    Idempotent: if a comprador user already exists for this reservation, resets password.
+    Returns: { email, temp_password, user_id, already_existed }
+    """
+    payload = _require_admin(credentials)
+    allowed_roles = {"superadmin", "admin", "gerente"}
+    if payload.get("role") not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Acceso restringido")
+
+    pool = await get_pool()
+
+    reservation = await pool.fetchrow(
+        """SELECT r.id, r.status, r.buyer_email, r.buyer_name, r.project_id,
+                  o.id AS organization_id
+           FROM reservations r
+           JOIN projects p ON p.id = r.project_id
+           JOIN organizations o ON o.id = p.organization_id
+           WHERE r.id = $1""",
+        reservation_id,
+    )
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reserva no encontrada")
+    if reservation["status"] != "converted":
+        raise HTTPException(status_code=400, detail="Solo se puede crear acceso para reservas convertidas")
+    if not reservation["buyer_email"]:
+        raise HTTPException(status_code=400, detail="La reserva no tiene email de comprador")
+
+    email = reservation["buyer_email"]
+    alphabet = string.ascii_letters + string.digits
+    temp_password = "".join(secrets.choice(alphabet) for _ in range(10))
+    hashed = hash_password(temp_password)
+
+    # Check if user already exists for this reservation
+    existing = await pool.fetchrow(
+        "SELECT id, email FROM users WHERE reservation_id = $1",
+        reservation_id,
+    )
+
+    if existing:
+        # Reset password and re-enable
+        await pool.execute(
+            "UPDATE users SET password_hash = $1, debe_cambiar_password = true, activo = true WHERE id = $2",
+            hashed, str(existing["id"]),
+        )
+        return {
+            "email": existing["email"],
+            "temp_password": temp_password,
+            "user_id": str(existing["id"]),
+            "already_existed": True,
+        }
+
+    # Create new comprador user
+    buyer_name = reservation["buyer_name"] or ""
+    parts = buyer_name.strip().split(" ", 1)
+    nombre = parts[0] if parts else buyer_name
+    apellido = parts[1] if len(parts) > 1 else ""
+
+    row = await pool.fetchrow(
+        """INSERT INTO users
+           (organization_id, email, password_hash, nombre, apellido, role,
+            debe_cambiar_password, reservation_id)
+           VALUES ($1, $2, $3, $4, $5, 'comprador', true, $6)
+           RETURNING id, email""",
+        str(reservation["organization_id"]),
+        email, hashed, nombre, apellido,
+        reservation_id,
+    )
+
+    return {
+        "email": row["email"],
+        "temp_password": temp_password,
+        "user_id": str(row["id"]),
+        "already_existed": False,
+    }

@@ -1,20 +1,45 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const AUTH_TOKEN_KEY = 'realia_token';
+const PORTAL_TOKEN_KEY = 'portal_token';
 
 function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  // NOTE: sessionStorage clears on tab close. For httpOnly cookie auth (stronger
-  // XSS protection), a backend session endpoint would be needed — tracked as future work.
   return sessionStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function setAuthToken(token: string | null): void {
   if (typeof window === 'undefined') return;
-  // NOTE: sessionStorage clears on tab close. For httpOnly cookie auth (stronger
-  // XSS protection), a backend session endpoint would be needed — tracked as future work.
   if (token) sessionStorage.setItem(AUTH_TOKEN_KEY, token);
   else sessionStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+export function getPortalToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(PORTAL_TOKEN_KEY);
+}
+
+export function setPortalToken(token: string | null): void {
+  if (typeof window === 'undefined') return;
+  if (token) sessionStorage.setItem(PORTAL_TOKEN_KEY, token);
+  else sessionStorage.removeItem(PORTAL_TOKEN_KEY);
+}
+
+async function portalFetcher<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getPortalToken();
+  const headers: Record<string, string> = {
+    ...(!(options?.body instanceof FormData) && { 'Content-Type': 'application/json' }),
+    ...(options?.headers as Record<string, string>),
+  };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const msg = body.detail || body.error || body.message || `Error ${res.status}`;
+    throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
 }
 
 async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
@@ -611,6 +636,71 @@ export interface SubscriptionCreate {
   status?: 'trial' | 'active' | 'past_due' | 'suspended' | 'cancelled';
 }
 
+// --- Portal types ---
+export interface PortalMe {
+  user_id: string;
+  email: string;
+  nombre: string;
+  apellido: string;
+  debe_cambiar_password: boolean;
+  reservation_id: string | null;
+  res_id: string | null;
+  buyer_name: string | null;
+  buyer_phone: string | null;
+  buyer_email: string | null;
+  amount_usd: number | null;
+  signed_at: string | null;
+  res_status: string | null;
+  project_id: string | null;
+  unit_id: string | null;
+  unit_identifier: string | null;
+  unit_floor: number | null;
+  bedrooms: number | null;
+  area_m2: number | null;
+  price_usd: number | null;
+  project_name: string | null;
+  project_address: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  estimated_delivery: string | null;
+}
+
+export interface PortalObraUpdate {
+  id: string;
+  etapa_id: string | null;
+  fecha: string;
+  nota_publica: string | null;
+  scope: string;
+  unit_identifier: string | null;
+  floor: number | null;
+  fotos: Array<{
+    id: string;
+    update_id: string;
+    file_url: string;
+    filename: string;
+    scope: string;
+    unit_identifier: string | null;
+    floor: number | null;
+    caption: string | null;
+  }>;
+}
+
+export interface PortalObraEtapa {
+  id: string;
+  nombre: string;
+  orden: number;
+  peso_pct: number;
+  activa: boolean;
+  porcentaje_completado: number;
+  updates: PortalObraUpdate[];
+}
+
+export interface PortalObraData {
+  etapas: PortalObraEtapa[];
+  progress: number;
+  project_id: string;
+}
+
 // --- API calls ---
 export const api = {
   getProjects: (includeDeleted = false) =>
@@ -986,6 +1076,47 @@ export const api = {
   authMe: () => fetcher<{ user: string | null; role?: string; nombre?: string; user_id?: string; organization_id?: string; organization_name?: string; debe_cambiar_password?: boolean }>('/admin/auth/me'),
   changePassword: (current_password: string, new_password: string) =>
     fetcher<{ ok: boolean }>('/admin/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
+
+  // --- Portal access ---
+  updateBuyerEmail: (reservationId: string, email: string) =>
+    fetcher<{ ok: boolean }>(
+      `/admin/reservations/${reservationId}/buyer-email`,
+      { method: 'PATCH', body: JSON.stringify({ buyer_email: email }) }
+    ),
+  createPortalAccess: (reservationId: string) =>
+    fetcher<{ email: string; temp_password: string; user_id: string; already_existed: boolean }>(
+      `/admin/reservations/${reservationId}/portal-access`,
+      { method: 'POST' }
+    ),
+};
+
+// --- Portal API ---
+export const portalApi = {
+  login: (email: string, password: string) =>
+    fetch(`${BASE_URL}/portal/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.detail || data.error || 'Credenciales inválidas';
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
+      return data as { token: string; user_id: string; email: string; nombre: string; reservation_id: string | null; debe_cambiar_password: boolean };
+    }),
+
+  me: () => portalFetcher<PortalMe>('/portal/me'),
+
+  getObra: () => portalFetcher<PortalObraData>('/portal/obra'),
+
+  getPaymentPlan: () => portalFetcher<PaymentPlan | null>('/portal/payment-plan'),
+
+  changePassword: (current_password: string, new_password: string) =>
+    portalFetcher<{ ok: boolean }>('/admin/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
+    }),
 };
 
 // --- Kapso ---

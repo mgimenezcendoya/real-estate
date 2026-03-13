@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { api, Reservation } from '@/lib/api';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Printer, CheckCircle, XCircle, Loader2, ClipboardList, ExternalLink } from 'lucide-react';
+import { Printer, CheckCircle, XCircle, Loader2, ClipboardList, ExternalLink, KeyRound, Copy, Check } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,6 +49,13 @@ const FILTERS = [
   { key: 'converted', label: 'Convertidas' },
 ] as const;
 
+interface PortalCredentials {
+  email: string;
+  temp_password: string;
+  user_id: string;
+  already_existed: boolean;
+}
+
 export default function ReservasPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -63,6 +70,15 @@ export default function ReservasPage() {
     action: 'cancelled' | 'converted';
   } | null>(null);
   const [patching, setPatching] = useState(false);
+
+  // Portal access
+  const [creatingPortalFor, setCreatingPortalFor] = useState<string | null>(null);
+  const [portalCredentials, setPortalCredentials] = useState<PortalCredentials | null>(null);
+  const [copied, setCopied] = useState(false);
+  // Email prompt (when reservation has no buyer_email)
+  const [emailPrompt, setEmailPrompt] = useState<{ reservation: Reservation } | null>(null);
+  const [emailInput, setEmailInput] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -82,7 +98,6 @@ export default function ReservasPage() {
       toast.success(
         pendingAction.action === 'converted' ? 'Convertida en venta' : 'Reserva cancelada'
       );
-      // Optimistic update
       setReservations((prev) =>
         prev.map((r) =>
           r.id === pendingAction.reservation.id
@@ -96,6 +111,59 @@ export default function ReservasPage() {
     } finally {
       setPatching(false);
     }
+  };
+
+  const doCreatePortalAccess = async (reservation: Reservation) => {
+    setCreatingPortalFor(reservation.id);
+    try {
+      const result = await api.createPortalAccess(reservation.id);
+      setPortalCredentials(result);
+      toast.success(result.already_existed ? 'Acceso regenerado exitosamente' : 'Acceso creado exitosamente');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al crear el acceso');
+    } finally {
+      setCreatingPortalFor(null);
+    }
+  };
+
+  const handleCreatePortalAccess = (reservation: Reservation) => {
+    if (!reservation.buyer_email) {
+      setEmailInput('');
+      setEmailPrompt({ reservation });
+    } else {
+      doCreatePortalAccess(reservation);
+    }
+  };
+
+  const handleEmailPromptSubmit = async () => {
+    if (!emailPrompt) return;
+    const email = emailInput.trim();
+    if (!email) return;
+    setSavingEmail(true);
+    try {
+      await api.updateBuyerEmail(emailPrompt.reservation.id, email);
+      // Update local state so the row reflects the new email
+      setReservations((prev) =>
+        prev.map((r) => r.id === emailPrompt.reservation.id ? { ...r, buyer_email: email } : r)
+      );
+      const updatedReservation = { ...emailPrompt.reservation, buyer_email: email };
+      setEmailPrompt(null);
+      await doCreatePortalAccess(updatedReservation);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar el email');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!portalCredentials) return;
+    const portalUrl = `${window.location.origin}/portal/login`;
+    const text = `Portal REALIA\nURL: ${portalUrl}\nEmail: ${portalCredentials.email}\nContraseña temporal: ${portalCredentials.temp_password}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const visibleReservations = reservations;
@@ -191,6 +259,20 @@ export default function ReservasPage() {
                   >
                     <Printer size={15} />
                   </button>
+                  {r.status === 'converted' && !isReader && (
+                    <button
+                      title="Crear / regenerar acceso al portal del comprador"
+                      onClick={() => handleCreatePortalAccess(r)}
+                      disabled={creatingPortalFor === r.id}
+                      className="p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                    >
+                      {creatingPortalFor === r.id ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <KeyRound size={15} />
+                      )}
+                    </button>
+                  )}
                   {r.status === 'active' && !isReader && (
                     <>
                       <button
@@ -263,6 +345,108 @@ export default function ReservasPage() {
             >
               {patching && <Loader2 size={14} className="animate-spin" />}
               {pendingAction?.action === 'converted' ? 'Confirmar venta' : 'Cancelar reserva'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Prompt Dialog */}
+      <Dialog
+        open={!!emailPrompt}
+        onOpenChange={(v) => { if (!v) setEmailPrompt(null); }}
+      >
+        <DialogContent className="sm:max-w-[400px] bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <KeyRound size={16} className="text-indigo-600" />
+              Email del comprador
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 -mt-1">
+            Esta reserva no tiene email registrado. Ingresalo para crear el acceso al portal.
+          </p>
+          <input
+            type="email"
+            autoFocus
+            value={emailInput}
+            onChange={(e) => setEmailInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleEmailPromptSubmit(); }}
+            placeholder="comprador@email.com"
+            className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-500"
+            disabled={savingEmail}
+          />
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => setEmailPrompt(null)}
+              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleEmailPromptSubmit}
+              disabled={savingEmail || !emailInput.trim()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50"
+            >
+              {savingEmail && <Loader2 size={14} className="animate-spin" />}
+              Guardar y crear acceso
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Portal Credentials Dialog */}
+      <Dialog
+        open={!!portalCredentials}
+        onOpenChange={(v) => { if (!v) { setPortalCredentials(null); setCopied(false); } }}
+      >
+        <DialogContent className="sm:max-w-[420px] bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <KeyRound size={16} className="text-indigo-600" />
+              {portalCredentials?.already_existed ? 'Acceso regenerado' : 'Acceso creado'}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-500 -mt-1">
+            {portalCredentials?.already_existed
+              ? 'Se generó una nueva contraseña temporal para este comprador.'
+              : 'El comprador puede ingresar al portal con estas credenciales.'}
+          </p>
+          {portalCredentials && (
+            <div className="space-y-3 mt-1">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2.5 text-sm">
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wider block mb-0.5">URL del portal</span>
+                  <span className="font-mono text-gray-700 text-xs break-all">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/portal/login` : '/portal/login'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wider block mb-0.5">Email</span>
+                  <span className="font-mono text-gray-900">{portalCredentials.email}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-gray-400 uppercase tracking-wider block mb-0.5">Contraseña temporal</span>
+                  <span className="font-mono text-gray-900 font-semibold">{portalCredentials.temp_password}</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                El comprador deberá cambiar esta contraseña en su primer ingreso.
+              </p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <button
+              onClick={() => { setPortalCredentials(null); setCopied(false); }}
+              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              Cerrar
+            </button>
+            <button
+              onClick={handleCopyCredentials}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'Copiado' : 'Copiar'}
             </button>
           </DialogFooter>
         </DialogContent>

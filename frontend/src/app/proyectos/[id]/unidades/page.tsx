@@ -6,7 +6,7 @@ import { api, Unit, UnitFieldHistory } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  CheckCircle2, Clock, XCircle, Loader2, UserPlus,
+  CheckCircle2, Clock, Loader2, UserPlus,
   Pencil, Check, X, ArrowLeft, Building2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -37,12 +37,12 @@ const STATUS_CONFIG = {
   },
   sold: {
     label: 'Vendida',
-    bg: 'bg-red-50 border-red-200 hover:bg-red-100',
-    text: 'text-red-700',
-    dot: 'bg-red-500',
-    badgeClass: 'bg-red-50 text-red-700 border-red-200',
-    bar: 'bg-red-400',
-    icon: XCircle,
+    bg: 'bg-blue-50 border-blue-200 hover:bg-blue-100',
+    text: 'text-blue-700',
+    dot: 'bg-blue-600',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+    bar: 'bg-blue-500',
+    icon: CheckCircle2,
   },
 } as const;
 
