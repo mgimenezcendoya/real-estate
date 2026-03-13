@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Settings, Wifi, WifiOff, ExternalLink, Loader2, Building2, Phone } from 'lucide-react';
+import { Settings, Wifi, WifiOff, ExternalLink, Loader2, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { createKapsoSetupLink, getKapsoChannel, disconnectKapsoChannel, connectKapsoChannel, patchTenantChannel, type KapsoChannel } from '@/lib/api';
+import { createKapsoSetupLink, getKapsoChannel, disconnectKapsoChannel, connectKapsoChannel, type KapsoChannel } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 type Tab = 'general' | 'canales';
@@ -18,14 +18,10 @@ export default function ConfiguracionPage() {
   const [loadingChannel, setLoadingChannel] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [polling, setPolling] = useState(false);
-  const [notifyPhone, setNotifyPhone] = useState('');
-  const [savingNotifyPhone, setSavingNotifyPhone] = useState(false);
-
   const fetchChannel = useCallback(async () => {
     try {
       const ch = await getKapsoChannel();
       setChannel(ch);
-      if (ch?.notify_phone) setNotifyPhone(ch.notify_phone);
       return ch;
     } catch {
       return null;
@@ -110,20 +106,6 @@ export default function ConfiguracionPage() {
     }
   };
 
-  const handleSaveNotifyPhone = async () => {
-    if (!channel) return;
-    setSavingNotifyPhone(true);
-    try {
-      const updated = await patchTenantChannel(channel.id, { notify_phone: notifyPhone.trim() || null });
-      setChannel(updated as unknown as KapsoChannel);
-      toast.success('Número de notificación guardado');
-    } catch {
-      toast.error('Error al guardar el número');
-    } finally {
-      setSavingNotifyPhone(false);
-    }
-  };
-
   const orgDisplayName = organizationName ?? 'Tu organización';
 
   return (
@@ -201,54 +183,23 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
               ) : channel ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
-                        <Wifi size={16} className="text-green-600" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-green-900">{channel.phone_number}</p>
-                        <p className="text-xs text-green-700 mt-0.5">{channel.display_name ?? 'Conectado'} · Kapso</p>
-                      </div>
+                <div className="flex items-center justify-between p-4 bg-green-50 rounded-xl border border-green-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                      <Wifi size={16} className="text-green-600" />
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleDisconnect}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
-                    >
-                      Desconectar
-                    </button>
-                  </div>
-
-                  {/* Notify phone */}
-                  <div className="border-t border-gray-100 pt-4">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Phone size={14} className="text-gray-500" />
-                      <p className="text-sm font-medium text-gray-800">Número del asesor responsable</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Cuando un lead solicite hablar con una persona, se enviará un mensaje a este número de WhatsApp.
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="tel"
-                        value={notifyPhone}
-                        onChange={(e) => setNotifyPhone(e.target.value)}
-                        placeholder="Ej: 5491123456789"
-                        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--ring)] bg-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveNotifyPhone}
-                        disabled={savingNotifyPhone}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-[var(--primary)] text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
-                      >
-                        {savingNotifyPhone ? <Loader2 size={14} className="animate-spin" /> : null}
-                        Guardar
-                      </button>
+                    <div>
+                      <p className="text-sm font-semibold text-green-900">{channel.phone_number}</p>
+                      <p className="text-xs text-green-700 mt-0.5">{channel.display_name ?? 'Conectado'} · Kapso</p>
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleDisconnect}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium transition-colors px-3 py-1.5 rounded-lg hover:bg-red-50"
+                  >
+                    Desconectar
+                  </button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4 py-6 text-center">

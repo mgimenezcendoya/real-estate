@@ -571,7 +571,7 @@ export interface TenantChannel {
   id: string;
   organization_id: string;
   org_name?: string;
-  provider: 'twilio' | 'meta' | 'ycloud';
+  provider: 'twilio' | 'meta' | 'ycloud' | 'kapso';
   phone_number: string;
   display_name?: string;
   account_sid?: string;
@@ -580,6 +580,7 @@ export interface TenantChannel {
   phone_number_id?: string;
   verify_token?: string;
   waba_id?: string;
+  notify_phone?: string | null;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -587,7 +588,7 @@ export interface TenantChannel {
 
 export interface TenantChannelCreate {
   organization_id?: string;
-  provider: 'twilio' | 'meta' | 'ycloud';
+  provider: 'twilio' | 'meta' | 'ycloud' | 'kapso';
   phone_number: string;
   display_name?: string;
   account_sid?: string;
@@ -596,6 +597,7 @@ export interface TenantChannelCreate {
   phone_number_id?: string;
   verify_token?: string;
   waba_id?: string;
+  notify_phone?: string;
 }
 
 export interface AgentConfig {

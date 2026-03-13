@@ -82,6 +82,7 @@ export default function UsuariosPage() {
     phone_number_id: '',
     verify_token: '',
     waba_id: '',
+    notify_phone: '',
   });
 
   const loadChannels = useCallback(async () => {
@@ -695,6 +696,7 @@ export default function UsuariosPage() {
                           phone_number_id: ch.phone_number_id || '',
                           verify_token: ch.verify_token || '',
                           waba_id: ch.waba_id || '',
+                          notify_phone: ch.notify_phone || '',
                         });
                         setChannelModal('edit');
                       }}
@@ -1218,6 +1220,17 @@ export default function UsuariosPage() {
                 />
               </div>
             </>)}
+
+            {/* Notify phone — common to all providers */}
+            <div>
+              <Label>Número del asesor (notificación HITL)</Label>
+              <Input
+                placeholder="5491123456789"
+                value={channelForm.notify_phone || ''}
+                onChange={e => setChannelForm(f => ({ ...f, notify_phone: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Se notifica por WhatsApp cuando un lead solicita atención humana.</p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setChannelModal(null)}>Cancelar</Button>
