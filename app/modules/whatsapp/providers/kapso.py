@@ -90,7 +90,7 @@ class KapsoProvider:
             "to": to,
             "type": "template",
             "template": {
-                "name": "hitl_notification",
+                "name": "hitl",
                 "language": {"code": "es_AR"},
                 "components": [
                     {
