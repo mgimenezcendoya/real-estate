@@ -6,6 +6,7 @@ import { HardHat, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 const LOGIN_BG =
   'https://drdrdbvsxodeihzhmyak.supabase.co/storage/v1/object/public/real-state/assets/login-bg.png';
@@ -227,6 +228,15 @@ function FormCard({
           )}
         </Button>
       </form>
+
+        <div className="text-center mt-3">
+          <Link
+            href="/forgot-password"
+            className="text-xs text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
 
       <p className="mt-5 text-center text-[11px] text-gray-400">
         Acceso restringido al equipo autorizado.
