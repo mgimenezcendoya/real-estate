@@ -119,6 +119,8 @@ export interface Project {
   status: string;
   deleted_at: string | null;
   created_at: string;
+  lat: number | null;
+  lng: number | null;
 }
 
 export interface Unit {

@@ -18,6 +18,7 @@ UPDATABLE_PROJECT_FIELDS = {
     "name", "slug", "address", "neighborhood", "city", "description",
     "amenities", "total_floors", "total_units", "construction_start",
     "estimated_delivery", "delivery_status", "payment_info", "status",
+    "lat", "lng",
 }
 
 VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
@@ -91,7 +92,8 @@ async def get_project(project_id: str):
         """SELECT id, organization_id, name, slug, address, neighborhood, city,
                   description, amenities, total_floors, total_units,
                   construction_start, estimated_delivery, delivery_status,
-                  payment_info, whatsapp_number, status, created_at
+                  payment_info, whatsapp_number, status, created_at,
+                  lat, lng
            FROM projects WHERE id = $1""",
         project_id,
     )
@@ -163,7 +165,8 @@ async def list_projects(
     Pass include_deleted=true to include soft-deleted projects."""
     pool = await get_pool()
     columns = """id, organization_id, name, slug, address, neighborhood, city,
-                 total_floors, total_units, delivery_status, status, deleted_at, created_at"""
+                 total_floors, total_units, delivery_status, status, deleted_at, created_at,
+                 lat, lng"""
 
     effective_org_id = developer_id
     if not effective_org_id and credentials and credentials.scheme == "Bearer":
