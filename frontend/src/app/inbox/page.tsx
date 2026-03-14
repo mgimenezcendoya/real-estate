@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { api, Lead, Conversation } from '@/lib/api';
 import { useNotifications } from '@/contexts/NotificationsContext';
 import { toast } from 'sonner';
@@ -72,6 +73,8 @@ const chatBgStyle: React.CSSProperties = {
 export default function InboxPage() {
   const { markInboxAsRead } = useNotifications();
   const { isReader } = useAuth();
+  const searchParams = useSearchParams();
+  const targetLeadId = searchParams.get('lead');
 
   useEffect(() => {
     markInboxAsRead();
@@ -120,14 +123,20 @@ export default function InboxPage() {
         setLeads(data);
         if (data.length > 0) {
           const groups = groupLeadsByPhone(data);
-          const first = groups[0];
-          setSelectedLeadId(first.mainLead.id);
-          setSelectedLeadIdsForMerge(first.allLeadIds);
+          // Prefer URL ?lead= param, fallback to first
+          const targetGroup = targetLeadId
+            ? (groups.find((g) => g.allLeadIds.includes(targetLeadId)) ?? groups[0])
+            : groups[0];
+          if (targetLeadId && groups.find((g) => g.allLeadIds.includes(targetLeadId))) {
+            setMobileShowChat(true);
+          }
+          setSelectedLeadId(targetGroup.mainLead.id);
+          setSelectedLeadIdsForMerge(targetGroup.allLeadIds);
           setLoadingChat(true);
           try {
             const [merged, handoff] = await Promise.all([
-              loadMergedConversations(first.allLeadIds),
-              api.getLeadHandoff(first.mainLead.id),
+              loadMergedConversations(targetGroup.allLeadIds),
+              api.getLeadHandoff(targetGroup.mainLead.id),
             ]);
             setActiveConversation(merged);
             setHandoffActive(handoff.active);
@@ -137,6 +146,7 @@ export default function InboxPage() {
       })
       .catch(() => toast.error('No se pudieron cargar las conversaciones'))
       .finally(() => setLoadingLeads(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
