@@ -420,7 +420,7 @@ export default function GuiaPage() {
               category="Módulo principal"
               title="Proyectos"
               description="El punto de entrada de REALIA. Cada proyecto representa un desarrollo inmobiliario con sus unidades, leads, obra y finanzas."
-              sectionNumber={1}
+              sectionNumber={2}
             >
               <UseCaseList items={[
                 'Ver todos los proyectos activos de la organización',
@@ -457,7 +457,7 @@ export default function GuiaPage() {
               category="Analytics"
               title="Dashboard"
               description="Vista ejecutiva del proyecto con métricas de ventas, absorción y performance de leads en tiempo real."
-              sectionNumber={2}
+              sectionNumber={3}
             >
               <UseCaseList items={[
                 'Ver el estado de ventas consolidado (vendidas, reservadas, disponibles)',
@@ -486,7 +486,7 @@ export default function GuiaPage() {
               category="CRM"
               title="Leads"
               description="Kanban de prospectos organizado por temperatura de interés. Gestioná el pipeline de ventas desde el primer contacto hasta la reserva."
-              sectionNumber={3}
+              sectionNumber={4}
             >
               <UseCaseList items={[
                 'Registrar nuevos prospectos y su interés en unidades',
@@ -528,7 +528,7 @@ export default function GuiaPage() {
               category="Inventario"
               title="Unidades"
               description="Grilla visual de todas las unidades por piso. Estado en tiempo real: disponible, reservada o vendida."
-              sectionNumber={4}
+              sectionNumber={5}
             >
               <UseCaseList items={[
                 'Ver el plano de disponibilidad por piso',
@@ -566,7 +566,7 @@ export default function GuiaPage() {
               category="Operaciones"
               title="Reservas"
               description="Centro de operaciones comerciales. Gestioná reservas activas, planes de pago, cuotas y facturas vinculadas."
-              sectionNumber={5}
+              sectionNumber={6}
             >
               <UseCaseList items={[
                 'Ver todas las operaciones del proyecto (activas, convertidas, canceladas)',
@@ -693,7 +693,7 @@ export default function GuiaPage() {
               category="Construcción"
               title="Obra"
               description="Seguimiento del avance de construcción por etapas ponderadas y gestión de pagos a proveedores."
-              sectionNumber={6}
+              sectionNumber={9}
             >
               <UseCaseList items={[
                 'Registrar el progreso porcentual de cada etapa de obra',
@@ -725,7 +725,7 @@ export default function GuiaPage() {
               category="Finanzas"
               title="Financiero"
               description="Dashboard financiero integral: resumen de KPIs, gestión de facturas y flujo de caja proyectado vs real."
-              sectionNumber={7}
+              sectionNumber={10}
             >
               <UseCaseList items={[
                 'Ver el P&L del proyecto en tiempo real',
@@ -765,7 +765,7 @@ export default function GuiaPage() {
               category="Portal Inversores"
               title="Inversores"
               description="Portal de comunicación con inversores del proyecto. Generá reportes de estado y enviálos por WhatsApp con un clic."
-              sectionNumber={8}
+              sectionNumber={11}
             >
               <UseCaseList items={[
                 'Ver el listado de inversores del proyecto',
@@ -798,7 +798,7 @@ export default function GuiaPage() {
               category="Comunicaciones"
               title="Inbox"
               description="Centro de mensajes unificado. Conversaciones entrantes de WhatsApp y Telegram con respuesta asistida por IA."
-              sectionNumber={9}
+              sectionNumber={12}
             >
               <UseCaseList items={[
                 'Ver y responder mensajes de leads en tiempo real',
@@ -857,7 +857,7 @@ export default function GuiaPage() {
               category="Utilidades"
               title="Tools"
               description="Herramientas financieras para el mercado inmobiliario argentino: tipos de cambio ARS/USD y simulador de conversión."
-              sectionNumber={10}
+              sectionNumber={13}
             >
               <UseCaseList items={[
                 'Consultar la cotización del dólar oficial, MEP y blue',
@@ -887,7 +887,7 @@ export default function GuiaPage() {
                 category="Administración"
                 title="Usuarios"
                 description="Gestión de usuarios de la plataforma. Creá cuentas, asigná roles y controlá los permisos de acceso."
-                sectionNumber={11}
+                sectionNumber={14}
               >
                 <UseCaseList items={[
                   'Crear nuevos usuarios (vendedores, gerentes, lectores)',
@@ -1011,6 +1011,10 @@ export default function GuiaPage() {
                   { term: 'Etapa de obra',     def: 'Fase del proceso constructivo con un peso porcentual en el avance total.' },
                   { term: 'Reserva',           def: 'Operación comercial que bloquea una unidad para un comprador con un plan de pagos.' },
                   { term: 'Plan de pagos',     def: 'Conjunto de cuotas acordadas para completar el pago de una unidad reservada.' },
+                  { term: 'HITL',                def: 'Human In The Loop. Modo donde un asesor humano toma el control de la conversación de WhatsApp en lugar del agente de IA.' },
+                  { term: 'Handoff',             def: 'El traspaso de la conversación del agente de IA a un asesor humano para atención personalizada.' },
+                  { term: 'Portal del comprador', def: 'Acceso externo para compradores donde ven el avance de obra y su plan de pagos, sin entrar al panel interno de REALIA.' },
+                  { term: 'Comprador',           def: 'Usuario con acceso exclusivo al portal del comprador, vinculado a una reserva convertida.' },
                 ].map(({ term, def }) => (
                   <div key={term} className="bg-slate-50/70 rounded-xl p-3.5 border border-gray-100">
                     <p className="text-sm font-semibold text-gray-900">{term}</p>
