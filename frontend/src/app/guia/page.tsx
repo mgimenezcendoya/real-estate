@@ -382,9 +382,9 @@ export default function GuiaPage() {
                 src="/guia/login.png"
                 alt="Pantalla de login de REALIA"
                 annotations={[
-                  { x: 50, y: 38, label: 'Campo email', description: 'Ingresá el email que te asignó el administrador' },
-                  { x: 50, y: 54, label: 'Contraseña', description: 'La contraseña inicial es temporaria — la vas a cambiar al entrar' },
-                  { x: 50, y: 68, label: 'Botón ingresar', description: 'Presioná Enter o hacé clic para acceder' },
+                  { x: 72, y: 46, label: 'Campo usuario', description: 'Ingresá el email que te asignó el administrador' },
+                  { x: 72, y: 56, label: 'Contraseña', description: 'La contraseña inicial es temporaria — la vas a cambiar al entrar' },
+                  { x: 72, y: 61, label: 'Botón ingresar', description: 'Presioná Enter o hacé clic para acceder' },
                 ]}
               />
               <TipCard>
@@ -441,8 +441,8 @@ export default function GuiaPage() {
                 src="/guia/proyectos.png"
                 alt="Lista de proyectos en REALIA"
                 annotations={[
-                  { x: 30, y: 35, label: 'Card de proyecto', description: 'Cada card muestra KPIs: unidades totales, ventas, reservas' },
-                  { x: 85, y: 12, label: 'Nuevo proyecto', description: 'Clic para crear un proyecto subiendo el CSV de unidades' },
+                  { x: 22, y: 24, label: 'Card de proyecto', description: 'Cada card muestra KPIs: unidades, pisos y leads activos' },
+                  { x: 91, y: 8, label: 'Nuevo proyecto', description: 'Clic para crear un proyecto subiendo el CSV de unidades' },
                 ]}
               />
               <TipCard>
@@ -507,10 +507,10 @@ export default function GuiaPage() {
                 src="/guia/leads.png"
                 alt="Kanban de leads"
                 annotations={[
-                  { x: 15, y: 18, label: 'Columna Hot', description: 'Leads con alta probabilidad de cierre' },
-                  { x: 50, y: 18, label: 'Columna Warm', description: 'Leads en seguimiento activo' },
-                  { x: 83, y: 18, label: 'Columna Cold', description: 'Leads con baja actividad reciente' },
-                  { x: 50, y: 58, label: 'Card de lead', description: 'Hacé clic para ver el detalle y gestionar la reserva' },
+                  { x: 27, y: 12, label: 'Columna Hot', description: 'Leads con alta probabilidad de cierre' },
+                  { x: 54, y: 12, label: 'Columna Warm', description: 'Leads en seguimiento activo' },
+                  { x: 82, y: 12, label: 'Columna Cold', description: 'Leads con baja actividad reciente' },
+                  { x: 27, y: 25, label: 'Card de lead', description: 'Hacé clic para ver el detalle y gestionar la reserva' },
                 ]}
               />
               <TipCard>
@@ -549,9 +549,10 @@ export default function GuiaPage() {
                 src="/guia/unidades.png"
                 alt="Grilla de unidades por piso"
                 annotations={[
-                  { x: 18, y: 45, label: 'Verde = disponible', description: 'Clic para reservar o hacer venta directa' },
-                  { x: 50, y: 45, label: 'Amarillo = reservada', description: 'Tiene una reserva activa asociada' },
-                  { x: 78, y: 45, label: 'Rojo = vendida', description: 'Operación convertida o venta directa cerrada' },
+                  { x: 26, y: 36, label: 'Verde = disponible', description: 'Clic para reservar o hacer venta directa' },
+                  { x: 13, y: 15, label: 'Amarillo = reservada', description: 'Tiene una reserva activa asociada' },
+                  { x: 13, y: 27, label: 'Azul = vendida', description: 'Operación convertida o venta directa cerrada' },
+                  { x: 87, y: 20, label: 'Panel resumen', description: 'Totales por estado y por tipología' },
                 ]}
               />
               <TipCard>
@@ -621,11 +622,11 @@ export default function GuiaPage() {
               />
               <AnnotatedScreenshot
                 src="/guia/reservas.png"
-                alt="Plan de pagos de una reserva"
+                alt="Lista de reservas del proyecto"
                 annotations={[
-                  { x: 22, y: 18, label: 'Tab Plan de Pagos', description: 'Seleccioná esta tab para ver las cuotas del comprador' },
-                  { x: 78, y: 48, label: 'Registrar pago', description: 'Ícono en cada fila para registrar el cobro de esa cuota' },
-                  { x: 50, y: 82, label: 'Resumen del plan', description: 'Total, cobrado y pendiente en la parte inferior' },
+                  { x: 20, y: 13, label: 'Filtros de estado', description: 'Filtrá por Todas, Activas, Canceladas o Convertidas' },
+                  { x: 50, y: 19, label: 'Fila de reserva', description: 'Clic en cualquier fila para abrir el detalle y ver el plan de pagos' },
+                  { x: 22, y: 19, label: 'Badge de estado', description: 'Activa, Vendida o Cancelada según la operación' },
                 ]}
               />
               <TipCard>
@@ -843,9 +844,9 @@ export default function GuiaPage() {
                 src="/guia/inbox.png"
                 alt="Inbox con conversación activa"
                 annotations={[
-                  { x: 22, y: 50, label: 'Lista de conversaciones', description: 'Los leads con mensajes sin leer aparecen resaltados' },
-                  { x: 68, y: 78, label: 'Campo de respuesta', description: 'La IA sugiere una respuesta; podés editarla antes de enviar' },
-                  { x: 85, y: 22, label: 'Panel del lead', description: 'Info del prospecto: nombre, teléfono, proyecto asignado' },
+                  { x: 18, y: 30, label: 'Lista de conversaciones', description: 'Los leads con mensajes sin leer aparecen resaltados' },
+                  { x: 55, y: 93, label: 'Campo de respuesta', description: 'Escribí tu mensaje; en modo HITL se envía directo al lead' },
+                  { x: 90, y: 25, label: 'Panel del lead', description: 'Info del prospecto: nombre, teléfono, proyecto asignado' },
                 ]}
               />
             </GuiaSection>
@@ -981,8 +982,8 @@ export default function GuiaPage() {
                   src="/guia/usuarios.png"
                   alt="Panel de usuarios y configuración del canal WhatsApp"
                   annotations={[
-                    { x: 68, y: 38, label: 'Card del canal', description: 'Muestra el proveedor activo y el estado de conexión' },
-                    { x: 82, y: 58, label: 'Botón editar', description: 'Abre el modal de configuración del canal' },
+                    { x: 33, y: 8, label: 'Tab Canales WhatsApp', description: 'Hacé clic aquí para ver y editar el canal de tu organización' },
+                    { x: 87, y: 15, label: 'Botón editar usuario', description: 'Lápiz para editar — en la tab Canales muestra la config del canal' },
                   ]}
                 />
                 <TipCard>
