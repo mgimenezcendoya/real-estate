@@ -437,6 +437,14 @@ export default function GuiaPage() {
                   { label: 'Navegá entre módulos', description: 'Usá las tabs internas (Leads, Unidades, Reservas, Obra, Financiero, Inversores) para acceder a cada sección.' },
                 ]}
               />
+              <AnnotatedScreenshot
+                src="/guia/proyectos.png"
+                alt="Lista de proyectos en REALIA"
+                annotations={[
+                  { x: 30, y: 35, label: 'Card de proyecto', description: 'Cada card muestra KPIs: unidades totales, ventas, reservas' },
+                  { x: 85, y: 12, label: 'Nuevo proyecto', description: 'Clic para crear un proyecto subiendo el CSV de unidades' },
+                ]}
+              />
               <TipCard>
                 El CSV de unidades debe tener columnas: piso, unidad, tipo, superficie, precio. Podés actualizar las unidades re-subiendo el CSV desde la configuración del proyecto.
               </TipCard>
@@ -495,6 +503,16 @@ export default function GuiaPage() {
                   { label: 'Reservá desde el lead', description: 'Abrí el detalle del lead (clic en la card) y usá el botón "Reservar unidad" para iniciar el wizard de reserva.' },
                 ]}
               />
+              <AnnotatedScreenshot
+                src="/guia/leads.png"
+                alt="Kanban de leads"
+                annotations={[
+                  { x: 15, y: 18, label: 'Columna Hot', description: 'Leads con alta probabilidad de cierre' },
+                  { x: 50, y: 18, label: 'Columna Warm', description: 'Leads en seguimiento activo' },
+                  { x: 83, y: 18, label: 'Columna Cold', description: 'Leads con baja actividad reciente' },
+                  { x: 50, y: 58, label: 'Card de lead', description: 'Hacé clic para ver el detalle y gestionar la reserva' },
+                ]}
+              />
               <TipCard>
                 Los leads con actividad reciente en el Inbox aparecen con un indicador visual. Usá el filtro de búsqueda para encontrar un lead por nombre o teléfono rápidamente.
               </TipCard>
@@ -525,6 +543,15 @@ export default function GuiaPage() {
                   { label: 'Identificá el estado', description: 'Verde = disponible, amarillo = reservada, rojo = vendida. Clic en cualquier unidad para ver su detalle.' },
                   { label: 'Reservá una unidad', description: 'Clic en una unidad disponible → "Reservar". Se abre el wizard de reserva con datos del comprador y plan de pagos.' },
                   { label: 'Registrá venta directa', description: 'Clic en una unidad disponible → "Venta directa". Útil para operaciones que ya están cerradas.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/unidades.png"
+                alt="Grilla de unidades por piso"
+                annotations={[
+                  { x: 18, y: 45, label: 'Verde = disponible', description: 'Clic para reservar o hacer venta directa' },
+                  { x: 50, y: 45, label: 'Amarillo = reservada', description: 'Tiene una reserva activa asociada' },
+                  { x: 78, y: 45, label: 'Rojo = vendida', description: 'Operación convertida o venta directa cerrada' },
                 ]}
               />
               <TipCard>
