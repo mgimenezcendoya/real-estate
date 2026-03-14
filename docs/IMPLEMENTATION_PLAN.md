@@ -17,7 +17,6 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `migrations/002_lead_qualification_fields.sql` | ✅ OK | `budget_usd`, `bedrooms`, `location_pref` en `leads` |
 | `migrations/003_project_details.sql` | ✅ OK | Campos detallados en `projects` |
 | `migrations/004_unit_notes.sql` | ✅ OK | Tabla `unit_notes` |
-| `migrations/005_telegram_handoff.sql` | ✅ OK | Handoff via Telegram |
 | `migrations/006_lead_notes.sql` | ✅ OK | Tabla `lead_notes` |
 | `migrations/007_obra_etapas.sql` | ✅ OK | Tablas `obra_etapas`, `obra_updates`, `obra_fotos` |
 | `migrations/009_reservations.sql` | ✅ OK | Tabla `reservations` con índice parcial único por unidad |
@@ -56,7 +55,6 @@ Estado actual: Fases 0–3 y 6 (panel web) completas. RAG y Chatwoot pendientes.
 | `modules/leads/alerts.py` | ✅ OK | Alerta WA al vendedor |
 | `modules/leads/nurturing.py` | ⚠️ Parcial | Lógica base OK; generación de mensaje con Claude pendiente |
 | `modules/handoff/manager.py` | ✅ OK | check/initiate/close handoff |
-| `modules/handoff/telegram.py` | ✅ OK | Notificaciones vía Telegram |
 | `modules/handoff/chatwoot.py` | ⬜ Stub | Endpoint OK; API calls pendientes |
 | `modules/obra/notifier.py` | ✅ OK | Envío personalizado a compradores |
 | `app/admin/api.py` | ✅ OK | Auth, projects, units, leads, lead_notes, buyers, reservations, obra, analytics, docs, CSV, tools/exchange-rates, users CRUD, payment plans/installments/records, facturas, flujo de caja, alertas, proveedores/pagos |

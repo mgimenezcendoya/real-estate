@@ -50,7 +50,6 @@ Cada unidad no vendida representa **$60.000–$100.000 USD** de inventario inmov
 | AI / LLM | Claude Haiku 4.5 (Anthropic) | API pay-per-use | API pay-per-use |
 | Audio transcription | OpenAI Whisper API | API pay-per-use | API pay-per-use |
 | WhatsApp | Twilio Sandbox (dev) / Meta Cloud API (prod) | Twilio sandbox | Meta Cloud API |
-| Notificaciones handoff | Telegram Bot API | Free | Free |
 | Background jobs | Cron → endpoints internos | Render cron → Railway cron | Railway cron |
 
 ### Estrategia de deploy
@@ -599,10 +598,10 @@ Entre que se dispara el handoff y el vendedor responde, el agente mantiene la co
 
 #### HITL desde el panel web (Inbox Next.js)
 
-Además de Telegram/Chatwoot, el handoff se puede gestionar desde el **panel web** (Inbox en Next.js):
+El handoff se puede gestionar desde el **panel web** (Inbox en Next.js):
 
 - **Activar HITL:** cuando el lead pide humano (el agente emite `[HANDOFF]`) o cuando un operador hace "Tomar conversación" o envía el primer mensaje desde el Inbox; en ambos casos se crea/activa un handoff y el agente deja de responder a ese lead.
-- **Durante el takeover:** los mensajes del lead se reenvían a Telegram (si está configurado) o solo se registran; las respuestas se envían desde el panel con "Enviar" (POST `/admin/leads/{id}/message`), que además asegura handoff activo.
+- **Durante el takeover:** los mensajes del lead se registran en el Inbox; las respuestas se envían desde el panel con "Enviar" (POST `/admin/leads/{id}/message`), que además asegura handoff activo.
 - **Volver al agente:** el operador hace "Terminar intervención" (POST `/admin/leads/{id}/handoff/close`), o **timeout de 30 minutos**: si el lead no escribe en 30 min, el siguiente mensaje del lead lo atiende de nuevo el agente (se cierra el handoff automáticamente sin enviar mensaje de despedida).
 - **API:** `GET /admin/leads/{id}/handoff` (estado), `POST .../handoff/start`, `POST .../handoff/close`.
 
@@ -1285,7 +1284,6 @@ realia/
 │   ├── 002_lead_qualification_fields.sql  # Campos calificación en leads
 │   ├── 003_project_details.sql    # Campos detallados en projects
 │   ├── 004_unit_notes.sql         # Tabla unit_notes
-│   ├── 005_telegram_handoff.sql   # Handoff via Telegram
 │   ├── 006_lead_notes.sql         # Tabla lead_notes
 │   ├── 007_obra_etapas.sql        # Tablas obra_etapas, obra_updates, obra_fotos
 │   └── 009_reservations.sql       # Tabla reservations (índice parcial único)

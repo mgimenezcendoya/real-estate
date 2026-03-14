@@ -162,7 +162,6 @@ psql $DATABASE_URL < migrations/001_initial_schema.sql
 psql $DATABASE_URL < migrations/002_lead_qualification_fields.sql
 psql $DATABASE_URL < migrations/003_project_details.sql
 psql $DATABASE_URL < migrations/004_unit_notes.sql
-psql $DATABASE_URL < migrations/005_telegram_handoff.sql
 psql $DATABASE_URL < migrations/006_lead_notes.sql
 psql $DATABASE_URL < migrations/007_obra_etapas.sql
 psql $DATABASE_URL < migrations/009_reservations.sql

@@ -30,7 +30,6 @@ from app.config import get_settings, reload_settings
 reload_settings()
 from app.database import get_pool, close_pool
 from app.modules.whatsapp.webhook import router as whatsapp_router
-# from app.modules.handoff.telegram import router as telegram_router  # TODO: re-enable per-tenant
 from app.modules.nocodb_webhook import router as nocodb_router
 from app.admin.api import router as admin_router
 from app.admin.routers import portal as portal_router
@@ -75,7 +74,6 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestIDMiddleware)
 
 app.include_router(whatsapp_router, prefix="/whatsapp", tags=["whatsapp"])
-# app.include_router(telegram_router, prefix="/telegram", tags=["telegram"])  # TODO: re-enable per-tenant
 app.include_router(nocodb_router, prefix="/nocodb", tags=["nocodb"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
 app.include_router(portal_router.router, prefix="/portal", tags=["portal"])

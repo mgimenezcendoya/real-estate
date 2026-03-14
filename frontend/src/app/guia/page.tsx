@@ -797,7 +797,7 @@ export default function GuiaPage() {
               icon={MessageSquare}
               category="Comunicaciones"
               title="Inbox"
-              description="Centro de mensajes unificado. Conversaciones entrantes de WhatsApp y Telegram con respuesta asistida por IA."
+              description="Centro de mensajes unificado. Conversaciones entrantes de WhatsApp con respuesta asistida por IA."
               sectionNumber={12}
             >
               <UseCaseList items={[
@@ -812,7 +812,7 @@ export default function GuiaPage() {
                   { label: 'Abrí el Inbox', description: 'Desde el menú lateral, clic en "Inbox". Verás la lista de conversaciones activas.' },
                   { label: 'Seleccioná una conversación', description: 'Clic en cualquier conversación para abrir el hilo de mensajes.' },
                   { label: 'Revisá la sugerencia de IA', description: 'El campo de respuesta muestra una sugerencia generada por Claude. Podés editarla antes de enviar.' },
-                  { label: 'Enviá la respuesta', description: 'Presioná Enter o el botón de envío. El mensaje se entrega por el canal original (WhatsApp o Telegram).' },
+                  { label: 'Enviá la respuesta', description: 'Presioná Enter o el botón de envío. El mensaje se entrega por WhatsApp al lead.' },
                   { label: 'Gestioná el lead', description: 'Desde el panel derecho podés ver el perfil del lead, cambiar su temperatura y vincular la conversación a un proyecto.' },
                 ]}
               />

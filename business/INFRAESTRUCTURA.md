@@ -15,7 +15,6 @@ Todo el entorno de desarrollo corre en free tiers. Costo fijo mensual: **$0 USD*
 | **Vercel** | Landing page (estática) | Hobby (free) | $0 | CDN global, solo uso no-comercial en free |
 | **Supabase Storage** | S3-compatible (archivos) | Free | $0 | 1 GB storage, 2 GB bandwidth/mes |
 | **Twilio** | WhatsApp Sandbox (dev) | Pay-per-use | ~$0 | Sandbox: máx 50 msg/día en trial, sin templates |
-| **Telegram** | Notificaciones handoff | Free | $0 | Bot API gratuita |
 | **Claude Haiku 4.5** | LLM (agente conversacional) | Pay-per-use | Variable | $1/M input tokens, $5/M output tokens |
 | **OpenAI Whisper** | Transcripción de audio | Pay-per-use | ~$0 | $0.006/minuto |
 

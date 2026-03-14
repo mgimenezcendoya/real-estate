@@ -28,7 +28,6 @@ El sistema está **60-70% del camino**. La infraestructura de organizaciones, us
 | Webhook WhatsApp | ❌ single-tenant | Usa `active_developer_id` global de config |
 | Routing de mensajes | ❌ single-tenant | No identifica tenant desde número entrante |
 | Configuración del agente | ❌ single-tenant | Prompts hardcodeados en `prompts.py` |
-| Telegram handoff | ❌ single-tenant | Bot global, no por tenant |
 | Canales WhatsApp | ❌ single-tenant | Un número de env vars, no por tenant |
 
 ### Cambios más urgentes
@@ -53,8 +52,7 @@ El sistema está **60-70% del camino**. La infraestructura de organizaciones, us
 2. **Prompts hardcodeados en `prompts.py`:** `LEAD_SYSTEM_PROMPT` es global. Fix: tabla `agent_configs` con prompts por tenant.
 3. **Credenciales WhatsApp en env vars:** `whatsapp_token`, `whatsapp_phone_number_id` únicos globales. Fix: tabla `tenant_channels` con credenciales encriptadas por registro.
 4. **Fallback auth con env vars (ADMIN_USERNAME/ADMIN_PASSWORD):** Genera tokens sin `organization_id`. Fix: obsoleted una vez que todos los usuarios estén en DB. Mantener solo para superadmin de emergencia.
-5. **Telegram bot global:** `telegram_bot_token` y `telegram_chat_id` únicos. Fix: agregar `telegram_chat_id` a `organizations` o `tenant_channels`.
-6. **Sessions sin tenant_id explícito:** La tabla `sessions(phone, project_id)` infiere el tenant via `project → organization_id`. Es correcto pero frágil. Fix: agregar `organization_id` denormalizado o resolver via JOIN al crear.
+5. **Sessions sin tenant_id explícito:** La tabla `sessions(phone, project_id)` infiere el tenant via `project → organization_id`. Es correcto pero frágil. Fix: agregar `organization_id` denormalizado o resolver via JOIN al crear.
 
 ---
 
@@ -82,7 +80,7 @@ El sistema está **60-70% del camino**. La infraestructura de organizaciones, us
         ▼
 [HandoffChecker]
         │ ¿hay handoff activo para este phone?
-        │ sí → ForwardToHuman (SSE broadcast + Telegram)
+        │ sí → ForwardToHuman (SSE broadcast)
         │ no → continúa
         ▼
 [ConversationOrchestrator]
@@ -525,7 +523,7 @@ El estado se persiste en `sessions(phone, project_id)` — correcto para esta es
 
 ### Handoff robusto
 
-El sistema actual es correcto (SELECT FOR UPDATE, timeouts de 4h/2h). La única mejora necesaria es agregar `telegram_chat_id` a `organizations` para que cada tenant tenga su propio canal de notificación.
+El sistema actual es correcto (SELECT FOR UPDATE, timeouts de 4h/2h). Las notificaciones de handoff se envían vía WhatsApp al advisor configurado en `tenant_channels.notify_phone`.
 
 ### Mezcla de contexto entre tenants
 
@@ -547,7 +545,7 @@ Puntos de riesgo y solución:
 CREATE TABLE tenant_channels (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     organization_id UUID        NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    provider        TEXT        NOT NULL CHECK (provider IN ('twilio', 'meta', 'telegram')),
+    provider        TEXT        NOT NULL CHECK (provider IN ('twilio', 'meta')),
     phone_number    TEXT        NOT NULL,                -- número E.164 (+5491100000000)
     display_name    TEXT,                               -- "Canal principal", "Proyecto Norte"
     -- Twilio credentials
@@ -650,9 +648,7 @@ CREATE TABLE billing_metrics (
 ### Modificaciones a tablas existentes
 
 ```sql
--- Agregar telegram_chat_id a organizations para notificaciones de handoff por tenant
 ALTER TABLE organizations
-    ADD COLUMN telegram_chat_id TEXT,
     ADD COLUMN plan_slug        TEXT NOT NULL DEFAULT 'starter',
     ADD COLUMN plan_started_at  TIMESTAMPTZ,
     ADD COLUMN trial_ends_at    TIMESTAMPTZ;
@@ -996,8 +992,7 @@ app/
 │   │   ├── dev_handler.py     # MODIFICAR: idem
 │   │   └── router.py          # MODIFICAR: recibe channel, lookup tenant de DB
 │   ├── handoff/
-│   │   ├── manager.py         # MODIFICAR: notificar Telegram via organizations.telegram_chat_id
-│   │   └── telegram.py        # MODIFICAR: recibe chat_id por parámetro
+│   │   └── manager.py         # MODIFICAR: notificar via WhatsApp (tenant_channels.notify_phone)
 │   ├── leads/                 # sin cambios
 │   ├── rag/
 │   │   └── retrieval.py       # MODIFICAR: cache key = (organization_id, doc_id)
