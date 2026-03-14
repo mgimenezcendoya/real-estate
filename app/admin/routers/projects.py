@@ -18,6 +18,7 @@ UPDATABLE_PROJECT_FIELDS = {
     "name", "slug", "address", "neighborhood", "city", "description",
     "amenities", "total_floors", "total_units", "construction_start",
     "estimated_delivery", "delivery_status", "payment_info", "status",
+    "lat", "lng",
 }
 
 VALID_UNIT_STATUSES = {"available", "reserved", "sold"}
@@ -91,7 +92,8 @@ async def get_project(project_id: str):
         """SELECT id, organization_id, name, slug, address, neighborhood, city,
                   description, amenities, total_floors, total_units,
                   construction_start, estimated_delivery, delivery_status,
-                  payment_info, whatsapp_number, status, created_at
+                  payment_info, whatsapp_number, status, created_at,
+                  lat, lng
            FROM projects WHERE id = $1""",
         project_id,
     )
