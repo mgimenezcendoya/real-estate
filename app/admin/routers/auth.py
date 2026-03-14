@@ -297,7 +297,8 @@ async def forgot_password(body: ForgotPasswordBody):
         settings = get_settings()
         reset_url = f"{settings.app_url}/reset-password?token={token}"
         try:
-            send_password_reset_email(body.email, reset_url)
+            import asyncio
+            await asyncio.to_thread(send_password_reset_email, body.email, reset_url)
         except Exception:
             logger.exception("Failed to send password reset email to %s", body.email)
             try:
