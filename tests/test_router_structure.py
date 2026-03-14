@@ -104,21 +104,21 @@ class TestImports:
 # ---------------------------------------------------------------------------
 
 EXPECTED_DOMAIN_COUNTS = {
-    "auth": 9,
+    "auth": 11,
     "organizations": 8,
     "channels": 9,
     "projects": 14,
     "leads": 16,
     "obra": 17,
-    "reservations": 11,
+    "reservations": 13,
     "facturas": 6,
-    "financials": 15,
+    "financials": 16,
     "investors": 7,
     "alerts": 4,
     "tools": 5,
 }
 
-EXPECTED_TOTAL = 121
+EXPECTED_TOTAL = 126
 
 
 class TestRouteCounts:
