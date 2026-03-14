@@ -26,11 +26,7 @@ def send_password_reset_email(to: str, reset_url: str) -> None:
             Recibimos una solicitud para restablecer la contraseña de tu cuenta REALIA.
             Hacé click en el botón para continuar. El link es válido por 30 minutos.
           </p>
-          <a href="{reset_url}"
-             style="display:inline-block;margin:24px 0;padding:12px 24px;background:#1d4ed8;color:#fff;
-                    border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">
-            Restablecer contraseña
-          </a>
+          <a href="{reset_url}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#1d4ed8;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">Restablecer contrase&ntilde;a</a>
           <p style="color:#9ca3af;font-size:12px;">
             Si no solicitaste este cambio, podés ignorar este email. Tu contraseña no será modificada.
           </p>
