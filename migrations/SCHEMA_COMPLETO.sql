@@ -56,6 +56,8 @@ CREATE TABLE projects (
     payment_info TEXT,
     whatsapp_number TEXT UNIQUE,
     status VARCHAR(20) DEFAULT 'active',
+    lat FLOAT,
+    lng FLOAT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
