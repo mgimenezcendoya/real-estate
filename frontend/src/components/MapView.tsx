@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 
 interface MapViewProps {
   lat: number;
@@ -11,39 +9,24 @@ interface MapViewProps {
   className?: string;
 }
 
-export default function MapView({ lat, lng, label, className }: MapViewProps) {
-  useEffect(() => {
-    // Fix Leaflet default marker icons broken by webpack/Next.js
-    // Must run client-side only since Leaflet accesses the DOM at import time
-    import('leaflet').then((L) => {
-      const icon = L.default.icon({
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41],
-      });
-      L.default.Marker.prototype.options.icon = icon;
-    });
-  }, []);
+export default function MapView({ lat, lng, className }: MapViewProps) {
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+  });
+
+  if (!isLoaded) {
+    return <div className={className} style={{ height: '100%', width: '100%', background: '#f3f4f6' }} />;
+  }
 
   return (
-    <MapContainer
-      center={[lat, lng]}
+    <GoogleMap
+      mapContainerStyle={{ height: '100%', width: '100%' }}
+      mapContainerClassName={className}
+      center={{ lat, lng }}
       zoom={15}
-      scrollWheelZoom={false}
-      className={className}
-      style={{ height: '100%', width: '100%', borderRadius: 'inherit' }}
+      options={{ disableDefaultUI: false, scrollwheel: false }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <Marker position={[lat, lng]}>
-        {label && <Popup>{label}</Popup>}
-      </Marker>
-    </MapContainer>
+      <Marker position={{ lat, lng }} />
+    </GoogleMap>
   );
 }
