@@ -15,6 +15,7 @@ import {
   Users,
   Lightbulb,
   ShieldAlert,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -95,7 +96,7 @@ function GuiaSection({
   const cfg = getCategoryConfig(category);
 
   return (
-    <section id={id} className="scroll-mt-6">
+    <section id={id} className="scroll-mt-6 guia-section">
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
         {/* Category-colored top accent — isolated overflow to preserve border-radius */}
         <div className="rounded-t-2xl overflow-hidden">
@@ -275,7 +276,7 @@ export default function GuiaPage() {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="relative bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
+          <div data-guia-hero className="relative bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
             {/* Decorative circles */}
             <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
             <div className="absolute -bottom-8 right-16 w-20 h-20 rounded-full bg-white/5" />
@@ -292,6 +293,15 @@ export default function GuiaPage() {
                 <h1 className="text-2xl font-display font-bold text-white leading-tight">Guía de Uso</h1>
                 <p className="text-sm text-indigo-100 mt-0.5">Todo lo que necesitás saber para operar REALIA</p>
               </div>
+            </div>
+            <div className="relative mt-3 flex justify-end" data-guia-header-actions>
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 border border-white/20 text-white text-xs font-medium hover:bg-white/25 transition-colors print:hidden"
+              >
+                <Download size={13} />
+                Descargar PDF
+              </button>
             </div>
           </div>
         </div>
