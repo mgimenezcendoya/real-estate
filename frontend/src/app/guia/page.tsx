@@ -18,6 +18,7 @@ import {
   Download,
   Menu,
   LogIn,
+  CreditCard,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ const SECTIONS = [
   { id: 'leads', label: 'Leads', icon: Flame },
   { id: 'unidades', label: 'Unidades', icon: Home },
   { id: 'reservas', label: 'Reservas', icon: ClipboardList },
+  { id: 'plan-pagos', label: 'Plan de pagos', icon: CreditCard },
   { id: 'obra', label: 'Obra', icon: HardHat },
   { id: 'financiero', label: 'Financiero', icon: DollarSign },
   { id: 'inversores', label: 'Inversores', icon: TrendingUp },
@@ -557,6 +559,49 @@ export default function GuiaPage() {
               </TipCard>
               <TipCard>
                 Las cuotas vencidas aparecen destacadas en rojo. El sistema actualiza automáticamente los estados de pago cada noche.
+              </TipCard>
+            </GuiaSection>
+
+            {/* Plan de pagos */}
+            <GuiaSection
+              id="plan-pagos"
+              icon={CreditCard}
+              category="Operaciones"
+              title="Plan de pagos"
+              description="Gestioná las cuotas acordadas con el comprador: creá el plan, registrá cada pago y seguí el estado de deuda."
+              sectionNumber={7}
+            >
+              <UseCaseList items={[
+                'Ver todas las cuotas de una reserva y su estado actual',
+                'Registrar el cobro de una cuota con fecha y monto real',
+                'Editar el monto o fecha de vencimiento de una cuota',
+                'Eliminar un registro de pago incorrecto',
+                'Ver el total cobrado vs el total pendiente de la operación',
+              ]} />
+              <WorkflowList
+                category="Operaciones"
+                steps={[
+                  { label: 'Abrí el detalle de la reserva', description: 'Desde /reservas, hacé clic en una reserva para abrir su página de detalle. Seleccioná la tab "Plan de Pagos".' },
+                  { label: 'Revisá las cuotas', description: 'Verás la tabla de cuotas con: número de cuota, fecha de vencimiento, monto pactado y estado (pendiente / parcial / pagada / vencida).' },
+                  { label: 'Registrá un pago', description: 'Hacé clic en el ícono de pago de una cuota → ingresá fecha de cobro, monto recibido y método de pago. Confirmá.' },
+                  { label: 'Vinculá a una factura (opcional)', description: 'Si ya cargaste la factura de ingreso correspondiente en el módulo Financiero, podés vincularla al pago usando el selector "Pago vinculado".' },
+                  { label: 'Revisá el resumen del plan', description: 'Al pie de la tabla verás el total del plan, el monto cobrado hasta hoy y el saldo pendiente.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/reservas.png"
+                alt="Plan de pagos de una reserva"
+                annotations={[
+                  { x: 22, y: 18, label: 'Tab Plan de Pagos', description: 'Seleccioná esta tab para ver las cuotas del comprador' },
+                  { x: 78, y: 48, label: 'Registrar pago', description: 'Ícono en cada fila para registrar el cobro de esa cuota' },
+                  { x: 50, y: 82, label: 'Resumen del plan', description: 'Total, cobrado y pendiente en la parte inferior' },
+                ]}
+              />
+              <TipCard>
+                Las cuotas vencidas (fecha pasada sin pago registrado) aparecen destacadas en rojo. El sistema actualiza estos estados automáticamente cada noche.
+              </TipCard>
+              <TipCard>
+                Podés editar el monto de una cuota haciendo clic sobre el valor. Útil para ajustes por tipo de cambio o renegociaciones.
               </TipCard>
             </GuiaSection>
 
