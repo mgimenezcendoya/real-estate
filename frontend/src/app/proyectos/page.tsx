@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { api, Project, Metrics, Organization, CashFlowRow } from '@/lib/api';
-import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle, MoreVertical, Pencil, Trash2, RotateCcw } from 'lucide-react';
+import { Building2, ChevronRight, Plus, SlidersHorizontal, X, Search, ShieldCheck, BarChart2, ArrowUpCircle, ArrowDownCircle, MoreVertical, Pencil, Trash2, RotateCcw, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -89,6 +89,9 @@ export default function ProyectosPage() {
   const [renameProject, setRenameProject] = useState<Project | null>(null);
   const [renameName, setRenameName] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [locationProject, setLocationProject] = useState<Project | null>(null);
+  const [locationLat, setLocationLat] = useState('');
+  const [locationLng, setLocationLng] = useState('');
   // Delete dialog
   const [deleteProject, setDeleteProjectState] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -174,6 +177,24 @@ export default function ProyectosPage() {
       toast.error('No se pudo renombrar el proyecto');
     } finally {
       setRenaming(false);
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    if (!locationProject) return;
+    const lat = parseFloat(locationLat);
+    const lng = parseFloat(locationLng);
+    if (isNaN(lat) || isNaN(lng)) {
+      toast.error('Coordenadas inválidas');
+      return;
+    }
+    try {
+      await api.updateProject(locationProject.id, { lat, lng });
+      toast.success('Ubicación guardada');
+      setLocationProject(null);
+      loadProjects();
+    } catch {
+      toast.error('Error al guardar ubicación');
     }
   };
 
@@ -462,6 +483,18 @@ export default function ProyectosPage() {
                                         <Pencil size={13} />
                                         Renombrar
                                       </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setLocationProject(project);
+                                          setLocationLat(project.lat?.toString() ?? '');
+                                          setLocationLng(project.lng?.toString() ?? '');
+                                        }}
+                                        className="gap-2 cursor-pointer"
+                                      >
+                                        <MapPin className="w-4 h-4 mr-2" />
+                                        Editar ubicación
+                                      </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
                                         onClick={(e) => { e.preventDefault(); setDeleteProjectState(project); }}
@@ -719,6 +752,52 @@ export default function ProyectosPage() {
             <Button onClick={handleRenameConfirm} disabled={renaming || !renameName.trim()}>
               {renaming ? 'Guardando…' : 'Guardar'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Location edit dialog */}
+      <Dialog open={!!locationProject} onOpenChange={(o) => { if (!o) setLocationProject(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ubicación del proyecto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-sm text-gray-500">
+              Ingresá las coordenadas geográficas del proyecto.<br />
+              Podés obtenerlas buscando la dirección en{' '}
+              <a
+                href="https://www.openstreetmap.org"
+                target="_blank"
+                rel="noreferrer"
+                className="text-indigo-600 underline"
+              >
+                openstreetmap.org
+              </a>{' '}
+              y haciendo click derecho → "Mostrar coordenadas".
+            </p>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Latitud</label>
+              <Input
+                className="mt-1"
+                placeholder="-34.6037"
+                value={locationLat}
+                onChange={(e) => setLocationLat(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Longitud</label>
+              <Input
+                className="mt-1"
+                placeholder="-58.3816"
+                value={locationLng}
+                onChange={(e) => setLocationLng(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setLocationProject(null)}>Cancelar</Button>
+            <Button onClick={handleSaveLocation}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
