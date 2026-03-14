@@ -244,6 +244,7 @@ async def handle_lead_message(
         qualification=qualification,
         conversation_history=history,
         user_message=text,
+        lead_name=qualification.get("name"),
     )
 
     reply_text = response["text"]
@@ -427,6 +428,7 @@ async def _generate_response(
     qualification: dict,
     conversation_history: list[dict],
     user_message: str,
+    lead_name: str | None = None,
 ) -> dict:
     """Call Claude with tool_use. Returns {text, doc_request, handoff_trigger}."""
     from app.modules.agent.config_loader import get_agent_config
@@ -445,10 +447,11 @@ async def _generate_response(
     )
 
     if is_first_contact:
+        greeting = f"Saludalo por su nombre ({lead_name})" if lead_name else "Usá un saludo genérico cálido"
         system += (
             "\n\nINSTRUCCIÓN ESPECIAL — PRIMER CONTACTO: "
-            "Este es el primer mensaje del lead. Presentate brevemente como asistente de "
-            f"{developer_name} y mencioná los proyectos disponibles. "
+            f"Este es el primer mensaje del lead. {greeting}. "
+            f"Presentate brevemente como asistente de {developer_name} y mencioná los proyectos disponibles. "
             "Sé cálido pero conciso."
         )
 
