@@ -16,11 +16,13 @@ import {
   Lightbulb,
   ShieldAlert,
   Download,
+  Menu,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import GuiaStickyNav from './GuiaStickyNav';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 // ─── Section definitions ────────────────────────────────────────────────────────
 
@@ -306,24 +308,31 @@ export default function GuiaPage() {
           </div>
         </div>
 
-        {/* Mobile: horizontal chip nav */}
-        <div className="lg:hidden mb-6 -mx-1 overflow-x-auto pb-1">
-          <div className="flex gap-2 px-1 w-max">
-            {visibleSections.map(({ id, label, icon: Icon }) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors whitespace-nowrap"
-              >
-                <Icon size={12} />
-                {label}
-              </a>
-            ))}
-          </div>
+        {/* Mobile: hamburger nav */}
+        <div className="lg:hidden mb-6 flex items-center gap-3" data-guia-mobilenav>
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+                <Menu size={15} />
+                Capítulos
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">Navegación</SheetTitle>
+              <div className="p-5 pt-8">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">
+                  Contenidos
+                </p>
+                <GuiaStickyNav
+                  sections={visibleSections}
+                  onNavigate={() => {
+                    // Sheet closes automatically when focus leaves on mobile
+                    // But we still expose the callback for future use
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
 
         {/* Two-column layout */}
