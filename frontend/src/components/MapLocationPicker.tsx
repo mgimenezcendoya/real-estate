@@ -23,9 +23,11 @@ export default function MapLocationPicker({
   onConfirm,
   onCancel,
 }: MapLocationPickerProps) {
+  const hasInitial = !!initialLat && !!initialLng;
   const defaultCenter = { lat: initialLat ?? -34.6037, lng: initialLng ?? -58.3816 };
   const [markerPos, setMarkerPos] = useState(defaultCenter);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
+  const [mapVisible, setMapVisible] = useState(hasInitial);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   const { isLoaded } = useJsApiLoader({
@@ -41,6 +43,7 @@ export default function MapLocationPicker({
       const lng = place.geometry.location.lng();
       setMarkerPos({ lat, lng });
       setMapCenter({ lat, lng });
+      setMapVisible(true);
     }
   }, []);
 
@@ -62,34 +65,45 @@ export default function MapLocationPicker({
       >
         <Input placeholder="Buscá la dirección del proyecto..." className="w-full" />
       </Autocomplete>
-      <p className="text-xs text-gray-400 -mt-1">
-        También podés arrastrar el pin para ajustar la ubicación exacta.
-      </p>
-      <div className="flex-1 rounded-xl overflow-hidden border border-gray-200" style={{ minHeight: 240 }}>
-        <GoogleMap
-          mapContainerStyle={{ height: '100%', width: '100%' }}
-          center={mapCenter}
-          zoom={15}
-          options={{ scrollwheel: false }}
-        >
-          <Marker
-            position={markerPos}
-            draggable
-            onDragEnd={onMarkerDragEnd}
-          />
-        </GoogleMap>
-      </div>
-      <div className="flex gap-2 justify-end">
-        {onCancel && (
-          <Button variant="outline" onClick={onCancel} disabled={saving}>
-            Cancelar
-          </Button>
-        )}
-        <Button onClick={() => onConfirm(markerPos.lat, markerPos.lng)} disabled={saving}>
-          <MapPin size={14} className="mr-1.5" />
-          {saving ? 'Guardando...' : 'Confirmar ubicación'}
-        </Button>
-      </div>
+
+      {!mapVisible && (
+        <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 text-sm text-gray-400">
+          Ingresá una dirección para ver el mapa
+        </div>
+      )}
+
+      {mapVisible && (
+        <>
+          <p className="text-xs text-gray-400 -mt-1">
+            También podés arrastrar el pin para ajustar la ubicación exacta.
+          </p>
+          <div className="flex-1 rounded-xl overflow-hidden border border-gray-200" style={{ minHeight: 240 }}>
+            <GoogleMap
+              mapContainerStyle={{ height: '100%', width: '100%' }}
+              center={mapCenter}
+              zoom={15}
+              options={{ scrollwheel: false }}
+            >
+              <Marker
+                position={markerPos}
+                draggable
+                onDragEnd={onMarkerDragEnd}
+              />
+            </GoogleMap>
+          </div>
+          <div className="flex gap-2 justify-end">
+            {onCancel && (
+              <Button variant="outline" onClick={onCancel} disabled={saving}>
+                Cancelar
+              </Button>
+            )}
+            <Button onClick={() => onConfirm(markerPos.lat, markerPos.lng)} disabled={saving}>
+              <MapPin size={14} className="mr-1.5" />
+              {saving ? 'Guardando...' : 'Confirmar ubicación'}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
