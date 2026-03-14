@@ -19,10 +19,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (loading) return;
     if (!isAuthenticated) {
-      if (pathname !== '/') router.replace('/');
+      if (pathname !== '/') {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('realia_redirect', window.location.pathname + window.location.search);
+        }
+        router.replace('/');
+      }
       return;
     }
-    if (pathname === '/') router.replace('/proyectos');
+    if (pathname === '/') {
+      const redirect = typeof window !== 'undefined' ? sessionStorage.getItem('realia_redirect') : null;
+      if (redirect) {
+        sessionStorage.removeItem('realia_redirect');
+        router.replace(redirect);
+      } else {
+        router.replace('/proyectos');
+      }
+    }
   }, [loading, isAuthenticated, pathname, router]);
 
   if (loading) {
