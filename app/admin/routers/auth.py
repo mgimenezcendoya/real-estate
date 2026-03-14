@@ -295,6 +295,12 @@ async def forgot_password(body: ForgotPasswordBody):
             send_password_reset_email(body.email, reset_url)
         except Exception:
             logger.exception("Failed to send password reset email to %s", body.email)
+            try:
+                await pool.execute(
+                    "DELETE FROM password_reset_tokens WHERE token = $1", token
+                )
+            except Exception:
+                logger.exception("Failed to delete orphaned reset token")
     return {"ok": True}
 
 
