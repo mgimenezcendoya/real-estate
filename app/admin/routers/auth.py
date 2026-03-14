@@ -282,6 +282,11 @@ async def forgot_password(body: ForgotPasswordBody):
     if row:
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        # Invalidate any existing unused tokens for this user
+        await pool.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = $1 AND used_at IS NULL",
+            row["id"],
+        )
         await pool.execute(
             """INSERT INTO password_reset_tokens (user_id, token, expires_at)
                VALUES ($1, $2, $3)""",
