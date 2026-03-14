@@ -92,6 +92,7 @@ export default function ProyectosPage() {
   const [locationProject, setLocationProject] = useState<Project | null>(null);
   const [locationLat, setLocationLat] = useState('');
   const [locationLng, setLocationLng] = useState('');
+  const [locationSaving, setLocationSaving] = useState(false);
   // Delete dialog
   const [deleteProject, setDeleteProjectState] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -188,6 +189,7 @@ export default function ProyectosPage() {
       toast.error('Coordenadas inválidas');
       return;
     }
+    setLocationSaving(true);
     try {
       await api.updateProject(locationProject.id, { lat, lng });
       toast.success('Ubicación guardada');
@@ -195,6 +197,8 @@ export default function ProyectosPage() {
       loadProjects();
     } catch {
       toast.error('Error al guardar ubicación');
+    } finally {
+      setLocationSaving(false);
     }
   };
 
@@ -492,7 +496,7 @@ export default function ProyectosPage() {
                                         }}
                                         className="gap-2 cursor-pointer"
                                       >
-                                        <MapPin className="w-4 h-4 mr-2" />
+                                        <MapPin size={13} />
                                         Editar ubicación
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
@@ -796,8 +800,10 @@ export default function ProyectosPage() {
             </div>
           </div>
           <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setLocationProject(null)}>Cancelar</Button>
-            <Button onClick={handleSaveLocation}>Guardar</Button>
+            <Button variant="outline" disabled={locationSaving} onClick={() => setLocationProject(null)}>Cancelar</Button>
+            <Button onClick={handleSaveLocation} disabled={locationSaving}>
+              {locationSaving ? 'Guardando...' : 'Guardar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,20 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Fix Leaflet default marker icons broken by webpack/Next.js
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
 
 interface MapViewProps {
   lat: number;
@@ -24,6 +12,23 @@ interface MapViewProps {
 }
 
 export default function MapView({ lat, lng, label, className }: MapViewProps) {
+  useEffect(() => {
+    // Fix Leaflet default marker icons broken by webpack/Next.js
+    // Must run client-side only since Leaflet accesses the DOM at import time
+    import('leaflet').then((L) => {
+      const icon = L.default.icon({
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41],
+      });
+      L.default.Marker.prototype.options.icon = icon;
+    });
+  }, []);
+
   return (
     <MapContainer
       center={[lat, lng]}
