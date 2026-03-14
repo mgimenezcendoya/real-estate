@@ -19,6 +19,7 @@ import {
   Menu,
   LogIn,
   CreditCard,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ const SECTIONS = [
   { id: 'unidades', label: 'Unidades', icon: Home },
   { id: 'reservas', label: 'Reservas', icon: ClipboardList },
   { id: 'plan-pagos', label: 'Plan de pagos', icon: CreditCard },
+  { id: 'portal-comprador', label: 'Portal del comprador', icon: KeyRound },
   { id: 'obra', label: 'Obra', icon: HardHat },
   { id: 'financiero', label: 'Financiero', icon: DollarSign },
   { id: 'inversores', label: 'Inversores', icon: TrendingUp },
@@ -603,6 +605,56 @@ export default function GuiaPage() {
               <TipCard>
                 Podés editar el monto de una cuota haciendo clic sobre el valor. Útil para ajustes por tipo de cambio o renegociaciones.
               </TipCard>
+            </GuiaSection>
+
+            {/* Portal del comprador */}
+            <GuiaSection
+              id="portal-comprador"
+              icon={KeyRound}
+              category="Compradores"
+              title="Portal del comprador"
+              description="Generá acceso al portal para que cada comprador pueda ver el avance de obra y su propio plan de pagos, sin necesidad de entrar al panel interno."
+              sectionNumber={8}
+            >
+              <UseCaseList items={[
+                'Crear o regenerar el acceso de un comprador al portal',
+                'Ver qué información tiene disponible el comprador',
+                'Enviarle las credenciales al comprador para que ingrese',
+              ]} />
+              <WorkflowList
+                category="Compradores"
+                steps={[
+                  { label: 'Ir a la lista de reservas convertidas', description: 'Desde el proyecto, abrí la tab "Reservas" y filtrá por "Convertidas". Solo las reservas en estado convertido pueden tener portal activo.' },
+                  { label: 'Clic en el ícono de llave', description: 'Cada reserva convertida que tenga email del comprador muestra un ícono de llave (🔑) a la derecha de la fila. Hacé clic.' },
+                  { label: 'Copiá las credenciales', description: 'Se abre un modal con el email y la contraseña temporal generada. Hacé clic en "Copiar" para copiarlos al portapapeles.' },
+                  { label: 'Enviáselas al comprador', description: 'Compartí el link del portal y las credenciales por WhatsApp, email u otro canal de tu preferencia.' },
+                  { label: 'El comprador ingresa y cambia su contraseña', description: 'Al entrar por primera vez, el portal le pide que establezca una contraseña propia. Luego puede acceder cuando quiera.' },
+                ]}
+              />
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Qué ve el comprador en su portal
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      { title: 'Avance de obra', desc: 'Etapas de construcción con porcentaje de progreso y fotos. Solo se muestra información pública — sin notas internas del equipo.' },
+                      { title: 'Mi plan de pagos', desc: 'Sus cuotas con estado, montos y fechas de vencimiento. Los pagos registrados aparecen confirmados en tiempo real.' },
+                    ] as { title: string; desc: string }[]
+                  ).map(({ title, desc }) => (
+                    <div key={title} className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                      <p className="text-sm font-semibold text-indigo-900 mb-1">{title}</p>
+                      <p className="text-sm text-indigo-700/80 leading-relaxed">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <TipCard>
+                Si regenerás el acceso de un comprador que ya tenía credenciales, se crea una nueva contraseña temporal y la anterior queda inválida. Útil si el comprador olvidó su clave.
+              </TipCard>
+              <RoleNote>
+                Solo los roles admin y gerente pueden generar accesos al portal. El ícono de llave solo aparece en reservas con email del comprador cargado y estado "Convertida".
+              </RoleNote>
             </GuiaSection>
 
             {/* 6 — Obra */}
