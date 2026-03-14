@@ -15,26 +15,38 @@ import {
   Users,
   Lightbulb,
   ShieldAlert,
+  Download,
+  Menu,
+  LogIn,
+  CreditCard,
+  KeyRound,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import GuiaStickyNav from './GuiaStickyNav';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import AnnotatedScreenshot from '@/components/AnnotatedScreenshot';
 
 // ─── Section definitions ────────────────────────────────────────────────────────
 
 const SECTIONS = [
+  { id: 'primeros-pasos', label: 'Primeros pasos', icon: LogIn },
   { id: 'proyectos', label: 'Proyectos', icon: Building2 },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'leads', label: 'Leads', icon: Flame },
   { id: 'unidades', label: 'Unidades', icon: Home },
   { id: 'reservas', label: 'Reservas', icon: ClipboardList },
+  { id: 'plan-pagos', label: 'Plan de pagos', icon: CreditCard },
+  { id: 'portal-comprador', label: 'Portal del comprador', icon: KeyRound },
   { id: 'obra', label: 'Obra', icon: HardHat },
   { id: 'financiero', label: 'Financiero', icon: DollarSign },
   { id: 'inversores', label: 'Inversores', icon: TrendingUp },
   { id: 'inbox', label: 'Inbox', icon: MessageSquare },
   { id: 'tools', label: 'Tools', icon: Wrench },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
+  { id: 'configuracion', label: 'Configuración', icon: Settings },
 ];
 
 // ─── Category color config ──────────────────────────────────────────────────────
@@ -95,7 +107,7 @@ function GuiaSection({
   const cfg = getCategoryConfig(category);
 
   return (
-    <section id={id} className="scroll-mt-6">
+    <section id={id} className="scroll-mt-6 guia-section">
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm">
         {/* Category-colored top accent — isolated overflow to preserve border-radius */}
         <div className="rounded-t-2xl overflow-hidden">
@@ -275,7 +287,7 @@ export default function GuiaPage() {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="relative bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
+          <div data-guia-hero className="relative bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 rounded-2xl px-6 py-6 overflow-hidden shadow-md">
             {/* Decorative circles */}
             <div className="absolute -top-6 -right-6 w-32 h-32 rounded-full bg-white/5" />
             <div className="absolute -bottom-8 right-16 w-20 h-20 rounded-full bg-white/5" />
@@ -293,27 +305,43 @@ export default function GuiaPage() {
                 <p className="text-sm text-indigo-100 mt-0.5">Todo lo que necesitás saber para operar REALIA</p>
               </div>
             </div>
+            <div className="relative mt-3 flex justify-end" data-guia-header-actions>
+              <button
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 border border-white/20 text-white text-xs font-medium hover:bg-white/25 transition-colors print:hidden"
+              >
+                <Download size={13} />
+                Descargar PDF
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Mobile: horizontal chip nav */}
-        <div className="lg:hidden mb-6 -mx-1 overflow-x-auto pb-1">
-          <div className="flex gap-2 px-1 w-max">
-            {visibleSections.map(({ id, label, icon: Icon }) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors whitespace-nowrap"
-              >
-                <Icon size={12} />
-                {label}
-              </a>
-            ))}
-          </div>
+        {/* Mobile: hamburger nav */}
+        <div className="lg:hidden mb-6 flex items-center gap-3" data-guia-mobilenav>
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+                <Menu size={15} />
+                Capítulos
+              </button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-64 p-0">
+              <SheetTitle className="sr-only">Navegación</SheetTitle>
+              <div className="p-5 pt-8">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">
+                  Contenidos
+                </p>
+                <GuiaStickyNav
+                  sections={visibleSections}
+                  onNavigate={() => {
+                    // Sheet closes automatically when focus leaves on mobile
+                    // But we still expose the callback for future use
+                  }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
 
         {/* Two-column layout */}
@@ -332,6 +360,59 @@ export default function GuiaPage() {
           {/* Scrollable content */}
           <div className="flex-1 space-y-5 min-w-0">
 
+            {/* 0 — Primeros pasos */}
+            <GuiaSection
+              id="primeros-pasos"
+              icon={LogIn}
+              category="Inicio"
+              title="Primeros pasos"
+              description="Cómo ingresar a REALIA por primera vez, cambiar tu contraseña y entender los roles de usuario."
+              sectionNumber={1}
+            >
+              <WorkflowList
+                category="Inicio"
+                steps={[
+                  { label: 'Recibí tus credenciales', description: 'El administrador de tu organización te envía el email y contraseña inicial. Guardá este email — es tu usuario permanente en REALIA.' },
+                  { label: 'Ingresá a la plataforma', description: 'Abrí el link de acceso en tu navegador. Verás la pantalla de login. Ingresá tu email y contraseña inicial.' },
+                  { label: 'Cambiá tu contraseña', description: 'Al iniciar sesión por primera vez, REALIA te pedirá que establezcas una contraseña nueva. Este paso es obligatorio antes de continuar.' },
+                  { label: 'Explorá el panel', description: 'Una vez dentro, el menú lateral izquierdo da acceso a todos los módulos según tu rol. En móvil, el menú se abre con el ícono de las tres líneas.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/login.png"
+                alt="Pantalla de login de REALIA"
+                annotations={[
+                  { x: 50, y: 38, label: 'Campo email', description: 'Ingresá el email que te asignó el administrador' },
+                  { x: 50, y: 54, label: 'Contraseña', description: 'La contraseña inicial es temporaria — la vas a cambiar al entrar' },
+                  { x: 50, y: 68, label: 'Botón ingresar', description: 'Presioná Enter o hacé clic para acceder' },
+                ]}
+              />
+              <TipCard>
+                Si olvidás tu contraseña, contactá al administrador de tu organización. El admin puede resetearte la clave desde el panel de Usuarios.
+              </TipCard>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Roles de usuario
+                </p>
+                <div className="space-y-2">
+                  {(
+                    [
+                      { role: 'Superadmin', color: 'bg-violet-100 text-violet-800', desc: 'Acceso completo a todas las organizaciones. Solo para el equipo REALIA.' },
+                      { role: 'Admin',      color: 'bg-indigo-100 text-indigo-800', desc: 'Gestiona su organización completa: usuarios, proyectos, financiero y configuración.' },
+                      { role: 'Gerente',    color: 'bg-blue-100 text-blue-800',     desc: 'Accede a todos los proyectos, ventas y financiero. No puede crear usuarios.' },
+                      { role: 'Vendedor',   color: 'bg-green-100 text-green-800',   desc: 'Gestiona sus leads y reservas asignadas. Sin acceso al módulo financiero.' },
+                      { role: 'Lector',     color: 'bg-gray-100 text-gray-700',     desc: 'Solo lectura en proyectos y ventas. No puede editar ningún dato.' },
+                    ] as { role: string; color: string; desc: string }[]
+                  ).map(({ role, color, desc }) => (
+                    <div key={role} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${color}`}>{role}</span>
+                      <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </GuiaSection>
+
             {/* 1 — Proyectos */}
             <GuiaSection
               id="proyectos"
@@ -339,7 +420,7 @@ export default function GuiaPage() {
               category="Módulo principal"
               title="Proyectos"
               description="El punto de entrada de REALIA. Cada proyecto representa un desarrollo inmobiliario con sus unidades, leads, obra y finanzas."
-              sectionNumber={1}
+              sectionNumber={2}
             >
               <UseCaseList items={[
                 'Ver todos los proyectos activos de la organización',
@@ -356,6 +437,14 @@ export default function GuiaPage() {
                   { label: 'Navegá entre módulos', description: 'Usá las tabs internas (Leads, Unidades, Reservas, Obra, Financiero, Inversores) para acceder a cada sección.' },
                 ]}
               />
+              <AnnotatedScreenshot
+                src="/guia/proyectos.png"
+                alt="Lista de proyectos en REALIA"
+                annotations={[
+                  { x: 30, y: 35, label: 'Card de proyecto', description: 'Cada card muestra KPIs: unidades totales, ventas, reservas' },
+                  { x: 85, y: 12, label: 'Nuevo proyecto', description: 'Clic para crear un proyecto subiendo el CSV de unidades' },
+                ]}
+              />
               <TipCard>
                 El CSV de unidades debe tener columnas: piso, unidad, tipo, superficie, precio. Podés actualizar las unidades re-subiendo el CSV desde la configuración del proyecto.
               </TipCard>
@@ -368,7 +457,7 @@ export default function GuiaPage() {
               category="Analytics"
               title="Dashboard"
               description="Vista ejecutiva del proyecto con métricas de ventas, absorción y performance de leads en tiempo real."
-              sectionNumber={2}
+              sectionNumber={3}
             >
               <UseCaseList items={[
                 'Ver el estado de ventas consolidado (vendidas, reservadas, disponibles)',
@@ -397,7 +486,7 @@ export default function GuiaPage() {
               category="CRM"
               title="Leads"
               description="Kanban de prospectos organizado por temperatura de interés. Gestioná el pipeline de ventas desde el primer contacto hasta la reserva."
-              sectionNumber={3}
+              sectionNumber={4}
             >
               <UseCaseList items={[
                 'Registrar nuevos prospectos y su interés en unidades',
@@ -412,6 +501,16 @@ export default function GuiaPage() {
                   { label: 'Creá un lead', description: 'Clic en "+ Nuevo Lead", completá nombre, teléfono, email y la unidad de interés.' },
                   { label: 'Gestioná el pipeline', description: 'Arrastrá los leads entre columnas o usá el menú de opciones para cambiar la temperatura.' },
                   { label: 'Reservá desde el lead', description: 'Abrí el detalle del lead (clic en la card) y usá el botón "Reservar unidad" para iniciar el wizard de reserva.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/leads.png"
+                alt="Kanban de leads"
+                annotations={[
+                  { x: 15, y: 18, label: 'Columna Hot', description: 'Leads con alta probabilidad de cierre' },
+                  { x: 50, y: 18, label: 'Columna Warm', description: 'Leads en seguimiento activo' },
+                  { x: 83, y: 18, label: 'Columna Cold', description: 'Leads con baja actividad reciente' },
+                  { x: 50, y: 58, label: 'Card de lead', description: 'Hacé clic para ver el detalle y gestionar la reserva' },
                 ]}
               />
               <TipCard>
@@ -429,7 +528,7 @@ export default function GuiaPage() {
               category="Inventario"
               title="Unidades"
               description="Grilla visual de todas las unidades por piso. Estado en tiempo real: disponible, reservada o vendida."
-              sectionNumber={4}
+              sectionNumber={5}
             >
               <UseCaseList items={[
                 'Ver el plano de disponibilidad por piso',
@@ -446,6 +545,15 @@ export default function GuiaPage() {
                   { label: 'Registrá venta directa', description: 'Clic en una unidad disponible → "Venta directa". Útil para operaciones que ya están cerradas.' },
                 ]}
               />
+              <AnnotatedScreenshot
+                src="/guia/unidades.png"
+                alt="Grilla de unidades por piso"
+                annotations={[
+                  { x: 18, y: 45, label: 'Verde = disponible', description: 'Clic para reservar o hacer venta directa' },
+                  { x: 50, y: 45, label: 'Amarillo = reservada', description: 'Tiene una reserva activa asociada' },
+                  { x: 78, y: 45, label: 'Rojo = vendida', description: 'Operación convertida o venta directa cerrada' },
+                ]}
+              />
               <TipCard>
                 Podés filtrar por tipo de unidad (1 amb, 2 amb, etc.) usando los chips en la parte superior. El mapa de calor muestra qué pisos tienen más disponibilidad.
               </TipCard>
@@ -458,7 +566,7 @@ export default function GuiaPage() {
               category="Operaciones"
               title="Reservas"
               description="Centro de operaciones comerciales. Gestioná reservas activas, planes de pago, cuotas y facturas vinculadas."
-              sectionNumber={5}
+              sectionNumber={6}
             >
               <UseCaseList items={[
                 'Ver todas las operaciones del proyecto (activas, convertidas, canceladas)',
@@ -485,6 +593,99 @@ export default function GuiaPage() {
               </TipCard>
             </GuiaSection>
 
+            {/* Plan de pagos */}
+            <GuiaSection
+              id="plan-pagos"
+              icon={CreditCard}
+              category="Operaciones"
+              title="Plan de pagos"
+              description="Gestioná las cuotas acordadas con el comprador: creá el plan, registrá cada pago y seguí el estado de deuda."
+              sectionNumber={7}
+            >
+              <UseCaseList items={[
+                'Ver todas las cuotas de una reserva y su estado actual',
+                'Registrar el cobro de una cuota con fecha y monto real',
+                'Editar el monto o fecha de vencimiento de una cuota',
+                'Eliminar un registro de pago incorrecto',
+                'Ver el total cobrado vs el total pendiente de la operación',
+              ]} />
+              <WorkflowList
+                category="Operaciones"
+                steps={[
+                  { label: 'Abrí el detalle de la reserva', description: 'Desde /reservas, hacé clic en una reserva para abrir su página de detalle. Seleccioná la tab "Plan de Pagos".' },
+                  { label: 'Revisá las cuotas', description: 'Verás la tabla de cuotas con: número de cuota, fecha de vencimiento, monto pactado y estado (pendiente / parcial / pagada / vencida).' },
+                  { label: 'Registrá un pago', description: 'Hacé clic en el ícono de pago de una cuota → ingresá fecha de cobro, monto recibido y método de pago. Confirmá.' },
+                  { label: 'Vinculá a una factura (opcional)', description: 'Si ya cargaste la factura de ingreso correspondiente en el módulo Financiero, podés vincularla al pago usando el selector "Pago vinculado".' },
+                  { label: 'Revisá el resumen del plan', description: 'Al pie de la tabla verás el total del plan, el monto cobrado hasta hoy y el saldo pendiente.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/reservas.png"
+                alt="Plan de pagos de una reserva"
+                annotations={[
+                  { x: 22, y: 18, label: 'Tab Plan de Pagos', description: 'Seleccioná esta tab para ver las cuotas del comprador' },
+                  { x: 78, y: 48, label: 'Registrar pago', description: 'Ícono en cada fila para registrar el cobro de esa cuota' },
+                  { x: 50, y: 82, label: 'Resumen del plan', description: 'Total, cobrado y pendiente en la parte inferior' },
+                ]}
+              />
+              <TipCard>
+                Las cuotas vencidas (fecha pasada sin pago registrado) aparecen destacadas en rojo. El sistema actualiza estos estados automáticamente cada noche.
+              </TipCard>
+              <TipCard>
+                Podés editar el monto de una cuota haciendo clic sobre el valor. Útil para ajustes por tipo de cambio o renegociaciones.
+              </TipCard>
+            </GuiaSection>
+
+            {/* Portal del comprador */}
+            <GuiaSection
+              id="portal-comprador"
+              icon={KeyRound}
+              category="Compradores"
+              title="Portal del comprador"
+              description="Generá acceso al portal para que cada comprador pueda ver el avance de obra y su propio plan de pagos, sin necesidad de entrar al panel interno."
+              sectionNumber={8}
+            >
+              <UseCaseList items={[
+                'Crear o regenerar el acceso de un comprador al portal',
+                'Ver qué información tiene disponible el comprador',
+                'Enviarle las credenciales al comprador para que ingrese',
+              ]} />
+              <WorkflowList
+                category="Compradores"
+                steps={[
+                  { label: 'Ir a la lista de reservas convertidas', description: 'Desde el proyecto, abrí la tab "Reservas" y filtrá por "Convertidas". Solo las reservas en estado convertido pueden tener portal activo.' },
+                  { label: 'Clic en el ícono de llave', description: 'Cada reserva convertida que tenga email del comprador muestra un ícono de llave (🔑) a la derecha de la fila. Hacé clic.' },
+                  { label: 'Copiá las credenciales', description: 'Se abre un modal con el email y la contraseña temporal generada. Hacé clic en "Copiar" para copiarlos al portapapeles.' },
+                  { label: 'Enviáselas al comprador', description: 'Compartí el link del portal y las credenciales por WhatsApp, email u otro canal de tu preferencia.' },
+                  { label: 'El comprador ingresa y cambia su contraseña', description: 'Al entrar por primera vez, el portal le pide que establezca una contraseña propia. Luego puede acceder cuando quiera.' },
+                ]}
+              />
+              <div className="space-y-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Qué ve el comprador en su portal
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {(
+                    [
+                      { title: 'Avance de obra', desc: 'Etapas de construcción con porcentaje de progreso y fotos. Solo se muestra información pública — sin notas internas del equipo.' },
+                      { title: 'Mi plan de pagos', desc: 'Sus cuotas con estado, montos y fechas de vencimiento. Los pagos registrados aparecen confirmados en tiempo real.' },
+                    ] as { title: string; desc: string }[]
+                  ).map(({ title, desc }) => (
+                    <div key={title} className="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                      <p className="text-sm font-semibold text-indigo-900 mb-1">{title}</p>
+                      <p className="text-sm text-indigo-700/80 leading-relaxed">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <TipCard>
+                Si regenerás el acceso de un comprador que ya tenía credenciales, se crea una nueva contraseña temporal y la anterior queda inválida. Útil si el comprador olvidó su clave.
+              </TipCard>
+              <RoleNote>
+                Solo los roles admin y gerente pueden generar accesos al portal. El ícono de llave solo aparece en reservas con email del comprador cargado y estado "Convertida".
+              </RoleNote>
+            </GuiaSection>
+
             {/* 6 — Obra */}
             <GuiaSection
               id="obra"
@@ -492,7 +693,7 @@ export default function GuiaPage() {
               category="Construcción"
               title="Obra"
               description="Seguimiento del avance de construcción por etapas ponderadas y gestión de pagos a proveedores."
-              sectionNumber={6}
+              sectionNumber={9}
             >
               <UseCaseList items={[
                 'Registrar el progreso porcentual de cada etapa de obra',
@@ -524,7 +725,7 @@ export default function GuiaPage() {
               category="Finanzas"
               title="Financiero"
               description="Dashboard financiero integral: resumen de KPIs, gestión de facturas y flujo de caja proyectado vs real."
-              sectionNumber={7}
+              sectionNumber={10}
             >
               <UseCaseList items={[
                 'Ver el P&L del proyecto en tiempo real',
@@ -564,7 +765,7 @@ export default function GuiaPage() {
               category="Portal Inversores"
               title="Inversores"
               description="Portal de comunicación con inversores del proyecto. Generá reportes de estado y enviálos por WhatsApp con un clic."
-              sectionNumber={8}
+              sectionNumber={11}
             >
               <UseCaseList items={[
                 'Ver el listado de inversores del proyecto',
@@ -597,7 +798,7 @@ export default function GuiaPage() {
               category="Comunicaciones"
               title="Inbox"
               description="Centro de mensajes unificado. Conversaciones entrantes de WhatsApp y Telegram con respuesta asistida por IA."
-              sectionNumber={9}
+              sectionNumber={12}
             >
               <UseCaseList items={[
                 'Ver y responder mensajes de leads en tiempo real',
@@ -621,6 +822,32 @@ export default function GuiaPage() {
               <TipCard>
                 Las conversaciones con mensajes sin leer aparecen resaltadas. El badge en el menú lateral muestra el total de no leídos.
               </TipCard>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Intervención humana (HITL)
+                </p>
+              </div>
+              <WorkflowList
+                category="Comunicaciones"
+                steps={[
+                  { label: 'El agente activa la intervención', description: 'Cuando el lead necesita atención personalizada, el agente de IA activa el modo HITL. El asesor recibe una notificación por WhatsApp con el link directo a la conversación.' },
+                  { label: 'Hacé clic en el link', description: 'El link te lleva directamente a la conversación en el Inbox. Si no estabas logueado, el sistema te redirige automáticamente a la conversación correcta luego del login.' },
+                  { label: 'Respondé directamente', description: 'En modo HITL, los mensajes que escribís se envían al lead por WhatsApp. La IA no interviene mientras el handoff esté activo.' },
+                  { label: 'Cerrá el handoff', description: 'Cuando terminaste de atender al lead, hacé clic en "Cerrar handoff". La IA retoma el control de la conversación automáticamente.' },
+                ]}
+              />
+              <TipCard>
+                La notificación de WhatsApp llega al número configurado en el canal de tu organización. Si no recibís las notificaciones, contactá al admin para verificar el número en Usuarios → Canal WhatsApp → campo "Teléfono notificaciones".
+              </TipCard>
+              <AnnotatedScreenshot
+                src="/guia/inbox.png"
+                alt="Inbox con conversación activa"
+                annotations={[
+                  { x: 22, y: 50, label: 'Lista de conversaciones', description: 'Los leads con mensajes sin leer aparecen resaltados' },
+                  { x: 68, y: 78, label: 'Campo de respuesta', description: 'La IA sugiere una respuesta; podés editarla antes de enviar' },
+                  { x: 85, y: 22, label: 'Panel del lead', description: 'Info del prospecto: nombre, teléfono, proyecto asignado' },
+                ]}
+              />
             </GuiaSection>
 
             {/* 10 — Tools */}
@@ -630,7 +857,7 @@ export default function GuiaPage() {
               category="Utilidades"
               title="Tools"
               description="Herramientas financieras para el mercado inmobiliario argentino: tipos de cambio ARS/USD y simulador de conversión."
-              sectionNumber={10}
+              sectionNumber={13}
             >
               <UseCaseList items={[
                 'Consultar la cotización del dólar oficial, MEP y blue',
@@ -660,7 +887,7 @@ export default function GuiaPage() {
                 category="Administración"
                 title="Usuarios"
                 description="Gestión de usuarios de la plataforma. Creá cuentas, asigná roles y controlá los permisos de acceso."
-                sectionNumber={11}
+                sectionNumber={14}
               >
                 <UseCaseList items={[
                   'Crear nuevos usuarios (vendedores, gerentes, lectores)',
@@ -725,6 +952,48 @@ export default function GuiaPage() {
               </GuiaSection>
             )}
 
+            {/* Configuración (admin only) */}
+            {isAdmin && (
+              <GuiaSection
+                id="configuracion"
+                icon={Settings}
+                category="Administración"
+                title="Configuración"
+                description="Configurá el canal de WhatsApp de tu organización y el número de notificaciones al asesor para alertas de HITL."
+                sectionNumber={15}
+              >
+                <UseCaseList items={[
+                  'Verificar qué canal de WhatsApp está activo en tu organización',
+                  'Configurar el número de teléfono del asesor para notificaciones HITL',
+                  'Ver el proveedor de mensajería activo y los datos del canal',
+                ]} />
+                <WorkflowList
+                  category="Administración"
+                  steps={[
+                    { label: 'Accedé a Usuarios', description: 'Clic en "Usuarios" en el menú lateral. La configuración del canal WhatsApp vive dentro de esta sección.' },
+                    { label: 'Encontrá la card del canal', description: 'Verás la card del canal de WhatsApp de tu organización con el proveedor activo y el estado de conexión.' },
+                    { label: 'Hacé clic en editar', description: 'Clic en el botón de editar de la card del canal. Se abre el modal con todos los campos de configuración.' },
+                    { label: 'Configurá el número de notificaciones', description: 'En el campo "Teléfono notificaciones", ingresá el número de WhatsApp del asesor que recibirá las alertas de HITL. Formato: código de país + número sin espacios (ej: 5491112345678).' },
+                    { label: 'Guardá los cambios', description: 'Hacé clic en "Guardar". Los cambios aplican de inmediato — el próximo HITL notificará al nuevo número.' },
+                  ]}
+                />
+                <AnnotatedScreenshot
+                  src="/guia/usuarios.png"
+                  alt="Panel de usuarios y configuración del canal WhatsApp"
+                  annotations={[
+                    { x: 68, y: 38, label: 'Card del canal', description: 'Muestra el proveedor activo y el estado de conexión' },
+                    { x: 82, y: 58, label: 'Botón editar', description: 'Abre el modal de configuración del canal' },
+                  ]}
+                />
+                <TipCard>
+                  El número de notificaciones debe pertenecer a una cuenta de WhatsApp que ya haya enviado al menos un mensaje al número del bot. Esto es un requisito de WhatsApp Business — el asesor debe iniciar la conversación con el bot una vez para habilitar las notificaciones.
+                </TipCard>
+                <RoleNote>
+                  Solo los admins pueden modificar la configuración del canal. Los cambios afectan a toda la organización.
+                </RoleNote>
+              </GuiaSection>
+            )}
+
             {/* Glosario */}
             <section className="bg-white border border-gray-100 rounded-2xl shadow-sm">
               <div className="rounded-t-2xl overflow-hidden">
@@ -742,6 +1011,10 @@ export default function GuiaPage() {
                   { term: 'Etapa de obra',     def: 'Fase del proceso constructivo con un peso porcentual en el avance total.' },
                   { term: 'Reserva',           def: 'Operación comercial que bloquea una unidad para un comprador con un plan de pagos.' },
                   { term: 'Plan de pagos',     def: 'Conjunto de cuotas acordadas para completar el pago de una unidad reservada.' },
+                  { term: 'HITL',                def: 'Human In The Loop. Modo donde un asesor humano toma el control de la conversación de WhatsApp en lugar del agente de IA.' },
+                  { term: 'Handoff',             def: 'El traspaso de la conversación del agente de IA a un asesor humano para atención personalizada.' },
+                  { term: 'Portal del comprador', def: 'Acceso externo para compradores donde ven el avance de obra y su plan de pagos, sin entrar al panel interno de REALIA.' },
+                  { term: 'Comprador',           def: 'Usuario con acceso exclusivo al portal del comprador, vinculado a una reserva convertida.' },
                 ].map(({ term, def }) => (
                   <div key={term} className="bg-slate-50/70 rounded-xl p-3.5 border border-gray-100">
                     <p className="text-sm font-semibold text-gray-900">{term}</p>

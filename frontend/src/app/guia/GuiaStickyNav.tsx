@@ -12,9 +12,10 @@ interface Section {
 
 interface GuiaStickyNavProps {
   sections: Section[];
+  onNavigate?: () => void;
 }
 
-export default function GuiaStickyNav({ sections }: GuiaStickyNavProps) {
+export default function GuiaStickyNav({ sections, onNavigate }: GuiaStickyNavProps) {
   const [activeId, setActiveId] = useState<string | null>(sections[0]?.id ?? null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -58,6 +59,7 @@ export default function GuiaStickyNav({ sections }: GuiaStickyNavProps) {
               e.preventDefault();
               document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               setActiveId(id);
+              onNavigate?.();
             }}
           >
             {active && (
