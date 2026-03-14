@@ -165,7 +165,8 @@ async def list_projects(
     Pass include_deleted=true to include soft-deleted projects."""
     pool = await get_pool()
     columns = """id, organization_id, name, slug, address, neighborhood, city,
-                 total_floors, total_units, delivery_status, status, deleted_at, created_at"""
+                 total_floors, total_units, delivery_status, status, deleted_at, created_at,
+                 lat, lng"""
 
     effective_org_id = developer_id
     if not effective_org_id and credentials and credentials.scheme == "Bearer":
