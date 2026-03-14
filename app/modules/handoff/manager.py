@@ -204,7 +204,7 @@ async def initiate_handoff(
         )
         # Send WhatsApp notification to advisor if configured
         lead_name_str = (lead["name"] or lead["phone"]) if lead else "Lead"
-        asyncio.create_task(_send_hitl_notification(org_id, lead_name_str, lead_id))
+        await _send_hitl_notification(org_id, lead_name_str, lead_id)
 
     return dict(handoff)
 
