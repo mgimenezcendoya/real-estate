@@ -8,6 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import dynamic from 'next/dynamic';
+
+const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
 
 function StatCard({
   label,
@@ -372,6 +375,24 @@ export default function ProjectDashboard() {
               </Badge>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* 8. Ubicación */}
+      {!loading && project?.lat && project?.lng && (
+        <section>
+          <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">
+            Ubicación
+          </h2>
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden" style={{ height: 300 }}>
+            <MapView
+              lat={project.lat}
+              lng={project.lng}
+              label={project.name}
+              className="rounded-2xl"
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-2">{project.address}</p>
         </section>
       )}
     </div>
