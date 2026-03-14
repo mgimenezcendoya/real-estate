@@ -4,7 +4,12 @@ Handoff Manager: orchestrates the handoff flow between leads and sales team via 
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo as _ZoneInfo
+    _BA_TZ = _ZoneInfo("America/Argentina/Buenos_Aires")
+except Exception:
+    _BA_TZ = timezone(timedelta(hours=-3))
 
 from app.database import get_pool
 # from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message  # TODO: re-enable per-tenant
@@ -16,7 +21,6 @@ logger = logging.getLogger(__name__)
 async def _send_hitl_notification(org_id: str, lead_name: str, lead_id: str) -> None:
     """Send WhatsApp template to advisor when HITL is activated."""
     try:
-        from zoneinfo import ZoneInfo
         pool = await get_pool()
         channel_row = await pool.fetchrow(
             "SELECT * FROM tenant_channels WHERE organization_id = $1 AND activo = true LIMIT 1",
@@ -26,7 +30,7 @@ async def _send_hitl_notification(org_id: str, lead_name: str, lead_id: str) -> 
             return
 
         notify_phone = channel_row["notify_phone"]
-        ba_time = datetime.now(ZoneInfo("America/Argentina/Buenos_Aires")).strftime("%H:%M")
+        ba_time = datetime.now(_BA_TZ).strftime("%H:%M")
 
         provider = channel_row["provider"]
         if provider == "kapso":
