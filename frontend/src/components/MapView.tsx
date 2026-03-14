@@ -2,6 +2,8 @@
 
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 
+const LIBRARIES: ('places')[] = ['places'];
+
 interface MapViewProps {
   lat: number;
   lng: number;
@@ -12,6 +14,7 @@ interface MapViewProps {
 export default function MapView({ lat, lng, className }: MapViewProps) {
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '',
+    libraries: LIBRARIES,
   });
 
   if (!isLoaded) {
