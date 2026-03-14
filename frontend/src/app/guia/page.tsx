@@ -20,6 +20,7 @@ import {
   LogIn,
   CreditCard,
   KeyRound,
+  Settings,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ const SECTIONS = [
   { id: 'inbox', label: 'Inbox', icon: MessageSquare },
   { id: 'tools', label: 'Tools', icon: Wrench },
   { id: 'usuarios', label: 'Usuarios', icon: Users },
+  { id: 'configuracion', label: 'Configuración', icon: Settings },
 ];
 
 // ─── Category color config ──────────────────────────────────────────────────────
@@ -920,6 +922,48 @@ export default function GuiaPage() {
                     </table>
                   </div>
                 </div>
+              </GuiaSection>
+            )}
+
+            {/* Configuración (admin only) */}
+            {isAdmin && (
+              <GuiaSection
+                id="configuracion"
+                icon={Settings}
+                category="Administración"
+                title="Configuración"
+                description="Configurá el canal de WhatsApp de tu organización y el número de notificaciones al asesor para alertas de HITL."
+                sectionNumber={15}
+              >
+                <UseCaseList items={[
+                  'Verificar qué canal de WhatsApp está activo en tu organización',
+                  'Configurar el número de teléfono del asesor para notificaciones HITL',
+                  'Ver el proveedor de mensajería activo y los datos del canal',
+                ]} />
+                <WorkflowList
+                  category="Administración"
+                  steps={[
+                    { label: 'Accedé a Usuarios', description: 'Clic en "Usuarios" en el menú lateral. La configuración del canal WhatsApp vive dentro de esta sección.' },
+                    { label: 'Encontrá la card del canal', description: 'Verás la card del canal de WhatsApp de tu organización con el proveedor activo y el estado de conexión.' },
+                    { label: 'Hacé clic en editar', description: 'Clic en el botón de editar de la card del canal. Se abre el modal con todos los campos de configuración.' },
+                    { label: 'Configurá el número de notificaciones', description: 'En el campo "Teléfono notificaciones", ingresá el número de WhatsApp del asesor que recibirá las alertas de HITL. Formato: código de país + número sin espacios (ej: 5491112345678).' },
+                    { label: 'Guardá los cambios', description: 'Hacé clic en "Guardar". Los cambios aplican de inmediato — el próximo HITL notificará al nuevo número.' },
+                  ]}
+                />
+                <AnnotatedScreenshot
+                  src="/guia/usuarios.png"
+                  alt="Panel de usuarios y configuración del canal WhatsApp"
+                  annotations={[
+                    { x: 68, y: 38, label: 'Card del canal', description: 'Muestra el proveedor activo y el estado de conexión' },
+                    { x: 82, y: 58, label: 'Botón editar', description: 'Abre el modal de configuración del canal' },
+                  ]}
+                />
+                <TipCard>
+                  El número de notificaciones debe pertenecer a una cuenta de WhatsApp que ya haya enviado al menos un mensaje al número del bot. Esto es un requisito de WhatsApp Business — el asesor debe iniciar la conversación con el bot una vez para habilitar las notificaciones.
+                </TipCard>
+                <RoleNote>
+                  Solo los admins pueden modificar la configuración del canal. Los cambios afectan a toda la organización.
+                </RoleNote>
               </GuiaSection>
             )}
 
