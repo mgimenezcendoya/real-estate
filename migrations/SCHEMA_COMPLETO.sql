@@ -302,11 +302,6 @@ CREATE TABLE IF NOT EXISTS unit_notes (
 );
 
 
--- ===== Migration 005: telegram_handoff =====
-
-ALTER TABLE handoffs ADD COLUMN IF NOT EXISTS telegram_thread_id BIGINT;
-
-
 -- ===== Migration 006: lead_notes =====
 
 CREATE TABLE IF NOT EXISTS lead_notes (

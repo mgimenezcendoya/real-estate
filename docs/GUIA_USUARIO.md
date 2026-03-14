@@ -233,7 +233,7 @@ Solo admins y gerentes pueden enviar reportes. La sección es de solo lectura pa
 ## 9. Inbox
 
 ### ¿Qué es?
-Centro de mensajes unificado. Conversaciones entrantes de WhatsApp y Telegram con respuesta asistida por IA.
+Centro de mensajes unificado. Conversaciones entrantes de WhatsApp con respuesta asistida por IA.
 
 ### Casos de uso
 - Ver y responder mensajes de leads en tiempo real
@@ -245,7 +245,7 @@ Centro de mensajes unificado. Conversaciones entrantes de WhatsApp y Telegram co
 1. **Abrí el Inbox** — Desde el menú lateral, clic en "Inbox". Verás la lista de conversaciones activas.
 2. **Seleccioná una conversación** — Clic en cualquier conversación para abrir el hilo de mensajes.
 3. **Revisá la sugerencia de IA** — El campo de respuesta muestra una sugerencia generada por Claude. Podés editarla antes de enviar.
-4. **Enviá la respuesta** — Presioná Enter o el botón de envío. El mensaje se entrega por el canal original (WhatsApp o Telegram).
+4. **Enviá la respuesta** — Presioná Enter o el botón de envío. El mensaje se entrega por WhatsApp al lead.
 5. **Gestioná el lead** — Desde el panel derecho podés ver el perfil del lead, cambiar su temperatura y vincular la conversación a un proyecto.
 
 ### Permisos requeridos

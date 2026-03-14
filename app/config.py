@@ -42,10 +42,6 @@ class Settings(BaseSettings):
     chatwoot_api_token: str = ""
     chatwoot_account_id: str = ""
 
-    # Telegram Handoff Bot
-    telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
-
     # S3-compatible storage (Supabase Storage, Cloudflare R2, AWS S3)
     s3_endpoint_url: str = ""
     s3_access_key_id: str = ""

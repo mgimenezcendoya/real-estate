@@ -1,5 +1,5 @@
 """
-Handoff Manager: orchestrates the handoff flow between leads and sales team via Telegram.
+Handoff Manager: orchestrates the handoff flow between leads and the sales team.
 """
 
 import asyncio
@@ -12,10 +12,39 @@ except Exception:
     _BA_TZ = timezone(timedelta(hours=-3))
 
 from app.database import get_pool
-# from app.modules.handoff.telegram import send_handoff_alert, forward_lead_message  # TODO: re-enable per-tenant
 from app.modules.whatsapp.sender import send_text_message
 
 logger = logging.getLogger(__name__)
+
+
+async def _send_to_lead(lead_phone: str, text: str, org_id: str) -> None:
+    """Send a message to a lead using the org's tenant channel (correct provider)."""
+    try:
+        pool = await get_pool()
+        row = await pool.fetchrow(
+            "SELECT * FROM tenant_channels WHERE organization_id = $1 AND activo = true LIMIT 1",
+            org_id,
+        )
+        if row:
+            from app.modules.whatsapp.providers.base import TenantChannel
+            from app.modules.whatsapp.providers.factory import get_provider
+            channel = TenantChannel(
+                id=str(row["id"]),
+                organization_id=str(row["organization_id"]),
+                provider=row["provider"],
+                phone_number=row["phone_number"],
+                phone_number_id=row.get("phone_number_id"),
+                account_sid=row.get("account_sid"),
+                auth_token=row.get("auth_token"),
+                access_token=row.get("access_token"),
+                verify_token=row.get("verify_token"),
+                waba_id=row.get("waba_id"),
+            )
+            await get_provider(channel).send_text(lead_phone, text)
+        else:
+            await send_text_message(lead_phone, text)
+    except Exception as exc:
+        logger.error("_send_to_lead failed for %s: %s", lead_phone, exc)
 
 
 async def _send_hitl_notification(org_id: str, lead_name: str, lead_id: str) -> None:
@@ -100,7 +129,15 @@ async def ensure_handoff_for_human_reply(lead_id: str) -> dict:
     )
     if existing:
         return dict(existing)
-    lead = await pool.fetchrow("SELECT project_id FROM leads WHERE id = $1", lead_id)
+    lead = await pool.fetchrow(
+        """
+        SELECT l.phone, l.project_id, p.organization_id
+        FROM leads l
+        LEFT JOIN projects p ON p.id = l.project_id
+        WHERE l.id = $1
+        """,
+        lead_id,
+    )
     if not lead:
         raise ValueError(f"Lead {lead_id} not found")
     project_id = str(lead["project_id"])
@@ -113,6 +150,12 @@ async def ensure_handoff_for_human_reply(lead_id: str) -> dict:
         lead_id, project_id,
     )
     logger.info("Handoff started from frontend for lead %s", lead_id)
+    if lead.get("phone") and lead.get("organization_id"):
+        await _send_to_lead(
+            lead["phone"],
+            "Un asesor comercial se conectará con vos en breve. ¡Quedá atento!",
+            str(lead["organization_id"]),
+        )
     return dict(handoff)
 
 
@@ -132,7 +175,7 @@ async def initiate_handoff(
     context_summary: str,
     conversation_history: list[dict] | None = None,
 ) -> dict:
-    """Start a handoff: create record, send Telegram alert, message the lead."""
+    """Start a handoff: create record, notify advisor via WhatsApp, message the lead."""
     pool = await get_pool()
 
     # Resolve project_id from lead if not provided
@@ -162,24 +205,6 @@ async def initiate_handoff(
 
     lead = await pool.fetchrow("SELECT phone, name FROM leads WHERE id = $1", lead_id)
     project = await pool.fetchrow("SELECT name FROM projects WHERE id = $1", project_id)
-    score = await pool.fetchval("SELECT score FROM leads WHERE id = $1", lead_id)
-
-    # TODO: re-enable per-tenant when tenant_channels includes telegram_chat_id
-    # await send_handoff_alert(
-    #     handoff_id=str(handoff["id"]),
-    #     lead_name=lead["name"] or "Sin nombre",
-    #     lead_phone=lead["phone"],
-    #     project_name=project["name"] if project else "?",
-    #     score=score or "?",
-    #     context_summary=context_summary,
-    #     conversation_history=conversation_history,
-    # )
-
-    if lead:
-        await send_text_message(
-            lead["phone"],
-            "Te paso con un asesor comercial. Ya le compartí el contexto de nuestra conversación para que no tengas que repetir nada.",
-        )
 
     # Broadcast handoff activation to all connected admins of this org
     project_org = await pool.fetchrow(
@@ -187,6 +212,12 @@ async def initiate_handoff(
     )
     if project_org:
         org_id = str(project_org["organization_id"])
+        if lead:
+            await _send_to_lead(
+                lead["phone"],
+                "Te paso con un asesor comercial. Ya le compartí el contexto de nuestra conversación para que no tengas que repetir nada.",
+                org_id,
+            )
         from app.core.sse import connection_manager
         asyncio.create_task(
             connection_manager.broadcast(
@@ -210,9 +241,7 @@ async def initiate_handoff(
 
 
 async def handle_lead_message_during_handoff(handoff: dict, text: str) -> None:
-    """Forward a lead message to the active handoff thread (Telegram disabled, uses SSE only)."""
-    # TODO: re-enable per-tenant when tenant_channels includes telegram_chat_id
-    # await forward_lead_message(str(handoff["id"]), text)
+    """No-op: messages during handoff are surfaced via SSE only."""
     pass
 
 
@@ -233,20 +262,20 @@ async def close_handoff(handoff_id: str, lead_note: str | None = None, send_good
         lead_note,
     )
 
-    if handoff and send_goodbye:
-        lead = await pool.fetchrow("SELECT phone FROM leads WHERE id = $1", handoff["lead_id"])
-        if lead:
-            await send_text_message(
-                lead["phone"],
-                "Gracias por hablar con nuestro equipo. Si necesitás algo más, seguí escribiéndome.",
-            )
-
     # Broadcast handoff closure to all connected admins of this tenant
     if handoff:
         lead_project = await pool.fetchrow(
             "SELECT organization_id FROM projects WHERE id = $1", handoff["project_id"]
         )
         if lead_project:
+            if send_goodbye:
+                lead = await pool.fetchrow("SELECT phone FROM leads WHERE id = $1", handoff["lead_id"])
+                if lead:
+                    await _send_to_lead(
+                        lead["phone"],
+                        "Gracias por hablar con nuestro equipo. Si necesitás algo más, seguí escribiéndome.",
+                        str(lead_project["organization_id"]),
+                    )
             from app.core.sse import connection_manager
             asyncio.create_task(
                 connection_manager.broadcast(

@@ -91,7 +91,6 @@ export function MessageBubble({ msg, idx, prevMsg, selectedLead }: MessageBubble
   const isLead     = msg.role === 'user';
   const isAI       = msg.role === 'assistant' && (msg.sender_type === 'ai' || msg.sender_type === 'agent');
   const isHuman    = msg.role === 'assistant' && msg.sender_type === 'human';
-  const isTelegram = msg.role === 'assistant' && msg.sender_type === 'telegram';
   const isOutgoing = !isLead;
 
   const sameAsPrev   = !!prevMsg && prevMsg.role === msg.role && prevMsg.sender_type === msg.sender_type;
@@ -101,20 +100,17 @@ export function MessageBubble({ msg, idx, prevMsg, selectedLead }: MessageBubble
   const bubbleBg = isLead     ? '#ffffff'
     : isAI       ? '#eef1ff'   // indigo-50: brand AI
     : isHuman    ? '#f0fdf4'   // green-50: human/handoff
-    : isTelegram ? '#f0f9ff'   // sky-50: telegram
     : '#f8f8f8';
 
   const senderName = isLead
     ? (selectedLead?.name || 'Usuario')
     : isAI       ? 'Realia AI'
     : isHuman    ? 'Soporte (Panel)'
-    : isTelegram ? 'Soporte (Telegram)'
     : 'Sistema';
 
   const senderColor = isLead     ? '#4b5563'
     : isAI       ? '#4338ca'
     : isHuman    ? '#15803d'
-    : isTelegram ? '#0284c7'
     : '#6b7280';
 
   return (
@@ -175,7 +171,7 @@ export function MessageBubble({ msg, idx, prevMsg, selectedLead }: MessageBubble
           >
             {/* Message content */}
             <div className="text-[13.5px] leading-[1.5] text-foreground">
-              {isAI || isHuman || isTelegram
+              {isAI || isHuman
                 ? renderMarkdown(msg.content, isOutgoing)
                 : <span>{msg.content}</span>
               }
