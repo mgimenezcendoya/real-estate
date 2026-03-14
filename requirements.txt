@@ -13,3 +13,4 @@ boto3
 PyJWT
 bcrypt
 sentry-sdk[fastapi]
+resend

@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     nocodb_base_url: str = ""
     nocodb_api_token: str = ""
 
+    # Resend email
+    resend_api_key: str = ""
+    resend_from_email: str = "support@realia.lat"
+    app_url: str = "https://app.realia.lat"
+
     # Admin panel login (web)
     admin_username: str = ""
     admin_password: str = ""
