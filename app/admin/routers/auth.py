@@ -1,5 +1,7 @@
 # app/admin/routers/auth.py
 import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -144,6 +146,14 @@ class PasswordResetBody(BaseModel):
     new_password: str
 
 
+class ForgotPasswordBody(BaseModel):
+    email: str
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    new_password: str
+
+
 @router.get("/users")
 async def list_users(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
     """List all users. Admin/superadmin only."""
@@ -259,3 +269,62 @@ async def reset_user_password(
     if not row:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return {"ok": True, "user_id": str(row["id"])}
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordBody):
+    """Request a password reset link. Always returns 200 to avoid email enumeration."""
+    pool = await get_pool()
+    row = await pool.fetchrow(
+        "SELECT id FROM users WHERE email = $1 AND activo = true",
+        body.email.strip().lower(),
+    )
+    if row:
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+        await pool.execute(
+            """INSERT INTO password_reset_tokens (user_id, token, expires_at)
+               VALUES ($1, $2, $3)""",
+            row["id"], token, expires_at,
+        )
+        from app.config import get_settings
+        from app.services.email_service import send_password_reset_email
+        settings = get_settings()
+        reset_url = f"{settings.app_url}/reset-password?token={token}"
+        try:
+            send_password_reset_email(body.email, reset_url)
+        except Exception:
+            logger.exception("Failed to send password reset email to %s", body.email)
+    return {"ok": True}
+
+
+@router.post("/auth/reset-password")
+async def reset_password_with_token(body: ResetPasswordBody):
+    """Reset password using a valid reset token."""
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
+
+    pool = await get_pool()
+    now = datetime.now(timezone.utc)
+
+    token_row = await pool.fetchrow(
+        """SELECT id, user_id FROM password_reset_tokens
+           WHERE token = $1 AND used_at IS NULL AND expires_at > $2""",
+        body.token, now,
+    )
+    if not token_row:
+        raise HTTPException(status_code=400, detail="El link es inválido o ya expiró")
+
+    new_hash = hash_password(body.new_password)
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "UPDATE users SET password_hash = $1, debe_cambiar_password = false WHERE id = $2",
+                new_hash, token_row["user_id"],
+            )
+            await conn.execute(
+                "UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2",
+                now, token_row["id"],
+            )
+
+    return {"ok": True}
