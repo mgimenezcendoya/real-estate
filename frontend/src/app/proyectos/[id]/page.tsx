@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import dynamic from 'next/dynamic';
 
 const MapView = dynamic(() => import('@/components/MapView'), { ssr: false });
+const MapLocationPicker = dynamic(() => import('@/components/MapLocationPicker'), { ssr: false });
 
 function StatCard({
   label,
@@ -79,6 +80,8 @@ export default function ProjectDashboard() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
 
   useEffect(() => {
     if (role === 'vendedor') {
@@ -379,20 +382,44 @@ export default function ProjectDashboard() {
       )}
 
       {/* 8. Ubicación */}
-      {!loading && project?.lat && project?.lng && (
+      {!loading && (
         <section>
           <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.14em] mb-4 section-divider">
             Ubicación
           </h2>
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden" style={{ height: 300 }}>
-            <MapView
-              lat={project.lat}
-              lng={project.lng}
-              label={project.name}
-              className="rounded-2xl"
-            />
-          </div>
-          <p className="text-xs text-gray-400 mt-2">{project.address}</p>
+          {editingLocation || !project?.lat || !project?.lng ? (
+            <div style={{ height: 400 }}>
+              <MapLocationPicker
+                initialLat={project?.lat ?? undefined}
+                initialLng={project?.lng ?? undefined}
+                saving={savingLocation}
+                onConfirm={async (lat, lng) => {
+                  setSavingLocation(true);
+                  try {
+                    await api.updateProject(id as string, { lat, lng });
+                    setProject((prev) => prev ? { ...prev, lat, lng } : prev);
+                    setEditingLocation(false);
+                  } finally {
+                    setSavingLocation(false);
+                  }
+                }}
+                onCancel={project?.lat && project?.lng ? () => setEditingLocation(false) : undefined}
+              />
+            </div>
+          ) : (
+            <div className="relative" style={{ height: 300 }}>
+              <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden h-full">
+                <MapView lat={project.lat} lng={project.lng} label={project.name} />
+              </div>
+              <button
+                onClick={() => setEditingLocation(true)}
+                className="absolute top-3 right-3 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 shadow-sm transition-colors"
+              >
+                Cambiar ubicación
+              </button>
+              <p className="text-xs text-gray-400 mt-2">{project.address}</p>
+            </div>
+          )}
         </section>
       )}
     </div>

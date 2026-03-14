@@ -19,6 +19,8 @@ from app.modules.handoff.manager import (
 )
 from app.modules.leads.nurturing import process_nurturing_batch
 from app.modules.whatsapp.sender import send_text_message
+from app.modules.whatsapp.providers.factory import get_provider as _get_channel_provider
+from app.modules.whatsapp.providers.base import TenantChannel
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -419,7 +421,19 @@ async def send_lead_message(
 ):
     """Send a message to a lead as a human agent. Activates HITL if not already active."""
     pool = await get_pool()
-    lead = await pool.fetchrow("SELECT id, phone FROM leads WHERE id = $1", lead_id)
+    lead = await pool.fetchrow(
+        """
+        SELECT l.id, l.phone, tc.id as channel_id, tc.provider, tc.phone_number,
+               tc.account_sid, tc.auth_token, tc.access_token, tc.phone_number_id,
+               tc.verify_token, tc.waba_id, tc.organization_id as channel_org_id
+        FROM leads l
+        LEFT JOIN projects p ON p.id = l.project_id
+        LEFT JOIN tenant_channels tc ON tc.organization_id = p.organization_id AND tc.activo = true
+        WHERE l.id = $1
+        LIMIT 1
+        """,
+        lead_id,
+    )
     if not lead:
         raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
 
@@ -447,9 +461,25 @@ async def send_lead_message(
         lead_id,
     )
 
-    # Enviamos via WhatsApp
+    # Enviamos via WhatsApp usando el canal del proyecto del lead
     try:
-        await send_text_message(to=lead["phone"], text=request.content)
+        if lead["channel_id"]:
+            channel = TenantChannel(
+                id=str(lead["channel_id"]),
+                organization_id=str(lead["channel_org_id"]),
+                provider=lead["provider"],
+                phone_number=lead["phone_number"],
+                account_sid=lead.get("account_sid"),
+                auth_token=lead.get("auth_token"),
+                access_token=lead.get("access_token"),
+                phone_number_id=lead.get("phone_number_id"),
+                verify_token=lead.get("verify_token"),
+                waba_id=lead.get("waba_id"),
+            )
+            await _get_channel_provider(channel).send_text(lead["phone"], request.content)
+        else:
+            # Fallback al proveedor global si no hay tenant_channel configurado
+            await send_text_message(to=lead["phone"], text=request.content)
     except Exception as e:
         logger.error(f"Error sending message to {lead['phone']}: {e}")
         raise HTTPException(status_code=502, detail="Failed to dispatch message to WhatsApp provider")
