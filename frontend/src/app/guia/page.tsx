@@ -17,16 +17,19 @@ import {
   ShieldAlert,
   Download,
   Menu,
+  LogIn,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import GuiaStickyNav from './GuiaStickyNav';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import AnnotatedScreenshot from '@/components/AnnotatedScreenshot';
 
 // ─── Section definitions ────────────────────────────────────────────────────────
 
 const SECTIONS = [
+  { id: 'primeros-pasos', label: 'Primeros pasos', icon: LogIn },
   { id: 'proyectos', label: 'Proyectos', icon: Building2 },
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'leads', label: 'Leads', icon: Flame },
@@ -350,6 +353,59 @@ export default function GuiaPage() {
 
           {/* Scrollable content */}
           <div className="flex-1 space-y-5 min-w-0">
+
+            {/* 0 — Primeros pasos */}
+            <GuiaSection
+              id="primeros-pasos"
+              icon={LogIn}
+              category="Inicio"
+              title="Primeros pasos"
+              description="Cómo ingresar a REALIA por primera vez, cambiar tu contraseña y entender los roles de usuario."
+              sectionNumber={1}
+            >
+              <WorkflowList
+                category="Inicio"
+                steps={[
+                  { label: 'Recibí tus credenciales', description: 'El administrador de tu organización te envía el email y contraseña inicial. Guardá este email — es tu usuario permanente en REALIA.' },
+                  { label: 'Ingresá a la plataforma', description: 'Abrí el link de acceso en tu navegador. Verás la pantalla de login. Ingresá tu email y contraseña inicial.' },
+                  { label: 'Cambiá tu contraseña', description: 'Al iniciar sesión por primera vez, REALIA te pedirá que establezcas una contraseña nueva. Este paso es obligatorio antes de continuar.' },
+                  { label: 'Explorá el panel', description: 'Una vez dentro, el menú lateral izquierdo da acceso a todos los módulos según tu rol. En móvil, el menú se abre con el ícono de las tres líneas.' },
+                ]}
+              />
+              <AnnotatedScreenshot
+                src="/guia/login.png"
+                alt="Pantalla de login de REALIA"
+                annotations={[
+                  { x: 50, y: 38, label: 'Campo email', description: 'Ingresá el email que te asignó el administrador' },
+                  { x: 50, y: 54, label: 'Contraseña', description: 'La contraseña inicial es temporaria — la vas a cambiar al entrar' },
+                  { x: 50, y: 68, label: 'Botón ingresar', description: 'Presioná Enter o hacé clic para acceder' },
+                ]}
+              />
+              <TipCard>
+                Si olvidás tu contraseña, contactá al administrador de tu organización. El admin puede resetearte la clave desde el panel de Usuarios.
+              </TipCard>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Roles de usuario
+                </p>
+                <div className="space-y-2">
+                  {(
+                    [
+                      { role: 'Superadmin', color: 'bg-violet-100 text-violet-800', desc: 'Acceso completo a todas las organizaciones. Solo para el equipo REALIA.' },
+                      { role: 'Admin',      color: 'bg-indigo-100 text-indigo-800', desc: 'Gestiona su organización completa: usuarios, proyectos, financiero y configuración.' },
+                      { role: 'Gerente',    color: 'bg-blue-100 text-blue-800',     desc: 'Accede a todos los proyectos, ventas y financiero. No puede crear usuarios.' },
+                      { role: 'Vendedor',   color: 'bg-green-100 text-green-800',   desc: 'Gestiona sus leads y reservas asignadas. Sin acceso al módulo financiero.' },
+                      { role: 'Lector',     color: 'bg-gray-100 text-gray-700',     desc: 'Solo lectura en proyectos y ventas. No puede editar ningún dato.' },
+                    ] as { role: string; color: string; desc: string }[]
+                  ).map(({ role, color, desc }) => (
+                    <div key={role} className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${color}`}>{role}</span>
+                      <p className="text-sm text-gray-600 leading-relaxed">{desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </GuiaSection>
 
             {/* 1 — Proyectos */}
             <GuiaSection
