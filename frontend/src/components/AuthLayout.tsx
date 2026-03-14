@@ -12,7 +12,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const { isAuthenticated, loading, mustChangePassword, setMustChangePassword, logout } = useAuth();
 
-  if (pathname.startsWith('/portal')) {
+  const PUBLIC_PATHS = ['/forgot-password', '/reset-password'];
+
+  if (pathname.startsWith('/portal') || PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
     return <>{children}</>;
   }
 
