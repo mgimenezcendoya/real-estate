@@ -793,6 +793,32 @@ export default function GuiaPage() {
               <TipCard>
                 Las conversaciones con mensajes sin leer aparecen resaltadas. El badge en el menú lateral muestra el total de no leídos.
               </TipCard>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Intervención humana (HITL)
+                </p>
+              </div>
+              <WorkflowList
+                category="Comunicaciones"
+                steps={[
+                  { label: 'El agente activa la intervención', description: 'Cuando el lead necesita atención personalizada, el agente de IA activa el modo HITL. El asesor recibe una notificación por WhatsApp con el link directo a la conversación.' },
+                  { label: 'Hacé clic en el link', description: 'El link te lleva directamente a la conversación en el Inbox. Si no estabas logueado, el sistema te redirige automáticamente a la conversación correcta luego del login.' },
+                  { label: 'Respondé directamente', description: 'En modo HITL, los mensajes que escribís se envían al lead por WhatsApp. La IA no interviene mientras el handoff esté activo.' },
+                  { label: 'Cerrá el handoff', description: 'Cuando terminaste de atender al lead, hacé clic en "Cerrar handoff". La IA retoma el control de la conversación automáticamente.' },
+                ]}
+              />
+              <TipCard>
+                La notificación de WhatsApp llega al número configurado en el canal de tu organización. Si no recibís las notificaciones, contactá al admin para verificar el número en Usuarios → Canal WhatsApp → campo "Teléfono notificaciones".
+              </TipCard>
+              <AnnotatedScreenshot
+                src="/guia/inbox.png"
+                alt="Inbox con conversación activa"
+                annotations={[
+                  { x: 22, y: 50, label: 'Lista de conversaciones', description: 'Los leads con mensajes sin leer aparecen resaltados' },
+                  { x: 68, y: 78, label: 'Campo de respuesta', description: 'La IA sugiere una respuesta; podés editarla antes de enviar' },
+                  { x: 85, y: 22, label: 'Panel del lead', description: 'Info del prospecto: nombre, teléfono, proyecto asignado' },
+                ]}
+              />
             </GuiaSection>
 
             {/* 10 — Tools */}
